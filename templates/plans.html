@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投资计划</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* 统一极简配色 - 与index.html一致 */
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --bg-hover: #1a1a1a;
+            
+            --text-primary: #ffffff;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            
+            --border: rgba(255, 255, 255, 0.15);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            
+            --accent: #6366f1;
+            --essay-color: #10b981;
+            --review-color: #8b5cf6;
+            
+            --todo-color: #8b5cf6;
+            --in-progress-color: #f59e0b;
+            --done-color: #10b981;
+            --cancelled-color: #6b7280;
+            
+            --radius: 4px;
+            --transition: all 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body * {
+            text-rendering: optimizeLegibility;
+        }
+
+        .top-bar {
+            background: rgba(10, 10, 10, 0.6);
+            backdrop-filter: blur(25px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .top-bar h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px var(--accent-glow);
+        }
+
+        .main-content {
+            padding: 2rem 2.5rem;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        /* 筛选栏 */
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: var(--bg-card);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            flex-wrap: wrap;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-item select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            background-color: rgba(17, 17, 17, 0.9);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: var(--transition);
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .filter-item select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .filter-item select option {
+            background: #ffffff;
+            background-color: #ffffff;
+            color: #000000;
+            padding: 0.5rem;
+        }
+
+        /* 看板视图 */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            .board {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .board {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .board-column {
+            background: var(--bg-card);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            min-height: 600px;
+        }
+
+        .column-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .column-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .column-badge {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .column-header.todo .column-title { color: var(--todo-color); }
+        .column-header.in-progress .column-title { color: var(--in-progress-color); }
+        .column-header.done .column-title { color: var(--done-color); }
+        .column-header.cancelled .column-title { color: var(--cancelled-color); }
+
+        /* 计划卡片 */
+        .plan-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .plan-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* 盈利卡片样式 - 明亮色 */
+        .plan-card-profitable {
+            border-left: 4px solid #10b981 !important;
+            background: rgba(16, 185, 129, 0.1) !important;
+        }
+        
+        .plan-card-profitable:hover {
+            background: rgba(16, 185, 129, 0.15) !important;
+            border-color: #10b981 !important;
+        }
+        
+        /* 亏损卡片样式 - 冷色 */
+        .plan-card-loss {
+            border-left: 4px solid #6b7280 !important;
+            background: rgba(107, 114, 128, 0.1) !important;
+        }
+        
+        .plan-card-loss:hover {
+            background: rgba(107, 114, 128, 0.15) !important;
+            border-color: #6b7280 !important;
+        }
+
+        .plan-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+
+        .plan-card-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .plan-card-priority {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 0.5rem;
+        }
+
+        .plan-card-priority.high { background: #ef4444; }
+        .plan-card-priority.medium { background: #f59e0b; }
+        .plan-card-priority.low { background: #10b981; }
+
+        .plan-card-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 0.75rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .plan-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+        }
+
+        .plan-card-tag {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .plan-card-date {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .plan-card-progress {
+            margin-top: 0.75rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-card);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            margin-top: 0.25rem;
+        }
+
+        .empty-column {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-tertiary);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1>📋 投资计划</h1>
+        <div class="top-actions">
+            <a href="{{ url_for('index') }}" class="btn">← 返回</a>
+            <a href="{{ url_for('add_plan') }}" class="btn btn-primary">➕ 新建计划</a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- 筛选栏 -->
+        <div class="filters">
+            <div class="filter-item">
+                <label>状态筛选：</label>
+                <select id="status-filter" onchange="applyFilters()">
+                    <option value="">全部状态</option>
+                    <option value="todo" {{ 'selected' if status_filter == 'todo' else '' }}>待开始</option>
+                    <option value="in_progress" {{ 'selected' if status_filter == 'in_progress' else '' }}>进行中</option>
+                    <option value="done" {{ 'selected' if status_filter == 'done' else '' }}>已完成</option>
+                    <option value="cancelled" {{ 'selected' if status_filter == 'cancelled' else '' }}>已取消</option>
+                </select>
+            </div>
+            {% if categories %}
+            <div class="filter-item">
+                <label>分类筛选：</label>
+                <select id="category-filter" onchange="applyFilters()">
+                    <option value="">全部分类</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {{ 'selected' if category_filter == cat else '' }}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 看板视图 -->
+        <div class="board">
+            <!-- 待开始 -->
+            <div class="board-column">
+                <div class="column-header todo">
+                    <div class="column-title">
+                        <span>⏳ 待开始</span>
+                        <span class="column-badge">{{ plans_by_status.todo|length }}</span>
+                    </div>
+                </div>
+                <div class="plan-list" data-status="todo">
+                    {% if plans_by_status.todo %}
+                        {% for plan in plans_by_status.todo %}
+                        <div class="plan-card" onclick="window.location.href='/plans/edit/{{ plan.id }}'">
+                            <div class="plan-card-header">
+                                <div class="plan-card-title">{{ plan.title }}</div>
+                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                            </div>
+                            {% if plan.description %}
+                            <div class="plan-card-description">{{ plan.description }}</div>
+                            {% endif %}
+                            <div class="plan-card-meta">
+                                {% if plan.category %}
+                                <span class="plan-card-tag">{{ plan.category }}</span>
+                                {% endif %}
+                                {% if plan.target_date %}
+                                <span class="plan-card-date">📅 {{ plan.target_date }}</span>
+                                {% endif %}
+                            </div>
+                            {% if plan.progress > 0 %}
+                            <div class="plan-card-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ plan.progress }}%"></div>
+                                </div>
+                                <div class="progress-text">{{ plan.progress }}%</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-column">暂无计划</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 进行中 -->
+            <div class="board-column">
+                <div class="column-header in-progress">
+                    <div class="column-title">
+                        <span>🚀 进行中</span>
+                        <span class="column-badge">{{ plans_by_status.in_progress|length }}</span>
+                    </div>
+                </div>
+                <div class="plan-list" data-status="in_progress">
+                    {% if plans_by_status.in_progress %}
+                        {% for plan in plans_by_status.in_progress %}
+                        <div class="plan-card" onclick="window.location.href='/plans/edit/{{ plan.id }}'">
+                            <div class="plan-card-header">
+                                <div class="plan-card-title">{{ plan.title }}</div>
+                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                            </div>
+                            {% if plan.description %}
+                            <div class="plan-card-description">{{ plan.description }}</div>
+                            {% endif %}
+                            <div class="plan-card-meta">
+                                {% if plan.category %}
+                                <span class="plan-card-tag">{{ plan.category }}</span>
+                                {% endif %}
+                                {% if plan.target_date %}
+                                <span class="plan-card-date">📅 {{ plan.target_date }}</span>
+                                {% endif %}
+                            </div>
+                            {% if plan.progress > 0 %}
+                            <div class="plan-card-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ plan.progress }}%"></div>
+                                </div>
+                                <div class="progress-text">{{ plan.progress }}%</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-column">暂无计划</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 已完成 -->
+            <div class="board-column">
+                <div class="column-header done">
+                    <div class="column-title">
+                        <span>✅ 已完成</span>
+                        <span class="column-badge">{{ plans_by_status.done|length }}</span>
+                    </div>
+                </div>
+                <div class="plan-list" data-status="done">
+                    {% if plans_by_status.done %}
+                        {% for plan in plans_by_status.done %}
+                        <div class="plan-card {% if plan.is_profitable == 1 %}plan-card-profitable{% elif plan.is_profitable == 0 %}plan-card-loss{% endif %}" 
+                             onclick="window.location.href='/plans/edit/{{ plan.id }}'"
+                             style="{% if plan.is_profitable == 1 %}border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.1);{% elif plan.is_profitable == 0 %}border-left: 4px solid #6b7280; background: rgba(107, 114, 128, 0.1);{% endif %}">
+                            <div class="plan-card-header">
+                                <div class="plan-card-title">{{ plan.title }}</div>
+                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                            </div>
+                            {% if plan.description %}
+                            <div class="plan-card-description">{{ plan.description }}</div>
+                            {% endif %}
+                            <div class="plan-card-meta">
+                                {% if plan.category %}
+                                <span class="plan-card-tag">{{ plan.category }}</span>
+                                {% endif %}
+                                {% if plan.target_date %}
+                                <span class="plan-card-date">📅 {{ plan.target_date }}</span>
+                                {% endif %}
+                                {% if plan.is_profitable == 1 %}
+                                <span class="plan-card-tag" style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981;">💰 盈利</span>
+                                {% elif plan.is_profitable == 0 %}
+                                <span class="plan-card-tag" style="background: rgba(107, 114, 128, 0.2); border-color: #6b7280; color: #6b7280;">📉 亏损</span>
+                                {% endif %}
+                            </div>
+                            {% if plan.progress > 0 %}
+                            <div class="plan-card-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ plan.progress }}%"></div>
+                                </div>
+                                <div class="progress-text">{{ plan.progress }}%</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-column">暂无计划</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 已取消 -->
+            <div class="board-column">
+                <div class="column-header cancelled">
+                    <div class="column-title">
+                        <span>❌ 已取消</span>
+                        <span class="column-badge">{{ plans_by_status.cancelled|length }}</span>
+                    </div>
+                </div>
+                <div class="plan-list" data-status="cancelled">
+                    {% if plans_by_status.cancelled %}
+                        {% for plan in plans_by_status.cancelled %}
+                        <div class="plan-card" onclick="window.location.href='/plans/edit/{{ plan.id }}'">
+                            <div class="plan-card-header">
+                                <div class="plan-card-title">{{ plan.title }}</div>
+                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                            </div>
+                            {% if plan.description %}
+                            <div class="plan-card-description">{{ plan.description }}</div>
+                            {% endif %}
+                            <div class="plan-card-meta">
+                                {% if plan.category %}
+                                <span class="plan-card-tag">{{ plan.category }}</span>
+                                {% endif %}
+                                {% if plan.target_date %}
+                                <span class="plan-card-date">📅 {{ plan.target_date }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-column">暂无计划</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function applyFilters() {
+            const status = document.getElementById('status-filter').value;
+            const category = document.getElementById('category-filter').value;
+            
+            let url = '/plans?';
+            if (status) url += `status=${status}&`;
+            if (category) url += `category=${category}&`;
+            
+            window.location.href = url.slice(0, -1); // 移除最后的&或?
+        }
+    </script>
+</body>
+</html>
+

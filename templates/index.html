@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的复盘</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* 极简配色 */
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --bg-hover: #1a1a1a;
+            
+            --text-primary: #ffffff;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            
+            --border: #333333;
+            --border-hover: #444444;
+            
+            --accent: #6366f1;
+            --essay-color: #10b981;
+            --review-color: #8b5cf6;
+            
+            --radius: 4px;
+            --transition: all 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+            overflow-x: hidden;
+            transition: background-color 1s ease;
+        }
+
+        /* 全局文字阴影增强可读性 - 适用于透明背景 */
+        body * {
+            text-rendering: optimizeLegibility;
+        }
+
+        /* 根据成交量调整body背景色 */
+        body.volume-exhausted {
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%);
+        }
+
+        body.volume-moderate {
+            background: linear-gradient(135deg, #000000 0%, #0a0a0a 50%, #111111 100%);
+        }
+
+        body.volume-abundant {
+            background: linear-gradient(135deg, #2a0f08 0%, #4a1f15 20%, #6a2f20 40%, #8a3f2a 50%, #6a2f20 60%, #4a1f15 80%, #2a0f08 100%);
+        }
+
+        body.volume-flooded {
+            background: linear-gradient(135deg, #3a2810 0%, #5a4020 20%, #7a5830 40%, #9a7040 50%, #7a5830 60%, #5a4020 80%, #3a2810 100%);
+        }
+
+        /* 动态背景层 */
+        .dynamic-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .bg-shape {
+            position: absolute;
+            opacity: 0.2;
+            filter: blur(80px);
+            border-radius: 50%;
+            will-change: transform, opacity;
+            transform-origin: center;
+            mix-blend-mode: screen;
+        }
+
+        body.volume-abundant .bg-shape,
+        body.volume-flooded .bg-shape {
+            opacity: 0.25;
+            filter: blur(100px);
+        }
+
+        /* 成交量相关的色调和亮度 */
+        .dynamic-background.volume-exhausted { /* 枯竭 */
+            background: radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.25) 0%, rgba(99, 102, 241, 0.15) 40%, transparent 70%),
+                        radial-gradient(circle at 70% 70%, rgba(79, 70, 229, 0.2) 0%, transparent 60%);
+        }
+
+        .dynamic-background.volume-moderate { /* 适中 */
+            background: radial-gradient(circle at 50% 50%, rgba(156, 163, 175, 0.15) 0%, rgba(107, 114, 128, 0.08) 50%, transparent 80%);
+        }
+
+        .dynamic-background.volume-abundant { /* 丰沛 - 糖水色调 */
+            background: radial-gradient(circle at 20% 20%, rgba(255, 182, 193, 0.5) 0%, rgba(255, 160, 122, 0.35) 25%, rgba(255, 140, 105, 0.25) 40%, transparent 65%),
+                        radial-gradient(circle at 80% 60%, rgba(251, 146, 60, 0.45) 0%, rgba(249, 115, 22, 0.3) 35%, rgba(255, 107, 53, 0.2) 50%, transparent 70%),
+                        radial-gradient(circle at 50% 80%, rgba(255, 192, 203, 0.4) 0%, rgba(255, 160, 180, 0.25) 30%, transparent 60%),
+                        radial-gradient(circle at 10% 70%, rgba(255, 200, 160, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 90% 30%, rgba(255, 180, 140, 0.35) 0%, transparent 55%);
+        }
+
+        .dynamic-background.volume-flooded { /* 泛滥 */
+            background: radial-gradient(circle at 15% 25%, rgba(255, 215, 0, 0.4) 0%, rgba(251, 191, 36, 0.3) 30%, transparent 60%),
+                        radial-gradient(circle at 85% 40%, rgba(251, 146, 60, 0.35) 0%, rgba(255, 87, 34, 0.25) 40%, transparent 70%),
+                        radial-gradient(circle at 50% 75%, rgba(255, 200, 87, 0.3) 0%, transparent 55%);
+        }
+
+        /* 投资风格对应的形状 */
+        .style-growth { /* 成长 - 圆形、向上 */
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.4), rgba(5, 150, 105, 0.25), transparent 75%);
+            border-radius: 50%;
+        }
+
+        .style-bluechip { /* 蓝筹 - 方形 */
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(99, 102, 241, 0.3), rgba(79, 70, 229, 0.2));
+            border-radius: 20%;
+            transform: rotate(45deg);
+        }
+
+        .style-smallcap { /* 小盘 - 小点、星形 */
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(251, 191, 36, 0.5), rgba(245, 158, 11, 0.35), transparent 65%);
+            border-radius: 50%;
+            box-shadow: 0 0 60px rgba(251, 191, 36, 0.4);
+        }
+
+        .style-largecap { /* 大盘 - 大圆形 */
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.35), rgba(124, 58, 237, 0.25), transparent 75%);
+            border-radius: 50%;
+        }
+
+        /* 丰沛状态下增强形状颜色 */
+        body.volume-abundant .style-growth {
+            background: radial-gradient(circle, rgba(255, 182, 193, 0.5), rgba(255, 160, 122, 0.35), transparent 75%);
+        }
+
+        body.volume-abundant .style-bluechip {
+            background: linear-gradient(135deg, rgba(255, 200, 180, 0.5), rgba(255, 160, 140, 0.4), rgba(255, 140, 120, 0.3));
+        }
+
+        body.volume-abundant .style-smallcap {
+            background: radial-gradient(circle, rgba(255, 192, 140, 0.6), rgba(255, 165, 100, 0.4), transparent 65%);
+            box-shadow: 0 0 80px rgba(255, 180, 120, 0.5);
+        }
+
+        body.volume-abundant .style-largecap {
+            background: radial-gradient(circle, rgba(255, 182, 193, 0.45), rgba(255, 160, 122, 0.3), transparent 75%);
+        }
+
+        /* 投资策略对应的动态效果 */
+        .strategy-emotion { /* 情绪极值 - 脉冲 */
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.15; }
+            50% { transform: scale(1.2); opacity: 0.25; }
+        }
+
+        .strategy-trend { /* 趋势 - 流动 */
+            animation: flow 8s ease-in-out infinite;
+        }
+
+        @keyframes flow {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(100px, -50px) scale(1.1); }
+            66% { transform: translate(-80px, 80px) scale(0.9); }
+            100% { transform: translate(0, 0) scale(1); }
+        }
+
+        .strategy-theme { /* 题材 - 跳跃 */
+            animation: bounce 4s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            25% { transform: translateY(-30px) rotate(5deg); }
+            50% { transform: translateY(0) rotate(0deg); }
+            75% { transform: translateY(-20px) rotate(-5deg); }
+        }
+
+        /* 组合动画 */
+        .strategy-emotion.strategy-trend {
+            animation: pulse-flow 6s ease-in-out infinite;
+        }
+
+        @keyframes pulse-flow {
+            0% { transform: translate(0, 0) scale(1); opacity: 0.15; }
+            50% { transform: translate(80px, -40px) scale(1.15); opacity: 0.25; }
+            100% { transform: translate(0, 0) scale(1); opacity: 0.15; }
+        }
+
+        .strategy-emotion.strategy-theme {
+            animation: pulse-bounce 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse-bounce {
+            0%, 100% { transform: translateY(0) scale(1); opacity: 0.15; }
+            50% { transform: translateY(-40px) scale(1.2); opacity: 0.25; }
+        }
+
+        .strategy-trend.strategy-theme {
+            animation: flow-bounce 5s ease-in-out infinite;
+        }
+
+        @keyframes flow-bounce {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(60px, -30px) rotate(10deg); }
+            66% { transform: translate(-40px, 40px) rotate(-10deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+
+        .strategy-all {
+            animation: complex-motion 7s ease-in-out infinite;
+        }
+
+        @keyframes complex-motion {
+            0% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 0.15; }
+            25% { transform: translate(100px, -50px) scale(1.2) rotate(10deg); opacity: 0.25; }
+            50% { transform: translate(-80px, 80px) scale(0.9) rotate(-10deg); opacity: 0.2; }
+            75% { transform: translate(50px, 30px) scale(1.1) rotate(5deg); opacity: 0.23; }
+            100% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 0.15; }
+        }
+
+        /* 顶部栏 */
+        .top-bar {
+            background: rgba(10, 10, 10, 0.3);
+            backdrop-filter: blur(50px) saturate(180%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .top-bar h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .action-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .btn.is-disabled,
+        .btn:disabled {
+            pointer-events: none;
+            cursor: not-allowed;
+            opacity: 0.48;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn.is-disabled:hover,
+        .btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+            background: inherit;
+        }
+
+        /* 仅有「首页日记区」、无「基础访问」时：只读展示 */
+        .essay-card--readonly .text-toolbar,
+        .essay-card--readonly .essay-actions {
+            display: none;
+        }
+        .essay-card--readonly .essay-content {
+            pointer-events: none;
+            user-select: text;
+        }
+        .review-card--readonly .text-toolbar,
+        .review-card--readonly .review-actions {
+            display: none;
+        }
+        .review-card--readonly .review-field-content {
+            pointer-events: none;
+            user-select: text;
+        }
+
+        /* 菜单下拉 */
+        .menu-dropdown {
+            position: relative;
+        }
+
+        .btn-menu {
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 400;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(40px) saturate(180%);
+            color: var(--text-primary);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-menu:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            right: 0;
+            background: rgba(17, 17, 17, 0.95);
+            backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius);
+            padding: 0.5rem;
+            min-width: 200px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+        }
+
+        .dropdown-menu.active {
+            display: block;
+            animation: fadeInDown 0.2s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .menu-item {
+            display: block;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 0.5rem 0;
+        }
+
+        .menu-danger {
+            color: #ef4444;
+        }
+
+        .menu-danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .btn-ai {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #10b981;
+            color: white;
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 400;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(40px) saturate(180%);
+            color: var(--text-primary);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-primary {
+            background: rgba(99, 102, 241, 0.8);
+            backdrop-filter: blur(10px);
+            border-color: rgba(99, 102, 241, 0.5);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: rgba(99, 102, 241, 0.9);
+            border-color: rgba(99, 102, 241, 0.7);
+        }
+
+        .btn-essay {
+            background: rgba(16, 185, 129, 0.8);
+            backdrop-filter: blur(10px);
+            border-color: rgba(16, 185, 129, 0.5);
+            color: white;
+        }
+
+        .btn-essay:hover {
+            background: rgba(16, 185, 129, 0.9);
+            border-color: rgba(16, 185, 129, 0.7);
+        }
+
+        /* 主内容区 */
+        .main-content {
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* 仪表板统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(17, 17, 17, 0.2);
+            backdrop-filter: blur(50px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .stat-card:hover {
+            background: rgba(17, 17, 17, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .stat-title {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+            opacity: 0.7;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .stat-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            margin-top: 0.5rem;
+        }
+
+        /* 功能模块网格 */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .module-card {
+            background: rgba(17, 17, 17, 0.2);
+            backdrop-filter: blur(50px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            padding: 2rem;
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .module-card:hover {
+            background: rgba(17, 17, 17, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .module-card:hover::before {
+            opacity: 1;
+        }
+
+        .module-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .module-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .module-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .module-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.25rem 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* 今日数据区域 */
+        .today-section {
+            margin-bottom: 3rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .today-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        /* 市场基调卡片 */
+        .market-tone-card {
+            background: rgba(17, 17, 17, 0.2);
+            backdrop-filter: blur(50px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            transition: var(--transition);
+        }
+
+        .market-tone-card:hover {
+            background: rgba(17, 17, 17, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .tone-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .tone-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .tone-edit-btn {
+            padding: 0.375rem 0.75rem;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8125rem;
+            font-weight: 400;
+            transition: var(--transition);
+        }
+
+        .tone-edit-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.12);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        .tone-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .tone-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tone-item.trend-analysis {
+            display: block;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tone-item.trend-analysis:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .trend-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .trend-text {
+            color: var(--text-primary);
+            font-size: 0.9375rem;
+            line-height: 1.7;
+            margin: 0;
+            padding: 0.75rem;
+            background: rgba(17, 17, 17, 0.2) !important;
+            backdrop-filter: blur(50px) saturate(180%) !important;
+            border-radius: var(--radius);
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-left: 2px solid var(--accent);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 确保指数走势文本框样式正确应用 */
+        .index-trend-card .trend-text {
+            background: rgba(17, 17, 17, 0.2) !important;
+            backdrop-filter: blur(50px) saturate(180%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
+        .tone-label {
+            color: var(--text-secondary);
+            font-size: 0.9375rem;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4);
+        }
+
+        .tone-value {
+            color: var(--text-primary);
+            font-weight: 400;
+            font-size: 0.9375rem;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.5);
+            padding: 0.25rem 0.5rem;
+            background: transparent;
+            border: none;
+        }
+
+        .index-trend-card {
+            margin-top: 1.5rem;
+        }
+
+        .trend-value[data-trend*="涨"] {
+            color: #10b981;
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .trend-value[data-trend*="跌"] {
+            color: #ef4444;
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .trend-value[data-trend*="震荡"] {
+            color: #f59e0b;
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 日期分组 - 更精致的设计 */
+        .date-group {
+            margin-bottom: 4rem;
+            animation: slideIn 0.5s ease-out backwards;
+        }
+
+        .date-group:nth-child(1) { animation-delay: 0.1s; }
+        .date-group:nth-child(2) { animation-delay: 0.2s; }
+        .date-group:nth-child(3) { animation-delay: 0.3s; }
+        .date-group:nth-child(4) { animation-delay: 0.4s; }
+        .date-group:nth-child(5) { animation-delay: 0.5s; }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .date-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1rem 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+            background: rgba(17, 17, 17, 0.2);
+            backdrop-filter: blur(50px) saturate(180%);
+            border-radius: var(--radius);
+            margin-top: 1rem;
+        }
+
+        .date-header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), transparent);
+            border-radius: 2px;
+        }
+
+        .date-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .date-badge {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius);
+            font-size: 0.8125rem;
+            font-weight: 400;
+        }
+
+        /* 卡片容器 - Masonry布局 */
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        /* 随笔卡片 */
+        .essay-card {
+            background: rgba(17, 17, 17, 0.2);
+            backdrop-filter: blur(50px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-left: 2px solid var(--essay-color);
+            border-radius: var(--radius);
+            padding: 1rem 1.25rem 1.25rem;
+            transition: var(--transition);
+            cursor: pointer;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .essay-card:hover {
+            background: rgba(17, 17, 17, 0.3);
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        /* 文本工具栏 */
+        .text-toolbar {
+            display: flex;
+            gap: 0.25rem;
+            margin-bottom: 0.75rem;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .text-toolbar button {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(40px) saturate(180%);
+            color: var(--text-secondary);
+            padding: 0.2rem 0.45rem;
+            border-radius: var(--radius);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .text-toolbar button:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.12);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        .text-toolbar button.active {
+            background: rgba(99, 102, 241, 0.7);
+            backdrop-filter: blur(40px) saturate(180%);
+            border-color: rgba(99, 102, 241, 0.4);
+            color: #fff;
+        }
+
+        .text-toolbar .color-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .essay-content,
+        .essay-content-static {
+            min-height: 60px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            transition: var(--transition);
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.9375rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+            position: relative;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.5);
+        }
+
+        .essay-content {
+            cursor: text;
+        }
+
+        .essay-content:hover {
+            color: var(--text-primary);
+        }
+
+        .essay-content.editing {
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        .essay-content:focus {
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        .essay-content:empty::before {
+            content: '点击开始记录你的想法...';
+            color: var(--text-tertiary);
+            font-style: italic;
+        }
+
+        .essay-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+                opacity: 0;
+            transform: translateY(10px);
+            transition: var(--transition);
+            }
+
+        .essay-card:hover .essay-actions {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+        .card-action-btn {
+            padding: 0.25rem 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            border-radius: var(--radius);
+            color: var(--text-secondary);
+            transition: var(--transition);
+            font-size: 0.8125rem;
+        }
+
+        .card-action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        /* 复盘卡片 */
+        .review-card {
+            background: rgba(17, 17, 17, 0.2);
+            backdrop-filter: blur(50px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-left: 2px solid var(--review-color);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+            transition: var(--transition);
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .review-card:hover {
+            background: rgba(17, 17, 17, 0.3);
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .review-title {
+            font-weight: 600;
+            font-size: 1.125rem;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+        }
+
+        .review-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .review-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .review-field {
+            position: relative;
+        }
+
+        .review-field-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .review-field-label::before {
+            content: '';
+            width: 3px;
+            height: 3px;
+            background: var(--review-color);
+            border-radius: 50%;
+            opacity: 0.5;
+        }
+
+        .review-field-content,
+        .review-field-content-static {
+            min-height: 50px;
+            padding: 1rem;
+            border: 1px solid transparent;
+            border-radius: var(--radius);
+            background: rgba(10, 10, 10, 0.2);
+            backdrop-filter: blur(40px) saturate(180%);
+            transition: var(--transition);
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.9375rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.5);
+        }
+
+        .review-field-content {
+            cursor: text;
+        }
+
+        .review-field-content:hover {
+            background: rgba(10, 10, 10, 0.25);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .review-field-content.editing {
+            background: rgba(17, 17, 17, 0.25);
+            border-color: var(--review-color);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        .review-field-content:empty::before {
+            content: '点击编辑...';
+            color: var(--text-tertiary);
+            font-style: italic;
+        }
+
+        /* 快速添加卡片 */
+        .quick-add-card {
+            background: rgba(17, 17, 17, 0.2);
+            backdrop-filter: blur(50px) saturate(180%);
+            border: 1px dashed rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            min-height: 120px;
+            text-decoration: none;
+            color: var(--text-secondary);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .quick-add-card:hover {
+            background: rgba(17, 17, 17, 0.3);
+            border-color: rgba(255, 255, 255, 0.12);
+            border-style: solid;
+            color: var(--text-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .quick-add-card .icon {
+            font-size: 1.5rem;
+            color: var(--text-tertiary);
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 6rem 2rem;
+            color: var(--text-tertiary);
+        }
+
+        .empty-state .icon {
+            font-size: 5rem;
+            margin-bottom: 1.5rem;
+            opacity: 0.5;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .empty-state p {
+            font-size: 1.125rem;
+            margin-bottom: 2rem;
+            color: var(--text-secondary);
+        }
+
+        /* 分页 - 精致设计 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 3rem;
+            padding: 1rem 0;
+        }
+
+        .pagination-info {
+            margin-right: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 400;
+        }
+
+        .pagination a, .pagination span {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            text-decoration: none;
+            color: var(--text-primary);
+            background: transparent;
+            border: 1px solid var(--border);
+            transition: var(--transition);
+            font-weight: 400;
+            min-width: 44px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .pagination a:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+        }
+
+        .pagination .current {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .pagination .disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .cards-container {
+                grid-template-columns: 1fr;
+            }
+
+            .main-content {
+                padding: 2rem 1.5rem;
+            }
+
+            .top-bar {
+                padding: 1rem 1.5rem;
+            }
+
+            .pagination {
+                flex-wrap: wrap;
+                padding: 1rem;
+            }
+
+            .pagination-info {
+            width: 100%;
+                text-align: center;
+                margin-bottom: 0.5rem;
+                margin-right: 0;
+            }
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-glass);
+                border-radius: 4px;
+            border: 2px solid var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--bg-glass-hover);
+        }
+
+        /* 选择文本样式 */
+        ::selection {
+            background: rgba(99, 102, 241, 0.3);
+            color: var(--text-primary);
+        }
+
+        /* 加载动画 */
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+
+        .loading-shimmer {
+            background: linear-gradient(
+                90deg,
+                var(--bg-card) 0%,
+                var(--bg-card-hover) 50%,
+                var(--bg-card) 100%
+            );
+            background-size: 1000px 100%;
+            animation: shimmer 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- 动态背景层 -->
+    <div class="dynamic-background" id="dynamic-background"></div>
+    <div class="top-bar">
+        <h1>📊 投资复盘系统</h1>
+        <div class="top-actions">
+            <!-- 顶部快捷：需 app:access；仅有首页入口(app:index)或只读日记时禁用原生 button，避免误点或控制台改 class 绕过 -->
+            <div class="action-group">
+                {% if can_app_write %}
+                <a href="{{ url_for('add_essay') }}" class="btn btn-essay" title="写随笔">✍️</a>
+                <a href="{{ url_for('add_review') }}" class="btn btn-primary" title="写复盘">📊</a>
+                <button type="button" onclick="openAIAnalysis()" class="btn btn-ai" title="AI分析">🤖</button>
+                {% else %}
+                <button type="button" class="btn btn-essay" disabled title="无「基础访问」权限，无法写随笔">✍️</button>
+                <button type="button" class="btn btn-primary" disabled title="无「基础访问」权限，无法写复盘">📊</button>
+                <button type="button" class="btn btn-ai" disabled title="无「基础访问」权限，无法使用 AI 分析">🤖</button>
+                {% endif %}
+            </div>
+            
+            <!-- 功能模块 -->
+            <div class="menu-dropdown">
+                <button class="btn-menu" onclick="toggleMenu()">📦 功能</button>
+                <div class="dropdown-menu" id="dropdown-menu">
+                    {% if has_perm('calendar:module') %}
+                    <a href="{{ url_for('calendar') }}" class="menu-item">📅 投资日历</a>
+                    {% endif %}
+                    {% if has_perm('plans:module') %}
+                    <a href="{{ url_for('plans') }}" class="menu-item">📋 投资计划</a>
+                    {% endif %}
+                    {% if has_perm('reports:module') %}
+                    <a href="{{ url_for('reports') }}" class="menu-item">📊 深度报告</a>
+                    {% endif %}
+                    {% if has_perm('topics:module') %}
+                    <a href="{{ url_for('topics') }}" class="menu-item">📊 行业分析</a>
+                    {% endif %}
+                    {% if has_perm('concept_stocks:module') %}
+                    <a href="{{ url_for('concept_stocks') }}" class="menu-item">💡 概念股维护</a>
+                    {% endif %}
+                    {% if has_perm('industry_inventory:module') %}
+                    <a href="{{ url_for('industry_inventory') }}" class="menu-item">📈 行业库存分析</a>
+                    {% endif %}
+                    {% if has_perm('momentum_scores:module') %}
+                    <a href="{{ url_for('momentum_scores_page') }}" class="menu-item">📈 动量评分</a>
+                    {% endif %}
+                    {% if has_perm('crawler:dashboard') %}
+                    <a href="{{ url_for('crawler_dashboard') }}" class="menu-item">🕷️ 爬虫数据看板</a>
+                    {% endif %}
+                    {% if has_perm('rbac:admin') %}
+                    <a href="{{ url_for('admin_rbac_page') }}" class="menu-item">🔐 用户与权限</a>
+                    {% endif %}
+                    {% if has_perm('screening_tasks:module') %}
+                    <a href="{{ url_for('screening_tasks') }}" class="menu-item">🔍 筛选任务管理</a>
+                    {% endif %}
+                    {% if has_perm('data_query:module') %}
+                    <a href="{{ url_for('data_query_config') }}" class="menu-item">⚙️ 数据查询配置</a>
+                    <a href="{{ url_for('data_query_builder') }}" class="menu-item">🔍 数据查询构建器</a>
+                    {% endif %}
+                    {% if has_perm('portfolio:module') %}
+                    <a href="{{ url_for('portfolio_analysis') }}" class="menu-item">📦 模拟组合分析</a>
+                    {% endif %}
+                    {% if has_perm('market_sentiment:module') %}
+                    <a href="{{ url_for('market_sentiment') }}" class="menu-item">📉 每日市场情绪</a>
+                    {% endif %}
+                    {% if can_app_write %}
+                    <div class="menu-divider"></div>
+                    <a href="{{ url_for('export_excel') }}" class="menu-item">📥 导出数据</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}" class="menu-item menu-danger">🚪 退出登录</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- 统计数据卡片 -->
+        <div class="stats-grid">
+            {% if show_diary_zone %}
+            <div class="stat-card" onclick="window.location.href='{{ url_for('index') }}'">
+                <div class="stat-header">
+                    <div class="stat-title">随笔记录</div>
+                    <div class="stat-icon">✍️</div>
+                </div>
+                <div class="stat-value">{{ stats.total_essays }}</div>
+                <div class="stat-subtitle">今日 {{ stats.today_essays }} 篇</div>
+            </div>
+            <div class="stat-card" onclick="window.location.href='{{ url_for('index') }}'">
+                <div class="stat-header">
+                    <div class="stat-title">复盘记录</div>
+                    <div class="stat-icon">📊</div>
+                </div>
+                <div class="stat-value">{{ stats.total_reviews }}</div>
+                <div class="stat-subtitle">累计复盘</div>
+            </div>
+            {% endif %}
+            {% if has_perm('plans:module') %}
+            <div class="stat-card" onclick="window.location.href='{{ url_for('plans') }}'">
+                <div class="stat-header">
+                    <div class="stat-title">投资计划</div>
+                    <div class="stat-icon">📋</div>
+                </div>
+                <div class="stat-value">{{ stats.total_plans }}</div>
+                <div class="stat-subtitle">{{ stats.active_plans }} 个进行中</div>
+            </div>
+            {% endif %}
+            {% if has_perm('reports:module') %}
+            <div class="stat-card" onclick="window.location.href='{{ url_for('reports') }}'">
+                <div class="stat-header">
+                    <div class="stat-title">深度报告</div>
+                    <div class="stat-icon">📊</div>
+                </div>
+                <div class="stat-value">{{ stats.total_reports }}</div>
+                <div class="stat-subtitle">专业分析</div>
+            </div>
+            {% endif %}
+            {% if has_perm('topics:module') %}
+            <div class="stat-card" onclick="window.location.href='{{ url_for('topics') }}'">
+                <div class="stat-header">
+                    <div class="stat-title">行业分析</div>
+                    <div class="stat-icon">📊</div>
+                </div>
+                <div class="stat-value">{{ stats.total_topics }}</div>
+                <div class="stat-subtitle">思维导图</div>
+            </div>
+            {% endif %}
+            {% if has_perm('calendar:module') %}
+            <div class="stat-card" onclick="window.location.href='{{ url_for('calendar') }}'">
+                <div class="stat-header">
+                    <div class="stat-title">近期事件</div>
+                    <div class="stat-icon">📅</div>
+                </div>
+                <div class="stat-value">{{ stats.upcoming_events }}</div>
+                <div class="stat-subtitle">未来7天</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 功能模块卡片（与各模块路由 RBAC 一致） -->
+        {% if has_perm('calendar:module') or has_perm('plans:module') or has_perm('reports:module') or has_perm('topics:module') or has_perm('concept_stocks:module') or has_perm('crawler:dashboard') or has_perm('market_sentiment:module') %}
+        <div class="section-title">🚀 功能模块</div>
+        <div class="modules-grid">
+            {% if has_perm('calendar:module') %}
+            <div class="module-card" onclick="window.location.href='{{ url_for('calendar') }}'">
+                <div class="module-badge">日程</div>
+                <div class="module-icon">📅</div>
+                <div class="module-title">投资日历</div>
+                <div class="module-description">管理投资事件和重要日期，设置提醒，跟踪投资计划的时间节点</div>
+            </div>
+            {% endif %}
+            {% if has_perm('plans:module') %}
+            <div class="module-card" onclick="window.location.href='{{ url_for('plans') }}'">
+                <div class="module-badge">管理</div>
+                <div class="module-icon">📋</div>
+                <div class="module-title">投资计划</div>
+                <div class="module-description">系统化管理投资目标，跟踪进度和盈利状况，看板视图清晰直观</div>
+            </div>
+            {% endif %}
+            {% if has_perm('reports:module') %}
+            <div class="module-card" onclick="window.location.href='{{ url_for('reports') }}'">
+                <div class="module-badge">分析</div>
+                <div class="module-icon">📊</div>
+                <div class="module-title">深度报告</div>
+                <div class="module-description">撰写和整理深度分析报告，支持富文本编辑，记录投资思考</div>
+            </div>
+            {% endif %}
+            {% if has_perm('topics:module') %}
+            <div class="module-card" onclick="window.location.href='{{ url_for('topics') }}'">
+                <div class="module-badge">思维</div>
+                <div class="module-icon">📊</div>
+                <div class="module-title">行业分析</div>
+                <div class="module-description">创建行业和公司卡片，用连线维护上下游关系，分析行业产业链</div>
+            </div>
+            {% endif %}
+            {% if has_perm('concept_stocks:module') %}
+            <div class="module-card" onclick="window.location.href='{{ url_for('concept_stocks') }}'">
+                <div class="module-badge">维护</div>
+                <div class="module-icon">💡</div>
+                <div class="module-title">概念股维护</div>
+                <div class="module-description">维护概念股组合，支持图片识别和手动输入，用于多维度报表生成</div>
+            </div>
+            {% endif %}
+            {% if has_perm('crawler:dashboard') %}
+            <div class="module-card" onclick="window.location.href='{{ url_for('crawler_dashboard') }}'">
+                <div class="module-badge">消息</div>
+                <div class="module-icon">☺️</div>
+                <div class="module-title">7×24小时消息</div>
+                <div class="module-description">从主流媒体抓取消息，汇总</div>
+            </div>
+            {% endif %}
+            {% if has_perm('market_sentiment:module') %}
+            <div class="module-card" onclick="window.location.href='{{ url_for('market_sentiment') }}'" style="position:relative;">
+                <div class="module-badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">风控</div>
+                <div style="display:flex;align-items:center;gap:14px;">
+                    <div style="flex:1;">
+                        <div class="module-icon">📉</div>
+                        <div class="module-title">每日市场情绪</div>
+                        {% if sentiment_snapshot %}
+                        <div style="font-size:28px;font-weight:800;margin:4px 0;
+                            {% if sentiment_snapshot.score >= 80 %}color:#34d399;
+                            {% elif sentiment_snapshot.score >= 60 %}color:#fbbf24;
+                            {% else %}color:#f87171;{% endif %}">
+                            {{ sentiment_snapshot.score }}
+                            <span style="font-size:12px;font-weight:400;color:#6b7280;">/ 100</span>
+                        </div>
+                        <div style="font-size:11px;color:#6b7280;">{{ sentiment_snapshot.day }}</div>
+                        {% else %}
+                        <div class="module-description">8维量化风控引擎，实时诊断市场健康度</div>
+                        {% endif %}
+                    </div>
+                    {% if sentiment_snapshot %}
+                    <div style="width:110px;height:110px;flex-shrink:0;">
+                        <canvas id="idxRadarMini" width="110" height="110"></canvas>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% if has_perm('market_sentiment:module') and sentiment_snapshot %}
+        <script>
+        (function(){
+            var maxP=[50,30,20,45,55,40,30,20];
+            var pen={{ sentiment_snapshot.penalties|tojson }};
+            var h=pen.map(function(p,i){return Math.max(0,Math.min(100,100-(p/maxP[i])*100));});
+            var c=document.getElementById('idxRadarMini');
+            if(!c||typeof Chart==='undefined')return;
+            new Chart(c,{type:'radar',data:{
+                labels:['M1','M2','M3','M4','M5','M6','M7','M8'],
+                datasets:[{data:h,backgroundColor:'rgba(99,102,241,0.2)',borderColor:'rgba(129,140,248,0.8)',borderWidth:1.5,
+                    pointBackgroundColor:h.map(function(v){return v>=80?'#34d399':v>=50?'#fbbf24':'#f87171';}),pointRadius:2.5}]
+            },options:{responsive:true,maintainAspectRatio:true,animation:{duration:0},
+                plugins:{legend:{display:false}},
+                scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:'rgba(255,255,255,0.06)'},
+                    angleLines:{color:'rgba(255,255,255,0.08)'},pointLabels:{color:'#6b7280',font:{size:8}}}}}});
+        })();
+        </script>
+        {% endif %}
+
+        {% if show_diary_zone %}
+        <!-- 今日市场数据 -->
+        <div class="today-section">
+            <div class="section-title">📈 今日市场数据</div>
+            <div class="today-grid">
+                <!-- 市场基调卡片 -->
+                {% if current_tone %}
+                <div class="market-tone-card">
+            <div class="tone-header">
+                <div class="tone-title">
+                    <span>📊 今日市场基调</span>
+                    {% if can_app_write %}
+                    <a href="{{ url_for('set_market_tone', date=current_tone.date) }}" class="tone-edit-btn">✏️ 修改</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="tone-content">
+                <div class="tone-item">
+                    <span class="tone-label">成交量：</span>
+                    <span class="tone-value">{{ current_tone.volume_status }}</span>
+                </div>
+                <div class="tone-item">
+                    <span class="tone-label">情绪：</span>
+                    <span class="tone-value">{{ current_tone.emotion_status }}</span>
+                </div>
+                <div class="tone-item">
+                    <span class="tone-label">分化：</span>
+                    <span class="tone-value">{{ current_tone.divergence_status }}</span>
+                </div>
+                {% if current_tone.investment_strategies %}
+                <div class="tone-item">
+                    <span class="tone-label">策略：</span>
+                    <span class="tone-value">{{ current_tone.investment_strategies.replace(',', '、') }}</span>
+                </div>
+                {% endif %}
+                {% if current_tone.investment_styles %}
+                <div class="tone-item">
+                    <span class="tone-label">风格：</span>
+                    <span class="tone-value">{{ current_tone.investment_styles.replace(',', '、') }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 指数走势卡片 -->
+        {% if current_trend %}
+        <div class="market-tone-card index-trend-card">
+            <div class="tone-header">
+                <div class="tone-title">
+                    <span>📈 今日指数走势</span>
+                    {% if can_app_write %}
+                    <a href="{{ url_for('set_index_trend', date=current_trend.date) }}" class="tone-edit-btn">✏️ 修改</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="tone-content">
+                <div class="tone-item trend-analysis">
+                    <div class="trend-section">
+                        <span class="tone-label">📊 上证指数</span>
+                        <p class="trend-text">{{ current_trend.shanghai_trend }}</p>
+                    </div>
+                </div>
+                <div class="tone-item trend-analysis">
+                    <div class="trend-section">
+                        <span class="tone-label">📈 深证成指</span>
+                        <p class="trend-text">{{ current_trend.shenzhen_trend }}</p>
+                    </div>
+                </div>
+                <div class="tone-item trend-analysis">
+                    <div class="trend-section">
+                        <span class="tone-label">🚀 创业板指</span>
+                        <p class="trend-text">{{ current_trend.chinext_trend }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+            </div>
+        </div>
+
+        <!-- 最近记录 -->
+        {% if sorted_dates %}
+        <div class="section-title">📝 最近记录</div>
+            {% for date in sorted_dates %}
+            <div class="date-group" data-date="{{ date }}">
+                <div class="date-header">
+                    <div class="date-title">{{ date }}</div>
+                    <div class="date-badge">
+                        {% if date_groups[date].essays %}
+                            {{ date_groups[date].essays|length }} 篇随笔
+                        {% endif %}
+                        {% if date_groups[date].review %}
+                            · 1 篇复盘
+                        {% endif %}
+                    </div>
+        </div>
+
+                <div class="cards-container">
+                    <!-- 随笔卡片 -->
+                    {% if date_groups[date].essays %}
+                        {% for essay in date_groups[date].essays %}
+                        <div class="essay-card{% if not can_app_write %} essay-card--readonly{% endif %}" data-id="{{ essay.id }}" data-type="essay">
+                            {% if can_app_write %}
+                            <div class="text-toolbar" data-target-id="essay-{{ essay.id }}">
+                                <button type="button" data-cmd="bold">B</button>
+                                <button type="button" data-cmd="italic">I</button>
+                                <button type="button" data-cmd="underline">U</button>
+                                <button type="button" data-cmd="insertUnorderedList">•</button>
+                                <button type="button" data-cmd="foreColor" data-color="#ffffff"><span class="color-dot" style="background:#ffffff;"></span></button>
+                                <button type="button" data-cmd="foreColor" data-color="#fbbf24"><span class="color-dot" style="background:#fbbf24;"></span></button>
+                                <button type="button" data-cmd="undo">↺</button>
+                                <button type="button" data-cmd="redo">↻</button>
+                            </div>
+                            <div class="essay-content" id="essay-{{ essay.id }}" contenteditable="true" data-id="{{ essay.id }}">
+                                {{ essay.content or '' }}
+                            </div>
+                            <div class="essay-actions">
+                                <button class="card-action-btn delete-btn" data-id="{{ essay.id }}" data-type="essay">🗑️ 删除</button>
+                            </div>
+                            {% else %}
+                            <div class="essay-content-static" id="essay-{{ essay.id }}" data-id="{{ essay.id }}">{{ essay.content or '' }}</div>
+                            {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- 复盘卡片 -->
+                    {% if date_groups[date].review %}
+                        {% set review = date_groups[date].review %}
+                        <div class="review-card{% if not can_app_write %} review-card--readonly{% endif %}" data-id="{{ review.id }}" data-type="review">
+                            <div class="review-header">
+                                <div class="review-title">📊 复盘记录</div>
+                                {% if can_app_write %}
+                                <div class="review-actions">
+                                    <a href="{{ url_for('add_review', id=review.id) }}" class="card-action-btn">✏️ 编辑</a>
+                                    <button class="card-action-btn delete-btn" data-id="{{ review.id }}" data-type="review">🗑️ 删除</button>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="review-fields">
+                                <div class="review-field">
+                                    {% if can_app_write %}
+                                    <div class="text-toolbar" data-target-id="review-{{ review.id }}-emotion">
+                                        <button type="button" data-cmd="bold">B</button>
+                                        <button type="button" data-cmd="italic">I</button>
+                                        <button type="button" data-cmd="underline">U</button>
+                                        <button type="button" data-cmd="insertUnorderedList">•</button>
+                                        <button type="button" data-cmd="foreColor" data-color="#ffffff"><span class="color-dot" style="background:#ffffff;"></span></button>
+                                        <button type="button" data-cmd="foreColor" data-color="#fbbf24"><span class="color-dot" style="background:#fbbf24;"></span></button>
+                                        <button type="button" data-cmd="undo">↺</button>
+                                        <button type="button" data-cmd="redo">↻</button>
+                                    </div>
+                                    {% endif %}
+                                    <div class="review-field-label">市场情绪</div>
+                                    {% if can_app_write %}
+                                    <div class="review-field-content" id="review-{{ review.id }}-emotion" contenteditable="true" data-id="{{ review.id }}" data-field="market_emotion">{{ review.market_emotion or '' }}</div>
+                                    {% else %}
+                                    <div class="review-field-content-static" id="review-{{ review.id }}-emotion">{{ review.market_emotion or '' }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="review-field">
+                                    {% if can_app_write %}
+                                    <div class="text-toolbar" data-target-id="review-{{ review.id }}-sectors">
+                                        <button type="button" data-cmd="bold">B</button>
+                                        <button type="button" data-cmd="italic">I</button>
+                                        <button type="button" data-cmd="underline">U</button>
+                                        <button type="button" data-cmd="insertUnorderedList">•</button>
+                                        <button type="button" data-cmd="foreColor" data-color="#ffffff"><span class="color-dot" style="background:#ffffff;"></span></button>
+                                        <button type="button" data-cmd="foreColor" data-color="#f97316"><span class="color-dot" style="background:#f97316;"></span></button>
+                                        <button type="button" data-cmd="undo">↺</button>
+                                        <button type="button" data-cmd="redo">↻</button>
+                                    </div>
+                                    {% endif %}
+                                    <div class="review-field-label">板块</div>
+                                    {% if can_app_write %}
+                                    <div class="review-field-content" id="review-{{ review.id }}-sectors" contenteditable="true" data-id="{{ review.id }}" data-field="sectors">{{ review.sectors or '' }}</div>
+                                    {% else %}
+                                    <div class="review-field-content-static" id="review-{{ review.id }}-sectors">{{ review.sectors or '' }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="review-field">
+                                    {% if can_app_write %}
+                                    <div class="text-toolbar" data-target-id="review-{{ review.id }}-themes">
+                                        <button type="button" data-cmd="bold">B</button>
+                                        <button type="button" data-cmd="italic">I</button>
+                                        <button type="button" data-cmd="underline">U</button>
+                                        <button type="button" data-cmd="insertUnorderedList">•</button>
+                                        <button type="button" data-cmd="foreColor" data-color="#ffffff"><span class="color-dot" style="background:#ffffff;"></span></button>
+                                        <button type="button" data-cmd="foreColor" data-color="#22c55e"><span class="color-dot" style="background:#22c55e;"></span></button>
+                                        <button type="button" data-cmd="undo">↺</button>
+                                        <button type="button" data-cmd="redo">↻</button>
+                                    </div>
+                                    {% endif %}
+                                    <div class="review-field-label">题材</div>
+                                    {% if can_app_write %}
+                                    <div class="review-field-content" id="review-{{ review.id }}-themes" contenteditable="true" data-id="{{ review.id }}" data-field="themes">{{ review.themes or '' }}</div>
+                                    {% else %}
+                                    <div class="review-field-content-static" id="review-{{ review.id }}-themes">{{ review.themes or '' }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="review-field">
+                                    {% if can_app_write %}
+                                    <div class="text-toolbar" data-target-id="review-{{ review.id }}-cap">
+                                        <button type="button" data-cmd="bold">B</button>
+                                        <button type="button" data-cmd="italic">I</button>
+                                        <button type="button" data-cmd="underline">U</button>
+                                        <button type="button" data-cmd="insertUnorderedList">•</button>
+                                        <button type="button" data-cmd="foreColor" data-color="#ffffff"><span class="color-dot" style="background:#ffffff;"></span></button>
+                                        <button type="button" data-cmd="foreColor" data-color="#38bdf8"><span class="color-dot" style="background:#38bdf8;"></span></button>
+                                        <button type="button" data-cmd="undo">↺</button>
+                                        <button type="button" data-cmd="redo">↻</button>
+                                    </div>
+                                    {% endif %}
+                                    <div class="review-field-label">市值表现</div>
+                                    {% if can_app_write %}
+                                    <div class="review-field-content" id="review-{{ review.id }}-cap" contenteditable="true" data-id="{{ review.id }}" data-field="market_cap_performance">{{ review.market_cap_performance or '' }}</div>
+                                    {% else %}
+                                    <div class="review-field-content-static" id="review-{{ review.id }}-cap">{{ review.market_cap_performance or '' }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="review-field">
+                                    {% if can_app_write %}
+                                    <div class="text-toolbar" data-target-id="review-{{ review.id }}-style">
+                                        <button type="button" data-cmd="bold">B</button>
+                                        <button type="button" data-cmd="italic">I</button>
+                                        <button type="button" data-cmd="underline">U</button>
+                                        <button type="button" data-cmd="insertUnorderedList">•</button>
+                                        <button type="button" data-cmd="foreColor" data-color="#ffffff"><span class="color-dot" style="background:#ffffff;"></span></button>
+                                        <button type="button" data-cmd="foreColor" data-color="#a855f7"><span class="color-dot" style="background:#a855f7;"></span></button>
+                                        <button type="button" data-cmd="undo">↺</button>
+                                        <button type="button" data-cmd="redo">↻</button>
+                                    </div>
+                                    {% endif %}
+                                    <div class="review-field-label">投资方式</div>
+                                    {% if can_app_write %}
+                                    <div class="review-field-content" id="review-{{ review.id }}-style" contenteditable="true" data-id="{{ review.id }}" data-field="investment_style">{{ review.investment_style or '' }}</div>
+                                    {% else %}
+                                    <div class="review-field-content-static" id="review-{{ review.id }}-style">{{ review.investment_style or '' }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="review-field">
+                                    {% if can_app_write %}
+                                    <div class="text-toolbar" data-target-id="review-{{ review.id }}-events">
+                                        <button type="button" data-cmd="bold">B</button>
+                                        <button type="button" data-cmd="italic">I</button>
+                                        <button type="button" data-cmd="underline">U</button>
+                                        <button type="button" data-cmd="insertUnorderedList">•</button>
+                                        <button type="button" data-cmd="foreColor" data-color="#ffffff"><span class="color-dot" style="background:#ffffff;"></span></button>
+                                        <button type="button" data-cmd="foreColor" data-color="#f97316"><span class="color-dot" style="background:#f97316;"></span></button>
+                                        <button type="button" data-cmd="undo">↺</button>
+                                        <button type="button" data-cmd="redo">↻</button>
+                                    </div>
+                                    {% endif %}
+                                    <div class="review-field-label">大事</div>
+                                    {% if can_app_write %}
+                                    <div class="review-field-content" id="review-{{ review.id }}-events" contenteditable="true" data-id="{{ review.id }}" data-field="major_events">{{ review.major_events or '' }}</div>
+                                    {% else %}
+                                    <div class="review-field-content-static" id="review-{{ review.id }}-events">{{ review.major_events or '' }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- 快速添加 -->
+                    {% if can_app_write %}
+                    <a href="{{ url_for('add_essay') }}?date={{ date }}" class="quick-add-card">
+                        <div class="icon">➕</div>
+                        <div>添加随笔</div>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <div class="icon">📝</div>
+                <p>还没有记录，开始你的复盘之旅吧</p>
+                <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
+                    {% if can_app_write %}
+                    <a href="{{ url_for('add_essay') }}" class="btn btn-essay">✍️ 写随笔</a>
+                    <a href="{{ url_for('add_review') }}" class="btn btn-primary">📊 写复盘</a>
+                    {% else %}
+                    <span class="btn btn-essay is-disabled" title="无「基础访问」权限">✍️ 写随笔</span>
+                    <span class="btn btn-primary is-disabled" title="无「基础访问」权限">📊 写复盘</span>
+                    {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 分页控件 -->
+        {% if total_dates and total_dates > 0 %}
+        <div class="pagination">
+            <div class="pagination-info">
+                共 {{ total_dates }} 个日期{% if total_pages > 1 %} · 第 {{ page }} / {{ total_pages }} 页{% endif %}
+            </div>
+            
+            {% if total_pages > 1 %}
+            {% if page > 1 %}
+            <a href="{{ url_for('index', page=page-1, date=date_filter if date_filter else '') }}">← 上一页</a>
+            {% else %}
+            <span class="disabled">← 上一页</span>
+            {% endif %}
+
+            {% if total_pages <= 7 %}
+            {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+                    <span class="current">{{ p }}</span>
+            {% else %}
+                    <a href="{{ url_for('index', page=p, date=date_filter if date_filter else '') }}">{{ p }}</a>
+            {% endif %}
+            {% endfor %}
+            {% else %}
+                {% if page <= 3 %}
+                    {% for p in range(1, 4) %}
+                        {% if p == page %}
+                        <span class="current">{{ p }}</span>
+                        {% else %}
+                        <a href="{{ url_for('index', page=p, date=date_filter if date_filter else '') }}">{{ p }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    <span>...</span>
+                    <a href="{{ url_for('index', page=total_pages, date=date_filter if date_filter else '') }}">{{ total_pages }}</a>
+                {% elif page >= total_pages - 2 %}
+                    <a href="{{ url_for('index', page=1, date=date_filter if date_filter else '') }}">1</a>
+                    <span>...</span>
+                    {% for p in range(total_pages - 2, total_pages + 1) %}
+                        {% if p == page %}
+                        <span class="current">{{ p }}</span>
+                        {% else %}
+                        <a href="{{ url_for('index', page=p, date=date_filter if date_filter else '') }}">{{ p }}</a>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <a href="{{ url_for('index', page=1, date=date_filter if date_filter else '') }}">1</a>
+                    <span>...</span>
+                    {% for p in range(page - 1, page + 2) %}
+                        {% if p == page %}
+                        <span class="current">{{ p }}</span>
+                        {% else %}
+                        <a href="{{ url_for('index', page=p, date=date_filter if date_filter else '') }}">{{ p }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    <span>...</span>
+                    <a href="{{ url_for('index', page=total_pages, date=date_filter if date_filter else '') }}">{{ total_pages }}</a>
+                {% endif %}
+            {% endif %}
+
+            {% if page < total_pages %}
+            <a href="{{ url_for('index', page=page+1, date=date_filter if date_filter else '') }}">下一页 →</a>
+            {% else %}
+            <span class="disabled">下一页 →</span>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- 传递市场基调数据给JavaScript（无日记区权限时用默认，避免脚本报错） -->
+    <script>
+        window.marketToneData = {
+            volume_status: {{ (current_tone.volume_status if current_tone else '适中')|tojson }},
+            investment_styles: {{ (current_tone.investment_styles if current_tone and current_tone.investment_styles else '')|tojson }},
+            investment_strategies: {{ (current_tone.investment_strategies if current_tone and current_tone.investment_strategies else '')|tojson }}
+        };
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        // 下拉菜单切换
+        function toggleMenu() {
+            const menu = document.getElementById('dropdown-menu');
+            menu.classList.toggle('active');
+        }
+
+        // 点击外部关闭菜单
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('dropdown-menu');
+            const btn = document.querySelector('.btn-menu');
+            if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+                menu.classList.remove('active');
+            }
+        });
+        // 删除功能
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = this.dataset.id;
+                const type = this.dataset.type;
+                if (confirm('确定要删除吗？')) {
+                    if (type === 'essay') {
+                        window.location.href = `/delete_essay/${id}`;
+                            } else {
+                        window.location.href = `/delete_review/${id}`;
+                    }
+                }
+            });
+        });
+
+        // 随笔内联编辑
+        document.querySelectorAll('.essay-content[contenteditable="true"]').forEach(field => {
+            let saveTimeout;
+            let originalContent = field.textContent.trim();
+            
+            field.addEventListener('blur', function() {
+                const id = this.dataset.id;
+                const content = this.textContent.trim();
+                
+                if (content !== originalContent) {
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(() => {
+                        const formData = new FormData();
+                        formData.append('id', id);
+                        formData.append('content', content);
+                        
+                        fetch('/save_essay', {
+                            method: 'POST',
+                            body: formData
+                        }).then(response => response.json())
+                          .then(data => {
+                              if (data.success) {
+                                  showNotification('💾 已保存', 'success');
+                                  originalContent = content;
+                              }
+                          });
+                    }, 1000);
+                }
+            });
+
+            field.addEventListener('focus', function() {
+                this.classList.add('editing');
+            });
+
+            field.addEventListener('blur', function() {
+                this.classList.remove('editing');
+            });
+        });
+
+        // 复盘字段内联编辑
+        document.querySelectorAll('.review-field-content[contenteditable="true"]').forEach(field => {
+            let saveTimeout;
+            let originalContent = field.textContent.trim();
+            
+            field.addEventListener('blur', function() {
+                const id = this.dataset.id;
+                const fieldName = this.dataset.field;
+                const value = this.textContent.trim();
+                
+                if (value !== originalContent) {
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(() => {
+                    const formData = new FormData();
+                        formData.append('id', id);
+                        formData.append('field', fieldName);
+                        formData.append('value', value);
+                        
+                        fetch('/save_review_field', {
+                            method: 'POST',
+                            body: formData
+                        }).then(response => response.json())
+                          .then(data => {
+                              if (data.success) {
+                                  showNotification('💾 已保存', 'success');
+                                  originalContent = value;
+                              }
+                          });
+                    }, 1000);
+                }
+            });
+
+            field.addEventListener('focus', function() {
+                this.classList.add('editing');
+            });
+
+            field.addEventListener('blur', function() {
+                this.classList.remove('editing');
+            });
+        });
+
+        // 通知函数 - 更精致
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            const colors = {
+                success: { bg: '#10b981', glow: 'rgba(16, 185, 129, 0.3)' },
+                error: { bg: '#ef4444', glow: 'rgba(239, 68, 68, 0.3)' }
+            };
+            const color = colors[type] || colors.success;
+            
+            notification.style.cssText = `
+                position: fixed;
+                top: 24px;
+                right: 24px;
+                padding: 1rem 1.5rem;
+                background: ${color.bg};
+                color: white;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px ${color.glow};
+                z-index: 10000;
+                animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                backdrop-filter: blur(20px);
+                font-weight: 500;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.style.animation = 'slideOutRight 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 2000);
+        }
+
+        // 添加动画样式
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInRight {
+                from { 
+                    transform: translateX(120%); 
+                    opacity: 0; 
+                }
+                to { 
+                    transform: translateX(0); 
+                    opacity: 1; 
+                }
+            }
+            @keyframes slideOutRight {
+                from { 
+                    transform: translateX(0); 
+                    opacity: 1; 
+                }
+                to { 
+                    transform: translateX(120%); 
+                    opacity: 0; 
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // 页面加载动画
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.style.opacity = '0';
+            setTimeout(() => {
+                document.body.style.transition = 'opacity 0.5s ease';
+                document.body.style.opacity = '1';
+            }, 100);
+        });
+
+        {% if can_app_write %}
+        // 键盘快捷键（与写随笔/复盘入口一致）
+        document.addEventListener('keydown', function(e) {
+            // Cmd/Ctrl + K 快速添加随笔
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                window.location.href = '{{ url_for("add_essay") }}';
+            }
+            // Cmd/Ctrl + N 快速添加复盘
+            if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+                e.preventDefault();
+                window.location.href = '{{ url_for("add_review") }}';
+            }
+        });
+
+        // AI 分析功能
+        function openAIAnalysis() {
+            const modal = document.getElementById('ai-analysis-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                loadAvailableDates();
+            }
+        }
+
+        function closeAIAnalysis() {
+            const modal = document.getElementById('ai-analysis-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        function loadAvailableDates() {
+            // 从页面中获取所有日期
+            const dateGroups = document.querySelectorAll('.date-group');
+            const dateCheckboxes = document.getElementById('date-checkboxes');
+            if (!dateCheckboxes) return;
+            dateCheckboxes.innerHTML = '';
+            
+            const dates = [];
+            dateGroups.forEach(group => {
+                const date = group.getAttribute('data-date');
+                if (date && !dates.includes(date)) {
+                    dates.push(date);
+                }
+            });
+            
+            // 添加今日日期（如果还没有）
+            const today = new Date().toISOString().split('T')[0];
+            if (!dates.includes(today)) {
+                dates.unshift(today);
+            }
+            
+            // 按日期倒序排列
+            dates.sort((a, b) => b.localeCompare(a));
+            
+            // 创建复选框
+            dates.forEach(date => {
+                const label = document.createElement('label');
+                label.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; cursor: pointer;';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = 'date';
+                checkbox.value = date;
+                checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
+                
+                const span = document.createElement('span');
+                span.textContent = date;
+                span.style.cssText = 'color: var(--text-primary);';
+                
+                label.appendChild(checkbox);
+                label.appendChild(span);
+                dateCheckboxes.appendChild(label);
+            });
+        }
+
+        function submitAIAnalysis() {
+            const form = document.getElementById('ai-analysis-form');
+            const formData = new FormData(form);
+            const dates = formData.getAll('date');
+            
+            if (dates.length === 0) {
+                alert('请至少选择一个日期');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('ai-submit-btn');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = '分析中，请稍候...';
+            
+            // 创建新的 FormData 并提交
+            const newFormData = new FormData();
+            dates.forEach(date => {
+                newFormData.append('date', date);
+            });
+            
+            fetch('{{ url_for("ai_generate") }}', {
+                method: 'POST',
+                body: newFormData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(err => Promise.reject(err));
+                }
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `AI分析报告_${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                closeAIAnalysis();
+                showNotification('AI 分析完成，文件已下载', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(error.error || 'AI 分析失败，请稍后重试');
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            });
+        }
+        {% endif %}
+    </script>
+
+    {% if can_app_write %}
+    <!-- AI 分析模态框 -->
+    <div id="ai-analysis-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0; color: var(--text-primary); font-size: 1.5rem;">🤖 AI 智能分析</h2>
+                <button onclick="closeAIAnalysis()" style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; padding: 0.25rem 0.5rem;">&times;</button>
+                </div>
+            
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+                选择要分析的日期，DeepSeek AI 将基于您的随笔、复盘、市场基调和指数走势进行深度分析，并提供拓展思考。
+            </p>
+            
+            <form id="ai-analysis-form">
+                <div id="date-checkboxes" style="max-height: 300px; overflow-y: auto; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-glass); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <!-- 日期复选框将在这里动态生成 -->
+        </div>
+
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" onclick="closeAIAnalysis()" class="btn btn-secondary" style="flex: 0 0 auto;">取消</button>
+                    <button type="button" id="ai-submit-btn" onclick="submitAIAnalysis()" class="btn btn-primary" style="flex: 0 0 auto; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-color: #10b981;">开始分析</button>
+                            </div>
+                            </form>
+        </div>
+            </div>
+    {% endif %}
+</body>
+</html>

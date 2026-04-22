@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行业库存分析</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+        }
+        
+        /* 返回按钮 */
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 12px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-button:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.6);
+            transform: translateX(-4px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        .back-button:active {
+            transform: translateX(-2px);
+        }
+        
+        .inventory-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .inventory-container > h1 {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 32px;
+            text-align: center;
+            letter-spacing: -0.5px;
+        }
+        
+        .query-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .query-panel:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            box-shadow: 0 12px 48px rgba(99, 102, 241, 0.2);
+        }
+        
+        .query-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 32px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 6px;
+        }
+        
+        .tab-button {
+            padding: 14px 28px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            position: relative;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            flex: 1;
+        }
+        
+        .tab-button:hover {
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .tab-button.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+            position: relative;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+            font-size: 15px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 12px;
+            padding-right: 40px;
+        }
+        
+        .form-group select option {
+            background: rgba(15, 15, 35, 0.95);
+            color: #ffffff;
+            padding: 12px;
+            border: none;
+        }
+        
+        .form-group input:hover,
+        .form-group select:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 12px;
+            padding-right: 40px;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: rgba(255, 255, 255, 0.1);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 12px;
+            padding-right: 40px;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        
+        /* 确保下拉框在所有浏览器中都能正常显示 */
+        .form-group select:active,
+        .form-group select:focus {
+            z-index: 1;
+        }
+        
+        .search-results {
+            margin-top: 8px;
+            max-height: 280px;
+            overflow-y: auto;
+            border: 2px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            background: rgba(15, 15, 35, 0.95);
+            backdrop-filter: blur(20px);
+            display: none;
+            position: absolute;
+            width: 100%;
+            z-index: 1000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        .search-results.active {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .search-loading {
+            display: none;
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        .search-loading.active {
+            display: block;
+        }
+        
+        @keyframes spin {
+            to { transform: translateY(-50%) rotate(360deg); }
+        }
+        
+        .search-result-item {
+            padding: 14px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+        
+        .search-result-item:hover {
+            background: rgba(99, 102, 241, 0.15);
+            padding-left: 20px;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result-item .stock-code {
+            font-weight: 700;
+            color: #6366f1;
+            font-size: 16px;
+        }
+        
+        .search-result-item .stock-name {
+            color: rgba(255, 255, 255, 0.8);
+            margin-left: 10px;
+            font-size: 15px;
+        }
+        
+        .search-result-item .stock-industry {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 6px;
+        }
+        
+        .btn {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+            width: 100%;
+            margin-top: 8px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5);
+            background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            background: rgba(255, 255, 255, 0.1);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .results-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+        
+        .results-panel.active {
+            display: block;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .results-header {
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .results-header h3 {
+            color: #ffffff;
+            margin-bottom: 12px;
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .results-header .summary {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        
+        .results-header .summary strong {
+            color: #6366f1;
+            font-weight: 600;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 100%;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .data-table th {
+            background: rgba(99, 102, 241, 0.15);
+            color: #ffffff;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .data-table td {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+        
+        .data-table tbody tr {
+            transition: all 0.2s ease;
+        }
+        
+        .data-table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.1);
+            transform: scale(1.01);
+        }
+        
+        .data-table tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .data-table tbody tr:nth-child(even):hover {
+            background: rgba(99, 102, 241, 0.15);
+        }
+        
+        .data-table .unit {
+            font-size: 0.85em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-left: 4px;
+        }
+        
+        .data-table .empty-value {
+            color: rgba(255, 255, 255, 0.3);
+            font-style: italic;
+        }
+        
+        .data-table .positive {
+            color: #10b981;
+            font-weight: 500;
+        }
+        
+        .data-table .positive-high {
+            color: #10b981;
+            font-weight: 700;
+        }
+        
+        .data-table .negative {
+            color: #ef4444;
+            font-weight: 500;
+        }
+        
+        .data-table .neutral {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .data-table .warning {
+            color: #f59e0b;
+            font-weight: 600;
+        }
+        
+        .data-table .warning-high {
+            color: #ef4444;
+            font-weight: 700;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+        }
+        
+        .error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%);
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            color: #ffffff;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+        }
+        
+        .success {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.2) 100%);
+            border: 2px solid rgba(16, 185, 129, 0.4);
+            color: #ffffff;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+        }
+        
+        .results-header .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 15px;
+            margin-top: 8px;
+        }
+        
+        /* 图表容器 */
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(550px, 1fr));
+            gap: 24px;
+            margin-top: 32px;
+        }
+        
+        .chart-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 28px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .chart-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2);
+            transform: translateY(-4px);
+        }
+        
+        .chart-card h4 {
+            color: #ffffff;
+            margin-bottom: 20px;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chart-card h4::before {
+            content: '📊';
+            font-size: 20px;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 320px;
+        }
+        
+        .toggle-data-btn {
+            margin-top: 32px;
+            padding: 14px 28px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .toggle-data-btn:hover {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: #6366f1;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+        }
+        
+        .detailed-data {
+            display: none;
+            margin-top: 32px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .detailed-data.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-button">
+        <span>←</span>
+        <span>返回主页</span>
+    </a>
+    <div class="inventory-container">
+        <h1>📈 行业库存分析</h1>
+        
+        <!-- 查询面板 -->
+        <div class="query-panel">
+            <div class="query-tabs">
+                <button class="tab-button active" onclick="switchTab('stock')">查询股票</button>
+                <button class="tab-button" onclick="switchTab('industry')">查询行业</button>
+            </div>
+            
+            <!-- 股票查询 -->
+            <div id="stock-tab" class="tab-content active">
+                <form id="stock-form" onsubmit="analyzeStock(event)">
+                    <div class="form-group">
+                        <label>股票代码或名称</label>
+                        <input type="text" id="stock-query" placeholder="输入股票代码或名称，例如：000001 或 平安银行" 
+                               autocomplete="off" oninput="handleStockSearch(this.value)">
+                        <div class="search-loading" id="stock-loading"></div>
+                        <div id="stock-results" class="search-results"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>分析年限</label>
+                        <select id="stock-years">
+                            <option value="5">5年</option>
+                            <option value="10" selected>10年</option>
+                            <option value="15">15年</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn" id="stock-submit-btn">开始分析</button>
+                </form>
+            </div>
+            
+            <!-- 行业查询 -->
+            <div id="industry-tab" class="tab-content">
+                <form id="industry-form" onsubmit="analyzeIndustry(event)">
+                    <div class="form-group">
+                        <label>选择行业</label>
+                        <select id="industry-select">
+                            <option value="">请选择行业...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>分析年限</label>
+                        <select id="industry-years">
+                            <option value="5">5年</option>
+                            <option value="10" selected>10年</option>
+                            <option value="15">15年</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn" id="industry-submit-btn">开始分析</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 结果面板 -->
+        <div id="results-panel" class="results-panel">
+            <div id="results-content"></div>
+        </div>
+    </div>
+    
+    <script>
+        let searchTimeout = null;
+        let selectedStock = null;
+        let searchCache = new Map(); // 搜索缓存
+        let currentCharts = []; // 存储当前图表实例
+        
+        // 切换标签页
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tab === 'stock') {
+                document.querySelector('.tab-button').classList.add('active');
+                document.getElementById('stock-tab').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab-button')[1].classList.add('active');
+                document.getElementById('industry-tab').classList.add('active');
+            }
+        }
+        
+        // 优化的股票搜索（使用缓存和更快的响应）
+        function handleStockSearch(query) {
+            clearTimeout(searchTimeout);
+            const queryTrimmed = query.trim();
+            
+            if (!queryTrimmed || queryTrimmed.length < 1) {
+                document.getElementById('stock-results').classList.remove('active');
+                document.getElementById('stock-loading').classList.remove('active');
+                return;
+            }
+            
+            // 检查缓存
+            if (searchCache.has(queryTrimmed)) {
+                displaySearchResults(searchCache.get(queryTrimmed));
+                return;
+            }
+            
+            // 显示加载动画
+            document.getElementById('stock-loading').classList.add('active');
+            
+            // 使用requestAnimationFrame优化，减少延迟时间
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch('/api/industry_inventory/search_stock', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ query: queryTrimmed })
+                    });
+                    
+                    const data = await response.json();
+                    document.getElementById('stock-loading').classList.remove('active');
+                    
+                    if (data.success && data.stocks.length > 0) {
+                        // 缓存结果
+                        searchCache.set(queryTrimmed, data.stocks);
+                        // 限制缓存大小
+                        if (searchCache.size > 50) {
+                            const firstKey = searchCache.keys().next().value;
+                            searchCache.delete(firstKey);
+                        }
+                        displaySearchResults(data.stocks);
+                    } else {
+                        document.getElementById('stock-results').classList.remove('active');
+                    }
+                } catch (error) {
+                    console.error('搜索股票失败:', error);
+                    document.getElementById('stock-loading').classList.remove('active');
+                }
+            }, 150); // 从300ms减少到150ms，提高响应速度
+        }
+        
+        // 显示搜索结果
+        function displaySearchResults(stocks) {
+            const resultsDiv = document.getElementById('stock-results');
+            resultsDiv.innerHTML = '';
+            
+            stocks.forEach(stock => {
+                const item = document.createElement('div');
+                item.className = 'search-result-item';
+                item.innerHTML = `
+                    <div>
+                        <span class="stock-code">${stock.code}</span>
+                        <span class="stock-name">${stock.name}</span>
+                    </div>
+                    ${stock.third_industry ? `<div class="stock-industry">${stock.third_industry}</div>` : ''}
+                `;
+                item.onclick = () => {
+                    document.getElementById('stock-query').value = stock.code;
+                    selectedStock = stock;
+                    resultsDiv.classList.remove('active');
+                };
+                resultsDiv.appendChild(item);
+            });
+            
+            resultsDiv.classList.add('active');
+        }
+        
+        // 加载行业列表
+        async function loadIndustries() {
+            try {
+                const select = document.getElementById('industry-select');
+                if (!select) {
+                    console.error('找不到行业选择框元素');
+                    return;
+                }
+                
+                // 显示加载状态
+                select.disabled = true;
+                select.innerHTML = '<option value="">加载中...</option>';
+                
+                const response = await fetch('/api/industry_inventory/industries');
+                const data = await response.json();
+                
+                if (data.success && data.industries && data.industries.length > 0) {
+                    // 清空现有选项
+                    select.innerHTML = '<option value="">请选择行业...</option>';
+                    
+                    // 添加行业选项
+                    data.industries.forEach(industry => {
+                        const option = document.createElement('option');
+                        option.value = industry;
+                        option.textContent = industry;
+                        select.appendChild(option);
+                    });
+                    
+                    select.disabled = false;
+                    console.log(`✅ 成功加载 ${data.industries.length} 个行业`);
+                } else {
+                    select.innerHTML = '<option value="">加载失败，请刷新页面</option>';
+                    console.error('加载行业列表失败: 响应数据无效', data);
+                }
+            } catch (error) {
+                console.error('加载行业列表失败:', error);
+                const select = document.getElementById('industry-select');
+                if (select) {
+                    select.innerHTML = '<option value="">加载失败，请刷新页面</option>';
+                }
+            }
+        }
+        
+        // 分析股票
+        async function analyzeStock(event) {
+            event.preventDefault();
+            
+            const stockCode = document.getElementById('stock-query').value.trim();
+            const years = parseInt(document.getElementById('stock-years').value);
+            
+            if (!stockCode) {
+                alert('请输入股票代码');
+                return;
+            }
+            
+            const btn = document.getElementById('stock-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '分析中...';
+            
+            const resultsPanel = document.getElementById('results-panel');
+            const resultsContent = document.getElementById('results-content');
+            resultsContent.innerHTML = '<div class="loading">正在分析，请稍候...</div>';
+            resultsPanel.classList.add('active');
+            
+            try {
+                const response = await fetch('/api/industry_inventory/analyze_stock', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ stock_code: stockCode, years: years })
+                });
+                
+                const result = await response.json();
+                displayResults(result);
+            } catch (error) {
+                resultsContent.innerHTML = `<div class="error">分析失败: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '开始分析';
+            }
+        }
+        
+        // 分析行业
+        async function analyzeIndustry(event) {
+            event.preventDefault();
+            
+            const industryName = document.getElementById('industry-select').value;
+            const years = parseInt(document.getElementById('industry-years').value);
+            
+            if (!industryName) {
+                alert('请选择行业');
+                return;
+            }
+            
+            const btn = document.getElementById('industry-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '分析中...';
+            
+            const resultsPanel = document.getElementById('results-panel');
+            const resultsContent = document.getElementById('results-content');
+            resultsContent.innerHTML = '<div class="loading">正在分析，请稍候...</div>';
+            resultsPanel.classList.add('active');
+            
+            try {
+                const response = await fetch('/api/industry_inventory/analyze_industry', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ industry_name: industryName, years: years })
+                });
+                
+                const result = await response.json();
+                displayResults(result);
+            } catch (error) {
+                resultsContent.innerHTML = `<div class="error">分析失败: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '开始分析';
+            }
+        }
+        
+        // 销毁之前的图表
+        function destroyCharts() {
+            currentCharts.forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+            currentCharts = [];
+        }
+        
+        // 显示结果（默认显示图表）
+        function displayResults(result) {
+            const resultsContent = document.getElementById('results-content');
+            
+            // 销毁之前的图表
+            destroyCharts();
+            
+            if (!result.success || result.error) {
+                resultsContent.innerHTML = `<div class="error">${result.error || result.message || '分析失败'}</div>`;
+                return;
+            }
+            
+            if (!result.data || result.data.length === 0) {
+                resultsContent.innerHTML = '<div class="error">未找到数据</div>';
+                return;
+            }
+            
+            // 准备数据 - 按时间升序排序（用于图表）
+            const chartSortedData = [...result.data].sort((a, b) => {
+                const dateA = new Date(a['报告期'] || 0);
+                const dateB = new Date(b['报告期'] || 0);
+                return dateA - dateB;
+            });
+            
+            let html = '<div class="results-header">';
+            
+            if (result.query_info.stock_code) {
+                html += `<h3>📊 ${result.query_info.stock_name || result.query_info.stock_code} - 行业库存分析</h3>`;
+                if (result.query_info.stock_name && result.query_info.stock_code) {
+                    html += `<div class="subtitle">股票代码: ${result.query_info.stock_code}</div>`;
+                }
+            } else if (result.query_info.industry_name) {
+                html += `<h3>📊 ${result.query_info.industry_name} - 行业库存分析</h3>`;
+            }
+            
+            html += `<div class="summary">共 <strong>${result.summary.total_records}</strong> 条记录`;
+            if (result.summary.date_range && result.summary.date_range.start) {
+                html += `，时间范围：<strong>${result.summary.date_range.start}</strong> 至 <strong>${result.summary.date_range.end}</strong>`;
+            }
+            if (result.summary.industries && result.summary.industries.length > 0) {
+                html += `，涉及 <strong>${result.summary.industries.length}</strong> 个行业`;
+            }
+            html += `</div>`;
+            html += '</div>';
+            
+            // 定义列顺序和格式化函数
+            const columnConfig = {
+                '三级行业': { label: '三级行业', priority: 1, format: 'text' },
+                '报告期': { label: '报告期', priority: 2, format: 'date' },
+                '库存总额': { label: '库存总额', priority: 3, format: 'currency' },
+                '营业收入总额': { label: '营业收入总额', priority: 4, format: 'currency' },
+                '营业利润总额': { label: '营业利润总额', priority: 5, format: 'currency' },
+                '净利润总额': { label: '净利润总额', priority: 6, format: 'currency' },
+                '库存营收比': { label: '库存营收比', priority: 7, format: 'percentage' },
+                '库存增长率(%)': { label: '库存增长率', priority: 8, format: 'percentage_with_color' },
+                '营收增长率(%)': { label: '营收增长率', priority: 9, format: 'percentage_with_color' },
+                '库存营收剪刀差(pp)': { label: '库存营收剪刀差', priority: 10, format: 'scissors_diff' },
+                '平均库存': { label: '平均库存', priority: 11, format: 'currency' },
+                '公司数量': { label: '公司数量', priority: 12, format: 'integer' },
+                '股票数量': { label: '股票数量', priority: 13, format: 'integer' },
+                '股票代码列表': { label: '股票代码', priority: 14, format: 'text' },
+                '记录数': { label: '记录数', priority: 15, format: 'integer' }
+            };
+            
+            // 获取所有列并排序（用于详细数据表格）
+            const allColumns = Object.keys(result.data[0]);
+            const sortedColumns = allColumns.sort((a, b) => {
+                const priorityA = columnConfig[a]?.priority || 999;
+                const priorityB = columnConfig[b]?.priority || 999;
+                return priorityA - priorityB;
+            });
+            
+            // 添加图表容器（默认显示图表）
+            html += '<div class="charts-container">';
+            html += '<div class="chart-card"><h4>库存总额趋势</h4><div class="chart-wrapper"><canvas id="chart-inventory"></canvas></div></div>';
+            html += '<div class="chart-card"><h4>营业收入总额趋势</h4><div class="chart-wrapper"><canvas id="chart-revenue"></canvas></div></div>';
+            html += '<div class="chart-card"><h4>库存营收比</h4><div class="chart-wrapper"><canvas id="chart-ratio"></canvas></div></div>';
+            html += '<div class="chart-card"><h4>库存营收剪刀差</h4><div class="chart-wrapper"><canvas id="chart-scissors"></canvas></div></div>';
+            html += '</div>';
+            
+            // 更新图表标题图标
+            setTimeout(() => {
+                const chartCards = document.querySelectorAll('.chart-card h4');
+                if (chartCards.length >= 4) {
+                    chartCards[0].innerHTML = '📦 库存总额趋势';
+                    chartCards[1].innerHTML = '💰 营业收入总额趋势';
+                    chartCards[2].innerHTML = '📊 库存营收比';
+                    chartCards[3].innerHTML = '⚖️ 库存营收剪刀差';
+                }
+            }, 100);
+            
+            // 添加详细数据切换按钮和表格（默认隐藏）
+            html += '<div style="text-align: center;"><button class="toggle-data-btn" onclick="toggleDetailedData()"><span>📋</span> 显示详细数据</button></div>';
+            html += '<div id="detailed-data" class="detailed-data">';
+            
+            // 构建详细数据表格
+            html += '<div class="table-wrapper"><table class="data-table"><thead><tr>';
+            sortedColumns.forEach(col => {
+                const config = columnConfig[col] || { label: col, format: 'text' };
+                html += `<th>${config.label}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            // 按报告期降序排序（最新在前），用于表格显示
+            const tableSortedData = [...result.data].sort((a, b) => {
+                const dateA = new Date(a['报告期'] || 0);
+                const dateB = new Date(b['报告期'] || 0);
+                return dateB - dateA;
+            });
+            
+            tableSortedData.forEach(row => {
+                html += '<tr>';
+                sortedColumns.forEach(col => {
+                    let value = row[col];
+                    const config = columnConfig[col] || { format: 'text' };
+                    
+                    // 根据格式类型格式化值
+                    if (value === null || value === undefined || value === '') {
+                        value = '<span class="empty-value">-</span>';
+                    } else {
+                        switch (config.format) {
+                            case 'currency':
+                                value = formatCurrency(value);
+                                break;
+                            case 'percentage':
+                                value = formatPercentage(value);
+                                break;
+                            case 'percentage_with_color':
+                                value = formatPercentageWithColor(value);
+                                break;
+                            case 'scissors_diff':
+                                value = formatScissorsDiff(value);
+                                break;
+                            case 'integer':
+                                value = formatInteger(value);
+                                break;
+                            case 'date':
+                                value = formatDate(value);
+                                break;
+                            default:
+                                value = escapeHtml(String(value));
+                        }
+                    }
+                    html += `<td>${value}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table></div></div>';
+            
+            resultsContent.innerHTML = html;
+            
+            // 绘制图表
+            drawCharts(chartSortedData);
+        }
+        
+        // 绘制图表
+        function drawCharts(data) {
+            if (!data || data.length === 0) return;
+            
+            // 提取数据
+            const labels = data.map(row => {
+                const date = new Date(row['报告期']);
+                return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' });
+            });
+            
+            // 库存总额图表
+            const inventoryCtx = document.getElementById('chart-inventory');
+            if (inventoryCtx) {
+                const inventoryChart = new Chart(inventoryCtx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '库存总额',
+                            data: data.map(row => row['库存总额'] || 0),
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                callbacks: {
+                                    label: function(context) {
+                                        return '库存总额: ' + formatCurrency(context.parsed.y);
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                ticks: {
+                                    color: 'rgba(255, 255, 255, 0.7)',
+                                    callback: function(value) {
+                                        return formatCurrencyShort(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                currentCharts.push(inventoryChart);
+            }
+            
+            // 营业收入总额图表
+            const revenueCtx = document.getElementById('chart-revenue');
+            if (revenueCtx) {
+                const revenueChart = new Chart(revenueCtx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '营业收入总额',
+                            data: data.map(row => row['营业收入总额'] || 0),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                                borderColor: 'rgba(16, 185, 129, 0.5)',
+                                borderWidth: 1,
+                                padding: 16,
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(context) {
+                                        return '营业收入: ' + formatCurrency(context.parsed.y);
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { 
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                                ticks: { 
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    font: { size: 12 }
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { 
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    font: { size: 12 },
+                                    callback: function(value) {
+                                        return formatCurrencyShort(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                currentCharts.push(revenueChart);
+            }
+            
+            // 库存营收比图表
+            const ratioCtx = document.getElementById('chart-ratio');
+            if (ratioCtx && data.some(row => row['库存营收比'] != null)) {
+                const ratioChart = new Chart(ratioCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '库存营收比',
+                            data: data.map(row => row['库存营收比'] || 0),
+                            backgroundColor: 'rgba(139, 92, 246, 0.6)',
+                            borderColor: '#8b5cf6',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                                borderColor: 'rgba(139, 92, 246, 0.5)',
+                                borderWidth: 1,
+                                padding: 16,
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(context) {
+                                        return '库存营收比: ' + formatPercentage(context.parsed.y);
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { 
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                                ticks: { 
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    font: { size: 12 }
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { 
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    font: { size: 12 },
+                                    callback: function(value) {
+                                        return value.toFixed(2) + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                currentCharts.push(ratioChart);
+            }
+            
+            // 库存营收剪刀差图表
+            const scissorsCtx = document.getElementById('chart-scissors');
+            if (scissorsCtx && data.some(row => row['库存营收剪刀差(pp)'] != null)) {
+                const scissorsChart = new Chart(scissorsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '库存营收剪刀差',
+                            data: data.map(row => row['库存营收剪刀差(pp)'] || 0),
+                            backgroundColor: function(context) {
+                                const value = context.parsed.y;
+                                if (value > 5) return 'rgba(239, 68, 68, 0.6)';  // 红色 - 警告
+                                if (value > 0) return 'rgba(245, 158, 11, 0.6)'; // 橙色 - 注意
+                                if (value < -5) return 'rgba(16, 185, 129, 0.6)'; // 绿色 - 良好
+                                if (value < 0) return 'rgba(34, 197, 94, 0.6)';   // 浅绿 - 较好
+                                return 'rgba(156, 163, 175, 0.6)'; // 灰色 - 中性
+                            },
+                            borderColor: function(context) {
+                                const value = context.parsed.y;
+                                if (value > 5) return '#ef4444';
+                                if (value > 0) return '#f59e0b';
+                                if (value < -5) return '#10b981';
+                                if (value < 0) return '#22c55e';
+                                return '#9ca3af';
+                            },
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                                borderColor: 'rgba(236, 72, 153, 0.5)',
+                                borderWidth: 1,
+                                padding: 16,
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(context) {
+                                        return '剪刀差: ' + context.parsed.y.toFixed(2) + 'pp';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { 
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                                ticks: { 
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    font: { size: 12 }
+                                }
+                            },
+                            y: {
+                                ticks: {
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    font: { size: 12 },
+                                    callback: function(value) {
+                                        return value.toFixed(1) + 'pp';
+                                    }
+                                },
+                                grid: {
+                                    color: function(context) {
+                                        if (context.tick.value === 0) {
+                                            return 'rgba(255, 255, 255, 0.3)'; // 0线高亮
+                                        }
+                                        return 'rgba(255, 255, 255, 0.05)';
+                                    },
+                                    drawBorder: false
+                                }
+                            }
+                        }
+                    }
+                });
+                currentCharts.push(scissorsChart);
+            }
+        }
+        
+        // 切换详细数据显示
+        function toggleDetailedData() {
+            const detailedData = document.getElementById('detailed-data');
+            const btn = document.querySelector('.toggle-data-btn');
+            
+            if (detailedData.classList.contains('active')) {
+                detailedData.classList.remove('active');
+                if (btn) {
+                    const span = btn.querySelector('span');
+                    if (span) {
+                        span.textContent = '📋';
+                        btn.innerHTML = '<span>📋</span> 显示详细数据';
+                    } else {
+                        btn.innerHTML = '<span>📋</span> 显示详细数据';
+                    }
+                }
+            } else {
+                detailedData.classList.add('active');
+                if (btn) {
+                    const span = btn.querySelector('span');
+                    if (span) {
+                        span.textContent = '🔒';
+                        btn.innerHTML = '<span>🔒</span> 隐藏详细数据';
+                    } else {
+                        btn.innerHTML = '<span>🔒</span> 隐藏详细数据';
+                    }
+                }
+            }
+        }
+        
+        // 格式化货币（简短版本，用于图表）
+        function formatCurrencyShort(value) {
+            if (typeof value !== 'number' || isNaN(value)) return '0';
+            const absValue = Math.abs(value);
+            if (absValue >= 1e8) {
+                return (value / 1e8).toFixed(1) + '亿';
+            } else if (absValue >= 1e4) {
+                return (value / 1e4).toFixed(1) + '万';
+            } else {
+                return value.toFixed(0);
+            }
+        }
+        
+        // 格式化货币
+        function formatCurrency(value) {
+            if (typeof value !== 'number' || isNaN(value)) return '<span class="empty-value">-</span>';
+            const absValue = Math.abs(value);
+            if (absValue >= 1e8) {
+                return (value / 1e8).toFixed(2) + '<span class="unit">亿</span>';
+            } else if (absValue >= 1e4) {
+                return (value / 1e4).toFixed(2) + '<span class="unit">万</span>';
+            } else {
+                return value.toFixed(2);
+            }
+        }
+        
+        // 格式化百分比
+        function formatPercentage(value) {
+            if (typeof value !== 'number' || isNaN(value)) return '<span class="empty-value">-</span>';
+            return value.toFixed(2) + '%';
+        }
+        
+        // 格式化百分比（带颜色）
+        function formatPercentageWithColor(value) {
+            if (typeof value !== 'number' || isNaN(value)) return '<span class="empty-value">-</span>';
+            const color = value >= 0 ? 'positive' : 'negative';
+            return `<span class="${color}">${value.toFixed(2)}%</span>`;
+        }
+        
+        // 格式化剪刀差（特殊样式）
+        function formatScissorsDiff(value) {
+            if (typeof value !== 'number' || isNaN(value)) return '<span class="empty-value">-</span>';
+            let colorClass = 'neutral';
+            let icon = '';
+            if (value > 5) {
+                colorClass = 'warning-high';  // 库存增速明显快于营收
+                icon = '⚠️';
+            } else if (value > 0) {
+                colorClass = 'warning';  // 库存增速略快于营收
+                icon = '📈';
+            } else if (value < -5) {
+                colorClass = 'positive-high';  // 库存增速明显慢于营收（好）
+                icon = '✅';
+            } else if (value < 0) {
+                colorClass = 'positive';  // 库存增速略慢于营收（好）
+                icon = '📉';
+            }
+            return `<span class="${colorClass}">${icon} ${value.toFixed(2)}pp</span>`;
+        }
+        
+        // 格式化整数
+        function formatInteger(value) {
+            if (typeof value !== 'number' || isNaN(value)) return '<span class="empty-value">-</span>';
+            return value.toLocaleString();
+        }
+        
+        // 格式化日期
+        function formatDate(value) {
+            if (!value) return '<span class="empty-value">-</span>';
+            try {
+                const date = new Date(value);
+                return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            } catch (e) {
+                return escapeHtml(String(value));
+            }
+        }
+        
+        // HTML转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 页面加载时加载行业列表
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', () => {
+                loadIndustries();
+            });
+        } else {
+            // DOM已经加载完成，立即执行
+            loadIndustries();
+        }
+        
+        // 点击外部关闭搜索结果
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#stock-query') && !e.target.closest('#stock-results')) {
+                document.getElementById('stock-results').classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日工作复盘</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        /* 基础样式 */
+        :root {
+            --primary-color: #60a5fa;
+            --primary-hover: #3b82f6;
+            --secondary-color: #cbd5e1;
+            --background-color: #f8fafc;
+            --card-background: #ffffff;
+            --text-color: #475569;
+            --border-color: #e2e8f0;
+            --success-color: #3b82f6;
+            --danger-color: #f87171;
+            --warning-color: #fbbf24;
+            --hover-color: #f1f5f9;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 头部样式 */
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .header a {
+            color: white;
+            text-decoration: none;
+        }
+
+        /* 导航栏 */
+        .nav {
+            background-color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            gap: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+        }
+
+        .nav a, .nav button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            text-decoration: none;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav a:hover, .nav button:hover {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* 主要内容区域 */
+        .main {
+            flex: 1;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 120px);
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        /* 筛选表单 */
+        .filter-form {
+            background-color: var(--card-background);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .filter-form.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            background-color: var(--background-color);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+        }
+
+        /* 表格样式 */
+        .table-container {
+            flex: 1;
+            overflow: auto;
+            background-color: var(--card-background);
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            table-layout: fixed;
+        }
+
+        th, td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+            position: relative;
+            background-color: var(--card-background);
+        }
+
+        th {
+            background-color: var(--background-color);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 600;
+            min-width: 150px;
+        }
+
+        tr:hover td {
+            background-color: var(--hover-color);
+        }
+
+        .column-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+        }
+
+        .column-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .column-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .column-toggle {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .column-toggle::before {
+            content: '↔';
+            font-size: 1rem;
+        }
+
+        .column-toggle.collapsed::before {
+            content: '↕';
+        }
+
+        .column-toggle:hover {
+            background-color: var(--hover-color);
+        }
+
+        .preview-content {
+            max-height: 100px;
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--card-background);
+            margin-bottom: 4px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .preview-content::after {
+            display: none;
+        }
+
+        .preview-content.expanded {
+            max-height: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 800px;
+            height: auto;
+            max-height: 80vh;
+            overflow-y: auto;
+            background: var(--card-background);
+            z-index: 1000;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            cursor: default;
+        }
+
+        .edit-mode {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 800px;
+            background: var(--card-background);
+            z-index: 1001;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .edit-mode textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            resize: vertical;
+            background-color: var(--card-background);
+        }
+
+        .edit-mode textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.1);
+        }
+
+        .edit-mode .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .edit-mode .btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .edit-mode .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .edit-mode .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .edit-mode .btn-secondary {
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+        }
+
+        .edit-mode .btn-secondary:hover {
+            background-color: #94a3b8;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            color: white;
+            z-index: 1002;
+            animation: fadeInOut 3s ease-in-out;
+        }
+
+        .notification.success {
+            background-color: var(--success-color);
+        }
+
+        .notification.error {
+            background-color: var(--danger-color);
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-20px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+
+        .close {
+            color: var(--text-color);
+            float: right;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: var(--danger-color);
+        }
+
+        .fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            margin: 0;
+            padding: 0;
+            background-color: white;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .nav {
+                flex-wrap: wrap;
+            }
+
+            .input-field {
+                min-height: 80px;
+            }
+        }
+    </style>
+    <script>
+        function toggleFilter() {
+            const filterForm = document.getElementById('filter-form');
+            filterForm.classList.toggle('active');
+        }
+
+        function toggleColumn(columnIndex) {
+            const table = document.querySelector('table');
+            const rows = table.querySelectorAll('tr');
+            const toggleButton = document.querySelector(`.column-toggle[data-column="${columnIndex}"]`);
+
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td, th');
+                if (cells[columnIndex]) {
+                    cells[columnIndex].classList.toggle('collapsed');
+                }
+            });
+
+            if (toggleButton) {
+                toggleButton.classList.toggle('collapsed');
+            }
+        }
+
+        function toggleFullscreen() {
+            const table = document.querySelector('table');
+            table.classList.toggle('fullscreen');
+
+            if (table.classList.contains('fullscreen')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+        }
+
+        function previewAnalysis() {
+            const form = document.getElementById('ai-generate-form');
+            const formData = new FormData(form);
+            const dates = [];
+            for (let pair of formData.entries()) {
+                if (pair[0] === 'date') {
+                    dates.push(pair[1]);
+                }
+            }
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', form.action, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            const params = new URLSearchParams();
+            dates.forEach(date => params.append('date', date));
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    const modal = document.getElementById('analysis-modal');
+                    const modalContent = document.getElementById('modal-content');
+                    if (response.analysis) {
+                        modalContent.innerHTML = `<pre>${response.analysis}</pre>`;
+                    } else if (response.error) {
+                        modalContent.innerHTML = `<p style="color: red;">${response.error}</p>`;
+                    }
+                    modal.style.display = "block";
+                }
+            };
+            xhr.send(params);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('analysis-modal');
+            modal.style.display = "none";
+        }
+
+        window.onclick = function (event) {
+            const modal = document.getElementById('analysis-modal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        function showPreview(content) {
+            const preview = document.createElement('div');
+            preview.className = 'preview-content expanded';
+            preview.textContent = content.textContent;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'overlay';
+
+            document.body.appendChild(overlay);
+            document.body.appendChild(preview);
+            document.body.style.overflow = 'hidden';
+
+            // 添加双击事件
+            preview.ondblclick = function() {
+                hidePreview();
+                showEditMode(content);
+            };
+
+            // 添加点击外部关闭
+            overlay.onclick = hidePreview;
+        }
+
+        function hidePreview() {
+            const preview = document.querySelector('.preview-content.expanded');
+            const overlay = document.querySelector('.overlay');
+            if (preview) {
+                preview.remove();
+            }
+            if (overlay) {
+                overlay.remove();
+            }
+            document.body.style.overflow = '';
+        }
+
+        function showEditMode(content) {
+            const editMode = document.createElement('div');
+            editMode.className = 'edit-mode';
+
+            const textarea = document.createElement('textarea');
+            textarea.value = content.textContent;
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            const saveButton = document.createElement('button');
+            saveButton.className = 'btn btn-primary';
+            saveButton.textContent = '保存';
+            saveButton.onclick = function() {
+                saveEdit(this, content);
+            };
+
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'btn btn-secondary';
+            cancelButton.textContent = '取消';
+            cancelButton.onclick = function() {
+                const editMode = this.closest('.edit-mode');
+                editMode.remove();
+                document.body.style.overflow = '';
+            };
+
+            actions.appendChild(saveButton);
+            actions.appendChild(cancelButton);
+
+            editMode.appendChild(textarea);
+            editMode.appendChild(actions);
+
+            document.body.appendChild(editMode);
+            document.body.style.overflow = 'hidden';
+
+            // 聚焦到文本框
+            textarea.focus();
+        }
+
+        function saveEdit(button, originalContent) {
+            const editMode = button.closest('.edit-mode');
+            const textarea = editMode.querySelector('textarea');
+            const cell = originalContent.closest('td');
+            const textareaInput = cell.querySelector('textarea');
+
+            if (textareaInput) {
+                // 更新隐藏的textarea值
+                textareaInput.value = textarea.value;
+
+                // 更新预览内容
+                originalContent.textContent = textarea.value;
+
+                // 提交到服务器
+                const form = document.getElementById('edit-form');
+                if (form) {
+                    const formData = new FormData();
+                    const fieldName = textareaInput.name;
+                    formData.append(fieldName, textarea.value);
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/save_changes', true);
+                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4) {
+                            if (xhr.status === 200) {
+                                showNotification('保存成功');
+                            } else {
+                                showNotification('保存失败，请重试', 'error');
+                            }
+                        }
+                    };
+
+                    const params = new URLSearchParams(formData).toString();
+                    xhr.send(params);
+                }
+            }
+
+            editMode.remove();
+            document.body.style.overflow = '';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 确保表单存在
+            let form = document.getElementById('edit-form');
+            if (!form) {
+                form = document.createElement('form');
+                form.id = 'edit-form';
+                form.method = 'post';
+                form.action = '/save_changes';
+                document.body.appendChild(form);
+            }
+
+            const table = document.querySelector('table');
+            const cells = table.querySelectorAll('td');
+
+            cells.forEach(cell => {
+                const textarea = cell.querySelector('textarea');
+                if (textarea) {
+                    // 移除旧的预览内容（如果有）
+                    const oldPreview = cell.querySelector('.preview-content');
+                    if (oldPreview) {
+                        oldPreview.remove();
+                    }
+
+                    const preview = document.createElement('div');
+                    preview.className = 'preview-content';
+                    preview.textContent = textarea.value.trim();
+
+                    // 单击展开预览
+                    preview.onclick = function(e) {
+                        if (e.target === this) {
+                            showPreview(this);
+                        }
+                    };
+
+                    // 双击直接进入编辑模式
+                    preview.ondblclick = function(e) {
+                        if (e.target === this) {
+                            hidePreview();
+                            showEditMode(this);
+                        }
+                    };
+
+                    cell.appendChild(preview);
+                    textarea.style.display = 'none';
+                }
+            });
+        });
+
+        // 自动保存功能
+        setInterval(function () {
+            const form = document.getElementById('edit-form');
+            if (!form) return;
+
+            // 确保所有textarea的值都是最新的
+            const cells = document.querySelectorAll('td');
+            cells.forEach(cell => {
+                const textarea = cell.querySelector('textarea');
+                const preview = cell.querySelector('.preview-content');
+                if (textarea && preview) {
+                    textarea.value = preview.textContent;
+                }
+            });
+
+            const formData = new FormData(form);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/save_changes', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            const params = new URLSearchParams(formData).toString();
+            xhr.send(params);
+        }, 5 * 60 * 1000);
+
+        // 发送邮件功能
+        function sendEmail() {
+            var subject = "每日工作复盘数据";
+            var body = "以下是所有的数据：\n";
+
+            var table = document.querySelector('table');
+            var rows = table.querySelectorAll('tbody tr');
+            for (var i = 0; i < rows.length; i++) {
+                var cells = rows[i].querySelectorAll('td textarea');
+                for (var j = 0; j < cells.length; j++) {
+                    body += cells[j].value + "\t";
+                }
+                body += "\n";
+            }
+
+            var encodedSubject = encodeURIComponent(subject);
+            var encodedBody = encodeURIComponent(body);
+            var coremailUrl = "coremail://mail?subject=" + encodedSubject + "&body=" + encodedBody + "&to=your_email@example.com";
+            window.location.href = coremailUrl;
+        }
+
+        // 添加样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .preview-content {
+                max-height: 100px;
+                overflow: hidden;
+                position: relative;
+                cursor: pointer;
+                padding: 8px;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                background-color: #f8fafc;
+                margin-bottom: 4px;
+                font-size: 0.9rem;
+                line-height: 1.5;
+                white-space: pre-wrap;
+            }
+
+            .preview-content::after {
+                content: '';
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 40px;
+                background: linear-gradient(transparent, #f8fafc);
+                pointer-events: none;
+            }
+
+            .preview-content.expanded {
+                max-height: none;
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 80%;
+                max-width: 800px;
+                height: auto;
+                max-height: 80vh;
+                overflow-y: auto;
+                background: white;
+                z-index: 1000;
+                padding: 20px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                cursor: default;
+            }
+
+            .preview-content.expanded::after {
+                display: none;
+            }
+
+            .overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 999;
+            }
+
+            .edit-mode {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 80%;
+                max-width: 800px;
+                background: white;
+                z-index: 1001;
+                padding: 20px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            }
+
+            .edit-mode textarea {
+                width: 100%;
+                min-height: 300px;
+                padding: 10px;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                margin-bottom: 10px;
+                font-size: 0.9rem;
+                line-height: 1.5;
+                resize: vertical;
+            }
+
+            .edit-mode .actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+            }
+
+            .btn {
+                padding: 8px 16px;
+                border-radius: 4px;
+                border: none;
+                cursor: pointer;
+                font-size: 0.9rem;
+                transition: all 0.2s;
+            }
+
+            .btn-primary {
+                background-color: #3b82f6;
+                color: white;
+            }
+
+            .btn-primary:hover {
+                background-color: #2563eb;
+            }
+
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 10px 20px;
+                border-radius: 4px;
+                color: white;
+                z-index: 1002;
+                animation: fadeInOut 3s ease-in-out;
+            }
+
+            .notification.success {
+                background-color: #3b82f6;
+            }
+
+            .notification.error {
+                background-color: #ef4444;
+            }
+
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateY(-20px); }
+                10% { opacity: 1; transform: translateY(0); }
+                90% { opacity: 1; transform: translateY(0); }
+                100% { opacity: 0; transform: translateY(-20px); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</head>
+
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="notification {{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <header class="header">
+        <h1><a href="http://172.16.105.173:5889/showbox" target="_blank" class="no-underline">每日工作复盘</a></h1>
+    </header>
+
+    <nav class="nav">
+        <a href="{{ url_for('add_review') }}">新增记录</a>
+        <button onclick="toggleFilter()" class="showbtn">显示/隐藏筛选</button>
+        <a href="{{ url_for('export_excel') }}">导出 Excel</a>
+        <button onclick="sendEmail()">发送邮件</button>
+        <a href="{{ url_for('logout') }}">注销</a>
+    </nav>
+
+    <main class="main">
+        <div id="filter-form" class="filter-form">
+            <form method="get">
+                <div class="form-group">
+                    <label for="date">日期:</label>
+                    <input type="date" id="date" name="date" value="{{ date_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="overall_market">整体行情:</label>
+                    <input type="text" id="overall_market" name="overall_market" value="{{ overall_market_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="events">事件&政策&热点&异常:</label>
+                    <input type="text" id="events" name="events" value="{{ events_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="emotion_cycle">情绪周期:</label>
+                    <input type="text" id="emotion_cycle" name="emotion_cycle" value="{{ emotion_cycle_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="market_style">市场风格:</label>
+                    <input type="text" id="market_style" name="market_style" value="{{ market_style_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="fundamentals">基本面&资金面:</label>
+                    <input type="text" id="fundamentals" name="fundamentals" value="{{ fundamentals_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="international_hotspots">国际热点:</label>
+                    <input type="text" id="international_hotspots" name="international_hotspots" value="{{ international_hotspots_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="insights">前瞻点&思考总结:</label>
+                    <input type="text" id="insights" name="insights" value="{{ insights_filter }}">
+                </div>
+                <div class="form-group">
+                    <label for="golden_stocks">每日金股:</label>
+                    <input type="text" id="golden_stocks" name="golden_stocks" value="{{ golden_stocks_filter }}">
+                </div>
+                <button type="submit" class="btn btn-primary">筛选</button>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">日期</span>
+                                <button class="column-toggle" data-column="0" onclick="toggleColumn(0)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">整体行情</span>
+                                <button class="column-toggle" data-column="1" onclick="toggleColumn(1)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">事件&政策&热点&异常</span>
+                                <button class="column-toggle" data-column="2" onclick="toggleColumn(2)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">情绪周期</span>
+                                <button class="column-toggle" data-column="3" onclick="toggleColumn(3)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">市场风格</span>
+                                <button class="column-toggle" data-column="4" onclick="toggleColumn(4)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">基本面&资金面</span>
+                                <button class="column-toggle" data-column="5" onclick="toggleColumn(5)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">国际热点</span>
+                                <button class="column-toggle" data-column="6" onclick="toggleColumn(6)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">前瞻点&思考总结</span>
+                                <button class="column-toggle" data-column="7" onclick="toggleColumn(7)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">每日金股</span>
+                                <button class="column-toggle" data-column="8" onclick="toggleColumn(8)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">深度报告</span>
+                                <button class="column-toggle" data-column="9" onclick="toggleColumn(9)"></button>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-header">
+                                <span class="column-title">操作</span>
+                                <button class="column-toggle" data-column="10" onclick="toggleColumn(10)"></button>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for review in reviews %}
+                    <tr>
+                        <td><textarea name="date_{{ review[0] }}" class="input-field date-field">{{ review[1] }}</textarea></td>
+                        <td><textarea name="overall_market_{{ review[0] }}" class="input-field">{{ review[2] }}</textarea></td>
+                        <td><textarea name="events_{{ review[0] }}" class="input-field">{{ review[3] }}</textarea></td>
+                        <td><textarea name="emotion_cycle_{{ review[0] }}" class="input-field">{{ review[4] }}</textarea></td>
+                        <td><textarea name="market_style_{{ review[0] }}" class="input-field">{{ review[5] }}</textarea></td>
+                        <td><textarea name="fundamentals_{{ review[0] }}" class="input-field">{{ review[6] }}</textarea></td>
+                        <td><textarea name="international_hotspots_{{ review[0] }}" class="input-field">{{ review[7] }}</textarea></td>
+                        <td><textarea name="insights_{{ review[0] }}" class="input-field">{{ review[8] }}</textarea></td>
+                        <td><textarea name="golden_stocks_{{ review[0] }}" class="input-field">{{ review[9] }}</textarea></td>
+                        <td>
+                            {% if review[10] %}
+                                <a href="{{ url_for('download_report', id=review[0]) }}" class="btn btn-primary">下载报告</a>
+                            {% endif %}
+                            <form action="{{ url_for('upload_report', id=review[0]) }}" method="post" enctype="multipart/form-data" style="display: inline;">
+                                <input type="file" name="report" accept=".doc,.docx,.txt,.xlsx,.xls" style="display: none;" onchange="this.form.submit()">
+                                <button type="button" class="btn btn-primary" onclick="this.previousElementSibling.click()">导入报告</button>
+                            </form>
+                        </td>
+                        <td><a href="{{ url_for('delete_review', id=review[0]) }}" class="btn btn-danger" onclick="return confirm('确定要删除这条记录吗？')">删除</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <button onclick="toggleFullscreen()" class="btn btn-primary">切换全屏</button>
+        <form id="ai-generate-form" action="{{ url_for('ai_generate') }}" method="post">
+            <label for="date">选择日期:</label>
+            {% for review in reviews %}
+            <input type="checkbox" id="date_{{ loop.index }}" name="date" value="{{ review[1] }}">
+            <label for="date_{{ loop.index }}">{{ review[1] }}</label>
+            {% endfor %}
+            <button type="button" onclick="previewAnalysis()" class="btn btn-primary">实时预览分析结果</button>
+            <input type="submit" value="一键 AI 生成复盘总结" class="btn btn-primary">
+            <input type="submit" value="一键 AI 生成数据分析" class="btn btn-primary">
+        </form>
+
+        <div id="analysis-modal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <div id="modal-content"></div>
+            </div>
+        </div>
+
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('index', page=page-1) }}">上一页</a>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="current-page">{{ p }}</span>
+            {% else %}
+            <a href="{{ url_for('index', page=p) }}">{{ p }}</a>
+            {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="{{ url_for('index', page=page+1) }}">下一页</a>
+            {% endif %}
+        </div>
+    </main>
+</body>
+
+</html>

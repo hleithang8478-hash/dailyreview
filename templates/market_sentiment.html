@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日市场情绪</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", PingFang SC, Microsoft YaHei, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            color: #e5e7eb;
+        }
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            border-radius: 12px;
+            background: rgba(99, 102, 241, 0.2);
+            color: #fff;
+            text-decoration: none;
+            font-size: 14px;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            z-index: 10;
+        }
+        .back-button:hover { background: rgba(99, 102, 241, 0.35); }
+        .container {
+            max-width: 1000px;
+            margin: 80px auto 40px;
+            padding: 0 24px 40px;
+        }
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        label { font-size: 14px; color: #9ca3af; }
+        input[type="date"] {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #e5e7eb;
+            font-size: 14px;
+        }
+        button.btn-calc {
+            padding: 10px 24px;
+            border-radius: 10px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            color: #fff;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+        button.btn-calc:hover { opacity: 0.9; }
+        button.btn-calc:disabled { opacity: 0.6; cursor: not-allowed; }
+        .score-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .score-card .score-num {
+            font-size: 48px;
+            font-weight: 800;
+            margin: 8px 0;
+        }
+        .score-card .score-num.good { color: #34d399; }
+        .score-card .score-num.mid { color: #fbbf24; }
+        .score-card .score-num.low { color: #f87171; }
+        .score-card .penalty-list {
+            font-size: 13px;
+            color: #f87171;
+            margin-top: 12px;
+            text-align: left;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .module-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .module-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #c7d2fe;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .module-card .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            font-size: 13px;
+        }
+        .module-card .grid .k { color: #9ca3af; }
+        .module-card .grid .v { color: #e5e7eb; font-weight: 500; }
+        .module-card .index-list {
+            font-size: 12px;
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+        .module-card .index-list table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(15,23,42,0.65);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .module-card .index-list thead {
+            background: rgba(15,23,42,0.95);
+        }
+        .module-card .index-list th,
+        .module-card .index-list td {
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 12px;
+        }
+        .module-card .index-list th {
+            font-weight: 500;
+            color: #9ca3af;
+            border-bottom: 1px solid rgba(55,65,81,0.85);
+        }
+        .module-card .index-list td {
+            color: #e5e7eb;
+            border-bottom: 1px solid rgba(31,41,55,0.7);
+        }
+        .module-card .index-list tr:nth-child(even) td {
+            background: rgba(15,23,42,0.4);
+        }
+        .module-card .index-list tr:hover td {
+            background: rgba(30,64,175,0.45);
+        }
+        .module-card .index-list .pct-up { color: #34d399; }
+        .module-card .index-list .pct-down { color: #f87171; }
+        .error-msg { color: #f87171; font-size: 14px; margin-top: 16px; }
+        .loading { color: #9ca3af; margin-top: 16px; }
+        .range-tab {
+            padding: 6px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04); color: #9ca3af; font-size: 12px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .range-tab:hover { background: rgba(99,102,241,0.15); color: #c7d2fe; }
+        .range-tab.active { background: rgba(99,102,241,0.3); color: #fff; border-color: rgba(99,102,241,0.5); }
+
+        /* Tooltip for [?] icons */
+        .tip-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: rgba(99,102,241,0.25); color: #a5b4fc; font-size: 10px;
+            cursor: help; position: relative; margin-left: 6px; vertical-align: middle;
+            font-weight: 700; line-height: 1;
+        }
+        .tip-icon .tip-text {
+            visibility: hidden; opacity: 0; position: absolute; z-index: 99;
+            bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+            width: 320px; padding: 10px 12px; border-radius: 10px;
+            background: rgba(15,23,42,0.97); border: 1px solid rgba(99,102,241,0.3);
+            color: #d1d5db; font-size: 12px; font-weight: 400; line-height: 1.5;
+            pointer-events: none; transition: opacity 0.2s;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        .tip-icon:hover .tip-text { visibility: visible; opacity: 1; }
+        /* Radar + Score side-by-side */
+        .top-dashboard { display: flex; gap: 20px; margin-bottom: 24px; align-items: stretch; }
+        .top-dashboard .score-card { flex: 1; margin-bottom: 0; }
+        .top-dashboard .radar-wrap {
+            flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px; padding: 16px; display: flex; align-items: center; justify-content: center;
+            min-height: 260px;
+        }
+        /* Regime card */
+        .regime-card {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px; padding: 16px 20px; margin-bottom: 20px;
+            display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+        }
+        .regime-tag {
+            padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+        }
+        /* Index capsules for M4 */
+        .idx-capsule {
+            flex: 1; min-width: 140px; border-radius: 12px; padding: 14px; text-align: center;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .idx-capsule.green { background: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.25); }
+        .idx-capsule.red { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.25); }
+        .idx-capsule.gray { background: rgba(255,255,255,0.04); }
+        .idx-capsule .idx-name { font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+        .idx-capsule .idx-price { font-size: 18px; font-weight: 700; }
+        .idx-capsule .idx-ma { font-size: 10px; color: #6b7280; margin-top: 2px; }
+        /* Sparkline inline mini charts */
+        .sparkline-wrap {
+            display: inline-block; vertical-align: middle; margin-left: 6px;
+        }
+        .sparkline-wrap canvas { vertical-align: middle; }
+        /* Clickable metric values */
+        .metric-clink {
+            cursor: pointer;
+            border-bottom: 1px dashed rgba(165,180,252,0.5);
+            transition: color 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .metric-clink:hover {
+            color: #a5b4fc !important;
+            border-bottom-color: rgba(165,180,252,1);
+        }
+        .metric-clink::after {
+            content: '↗';
+            font-size: 8px;
+            opacity: 0.45;
+            vertical-align: super;
+            margin-left: 2px;
+        }
+        /* Metric history modal */
+        #metricModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.62);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+        #metricModal.open { display: flex; }
+        .metric-modal-card {
+            background: linear-gradient(145deg,#1a1a2e,#16213e);
+            border: 1px solid rgba(99,102,241,0.4);
+            border-radius: 18px;
+            padding: 24px 28px 20px;
+            width: min(820px, 95vw);
+            max-height: 88vh;
+            overflow-y: auto;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+            position: relative;
+        }
+        .metric-modal-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #c7d2fe;
+            margin-bottom: 6px;
+            padding-right: 60px;
+        }
+        .metric-modal-days {
+            display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+        }
+        .metric-modal-days button {
+            background: rgba(99,102,241,0.12);
+            border: 1px solid rgba(99,102,241,0.3);
+            color: #9ca3af; border-radius: 8px; cursor: pointer;
+            font-size: 11px; padding: 3px 10px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .metric-modal-days button.active,
+        .metric-modal-days button:hover {
+            background: rgba(99,102,241,0.3); color: #e5e7eb;
+        }
+        .metric-modal-close {
+            position: absolute; top: 16px; right: 18px;
+            background: none; border: 1px solid rgba(255,255,255,0.15);
+            color: #9ca3af; border-radius: 8px; cursor: pointer;
+            font-size: 13px; padding: 4px 12px;
+            transition: background 0.2s;
+        }
+        .metric-modal-close:hover { background: rgba(255,255,255,0.1); color: #e5e7eb; }
+        /* Overlay chips */
+        .overlay-chip {
+            cursor: pointer; font-size: 10px; padding: 3px 8px;
+            border-radius: 6px; border: 1px solid rgba(255,255,255,0.12);
+            color: #6b7280; background: rgba(255,255,255,0.03);
+            transition: all 0.15s; white-space: nowrap; user-select: none;
+        }
+        .overlay-chip:hover { background: rgba(255,255,255,0.08); color: #9ca3af; }
+        .overlay-chip.active { background: rgba(255,255,255,0.06); }
+        /* Scale-mode buttons */
+        .scale-btn {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: #6b7280; border-radius: 6px; cursor: pointer;
+            font-size: 10px; padding: 3px 9px; transition: all 0.15s;
+        }
+        .scale-btn.active { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.5); color: #a5b4fc; }
+        .scale-btn:not(.active):hover { background: rgba(255,255,255,0.08); color: #9ca3af; }
+        @media (max-width: 700px) {
+            .top-dashboard { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-button">← 返回首页</a>
+    <div class="container">
+        <h1>每日市场情绪打分</h1>
+        <p style="color:#9ca3af; font-size:14px; margin-bottom:20px;">
+            八维度v2：资金多空比（成交额加权）、流动性缩量、加权横截面离散度(WCSV)、宽基指数趋势、风格因子监控(Size+Vol)、短线赚钱效应、聪明钱与日内承接力(Smart Money)、强势股补跌。基准100分，剔除流动性后10%股票池后动态扣分。
+        </p>
+        <div class="controls">
+            <label>交易日：</label>
+            <input type="date" id="tradingDay" />
+            <button type="button" class="btn-calc" id="btnCalc">查看 / 计算</button>
+            <button type="button" class="btn-calc" id="btnForce" style="background:rgba(239,68,68,0.7);font-size:12px;padding:8px 14px;display:none;" title="忽略缓存，强制重新计算">重新计算</button>
+            <button type="button" class="btn-calc" id="btnReport" style="background:rgba(99,102,241,0.5);font-size:12px;padding:8px 14px;" title="生成文字诊断报告">📝 量化报告</button>
+            <button type="button" class="btn-calc" id="btnAI" style="background:linear-gradient(135deg,#0ea5e9,#6366f1);font-size:12px;padding:8px 14px;" title="DeepSeek AI 解读">🤖 AI解读</button>
+            <span id="cacheTag" style="display:none;font-size:11px;color:#34d399;margin-left:4px;">● 已有缓存</span>
+        </div>
+
+        <!-- 量化报告展示区 -->
+        <div id="reportPanel" style="display:none; margin-top:16px;">
+            <div class="module-card" style="padding:20px 24px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3 style="margin:0;font-size:15px;color:#c7d2fe;">📋 量化诊断报告</h3>
+                    <button type="button" onclick="document.getElementById('reportPanel').style.display='none'" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px;">✕</button>
+                </div>
+                <div id="reportContent" style="font-size:13px;line-height:1.8;color:#d1d5db;"></div>
+            </div>
+        </div>
+
+        <!-- AI 分析面板 -->
+        <div id="aiPanel" style="display:none; margin-top:16px;">
+            <div class="module-card" style="padding:20px 24px;border-color:rgba(14,165,233,0.3);background:rgba(14,165,233,0.04);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+                    <h3 style="margin:0;font-size:15px;color:#7dd3fc;">🤖 DeepSeek AI 市场解读</h3>
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        <span style="font-size:11px;color:#6b7280;">报告类型：</span>
+                        <button class="ai-mode-btn active" data-mode="daily" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(14,165,233,0.4);background:rgba(14,165,233,0.2);color:#7dd3fc;font-size:11px;cursor:pointer;">日报</button>
+                        <button class="ai-mode-btn" data-mode="weekly" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(99,102,241,0.3);background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;">周报</button>
+                        <button class="ai-mode-btn" data-mode="monthly" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(99,102,241,0.3);background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;">月报</button>
+                        <button class="ai-mode-btn" data-mode="range" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(99,102,241,0.3);background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;">自定义区间</button>
+                        <button type="button" id="btnAIClose" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px;margin-left:6px;">✕</button>
+                    </div>
+                </div>
+                <!-- 自定义区间输入 -->
+                <div id="aiRangeInputs" style="display:none;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <label style="font-size:12px;color:#6b7280;">起始：</label><input type="date" id="aiRangeStart" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;color:#e5e7eb;font-size:12px;" />
+                    <label style="font-size:12px;color:#6b7280;">结束：</label><input type="date" id="aiRangeEnd" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;color:#e5e7eb;font-size:12px;" />
+                    <button type="button" id="btnAIGenerate" class="btn-calc" style="font-size:12px;padding:6px 16px;background:linear-gradient(135deg,#0ea5e9,#6366f1);">生成区间报告</button>
+                </div>
+                <div id="aiLoading" style="display:none;padding:20px;text-align:center;color:#7dd3fc;font-size:13px;">
+                    <div style="margin-bottom:8px;">🤖 DeepSeek 正在分析市场数据，通常需要 10~30 秒…</div>
+                    <div style="width:200px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;margin:0 auto;overflow:hidden;">
+                        <div id="aiLoadingBar" style="width:0%;height:100%;background:linear-gradient(90deg,#0ea5e9,#6366f1);border-radius:2px;animation:aibar 25s linear forwards;"></div>
+                    </div>
+                </div>
+                <div id="aiContent" style="font-size:13px;line-height:1.9;color:#d1d5db;white-space:pre-wrap;"></div>
+                <div id="aiMeta" style="font-size:11px;color:#4b5563;margin-top:10px;"></div>
+            </div>
+        </div>
+        <style>
+            @keyframes aibar { 0%{width:0%} 80%{width:90%} 100%{width:90%} }
+            .ai-mode-btn.active { background:rgba(14,165,233,0.2)!important; color:#7dd3fc!important; border-color:rgba(14,165,233,0.5)!important; }
+        </style>
+        <div style="margin-top:4px; font-size:12px; color:#6b7280;">
+            <a href="javascript:void(0)" id="toggleRangePanel" style="color:#9ca3af; text-decoration:underline; opacity:0.7;">
+                高级：批量计算区间每日分数（隐藏功能）
+            </a>
+        </div>
+        <div id="rangePanel" style="display:none; margin-top:10px; font-size:12px; color:#9ca3af; border-top:1px solid rgba(55,65,81,0.8); padding-top:8px;">
+            <div class="controls" style="margin-bottom:8px;">
+                <label>起始日期：</label><input type="date" id="rangeStart" />
+                <label>结束日期：</label><input type="date" id="rangeEnd" />
+                <button type="button" class="btn-calc" id="btnRangeCalc">计算区间</button>
+                <button type="button" class="btn-calc" id="btnRangeExport">导出CSV</button>
+                <label style="margin-left:10px;cursor:pointer;user-select:none;">
+                    <input type="checkbox" id="rangeForce" style="vertical-align:middle;" />
+                    <span style="font-size:11px;color:#f87171;">强制全部重算（忽略缓存）</span>
+                </label>
+            </div>
+            <div id="rangeStatus" style="margin-bottom:6px;"></div>
+            <!-- 图表 / 表格 切换 -->
+            <div id="rangeResultArea" style="display:none;">
+                <div style="display:flex;gap:6px;margin-bottom:10px;">
+                    <button type="button" class="range-tab active" data-tab="chart">📈 图表</button>
+                    <button type="button" class="range-tab" data-tab="table">📋 明细表</button>
+                </div>
+                <div id="rangeChartWrap" class="module-card" style="padding:16px 12px;">
+                    <div style="position:relative;height:280px;">
+                        <canvas id="rangeScoreChart"></canvas>
+                    </div>
+                    <div style="height:16px;"></div>
+                    <div style="position:relative;height:220px;">
+                        <canvas id="rangePenaltyChart"></canvas>
+                    </div>
+                </div>
+                <div id="rangeTableWrap" class="module-card" style="display:none;padding:12px;font-size:12px;max-height:520px;overflow-y:auto;"></div>
+            </div>
+        </div>
+        <div id="result"></div>
+    </div>
+    <script>
+        (function () {
+            var tradingDayEl = document.getElementById('tradingDay');
+            var btnCalc = document.getElementById('btnCalc');
+            var btnForce = document.getElementById('btnForce');
+            var cacheTag = document.getElementById('cacheTag');
+            var resultEl = document.getElementById('result');
+            var initialData = {{ initial_result_json|safe if initial_result_json else 'null' }};
+            var cachedDates = new Set({{ cached_dates_json|safe }});
+            var toggleRangePanel = document.getElementById('toggleRangePanel');
+            var rangePanel = document.getElementById('rangePanel');
+            var rangeStartEl = document.getElementById('rangeStart');
+            var rangeEndEl = document.getElementById('rangeEnd');
+            var btnRangeCalc = document.getElementById('btnRangeCalc');
+            var btnRangeExport = document.getElementById('btnRangeExport');
+            var rangeStatusEl = document.getElementById('rangeStatus');
+            var rangeResultEl = document.getElementById('rangeResultArea');
+            var btnReport = document.getElementById('btnReport');
+            var reportPanel = document.getElementById('reportPanel');
+            var reportContent = document.getElementById('reportContent');
+            var btnAI = document.getElementById('btnAI');
+            var aiPanel = document.getElementById('aiPanel');
+            var aiContent = document.getElementById('aiContent');
+            var aiMeta = document.getElementById('aiMeta');
+            var aiLoading = document.getElementById('aiLoading');
+            var aiRangeInputs = document.getElementById('aiRangeInputs');
+            var _aiMode = 'daily';
+
+            // ── AI 模式切换 ──
+            document.querySelectorAll('.ai-mode-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.ai-mode-btn').forEach(function(b){ b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    _aiMode = btn.getAttribute('data-mode');
+                    aiRangeInputs.style.display = _aiMode === 'range' ? 'flex' : 'none';
+                    aiContent.textContent = '';
+                    aiMeta.textContent = '';
+                });
+            });
+            document.getElementById('btnAIClose').addEventListener('click', function(){ aiPanel.style.display='none'; });
+
+            function _doAIAnalysis(mode, tradingDay, start, end) {
+                aiContent.textContent = '';
+                aiMeta.textContent = '';
+                aiLoading.style.display = 'block';
+                document.getElementById('aiLoadingBar').style.animation = 'none';
+                void document.getElementById('aiLoadingBar').offsetWidth;
+                document.getElementById('aiLoadingBar').style.animation = 'aibar 25s linear forwards';
+                var body = { mode: mode, trading_day: tradingDay };
+                if (start) body.start_date = start;
+                if (end) body.end_date = end;
+                fetch('{{ url_for("api_market_sentiment_ai_report") }}', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(body)
+                }).then(function(r){ return r.json(); }).then(function(res){
+                    aiLoading.style.display = 'none';
+                    if (res.success) {
+                        aiContent.textContent = res.analysis;
+                        aiMeta.textContent = '📅 ' + res.date_range + '（' + res.days_count + '个交易日）  ·  ' + res.mode_label;
+                    } else {
+                        aiContent.textContent = '❌ ' + (res.error || '生成失败');
+                    }
+                }).catch(function(e){
+                    aiLoading.style.display = 'none';
+                    aiContent.textContent = '❌ 请求失败: ' + (e.message || e);
+                });
+            }
+
+            if (btnAI) {
+                btnAI.addEventListener('click', function() {
+                    aiPanel.style.display = 'block';
+                    aiPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
+                    if (_aiMode !== 'range') {
+                        _doAIAnalysis(_aiMode, tradingDayEl.value, null, null);
+                    }
+                });
+            }
+            var btnAIGenerate = document.getElementById('btnAIGenerate');
+            if (btnAIGenerate) {
+                btnAIGenerate.addEventListener('click', function(){
+                    _doAIAnalysis('range', null,
+                        document.getElementById('aiRangeStart').value,
+                        document.getElementById('aiRangeEnd').value);
+                });
+            }
+
+            function todayStr() {
+                var d = new Date();
+                return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            }
+            if (!tradingDayEl.value) tradingDayEl.value = todayStr();
+
+            function updateCacheHint() {
+                var day = tradingDayEl.value;
+                var has = cachedDates.has(day);
+                cacheTag.style.display = has ? 'inline' : 'none';
+                btnForce.style.display = has ? 'inline-block' : 'none';
+                btnCalc.textContent = has ? '查看' : '计算';
+            }
+            updateCacheHint();
+            tradingDayEl.addEventListener('change', function () {
+                updateCacheHint();
+                var day = tradingDayEl.value;
+                if (cachedDates.has(day)) {
+                    resultEl.innerHTML = '<div class="loading">加载缓存…</div>';
+                    fetch('{{ url_for("api_market_sentiment_cached") }}?trading_day=' + encodeURIComponent(day))
+                        .then(function(r){return r.json();})
+                        .then(function(res){
+                            if (res.success && res.cached) {
+                                render({data: res.data});
+                            }
+                        }).catch(function(){});
+                }
+            });
+
+            
+            // _mv: wrap a metric value as a clickable span for the history popup
+            function _mv(metricKey, display, label) {
+                return '<span class="metric-clink" data-metric="' + metricKey +
+                       '" data-label="' + (label || metricKey) + '">' + display + '</span>';
+            }
+
+            function render(data) {
+                var d = data.data || data;
+                var day = d.trading_day || '';
+                var m1 = d.module1 || {};
+                var m2 = d.module2 || {};
+                var m3 = d.module3 || {};
+                var m4 = d.module4 || {};
+                var m5 = d.module5 || {};
+                var m6 = d.module6 || {};
+                var m7 = d.module7 || {};
+                var m8 = d.module8 || {};
+                var total = d.total_score != null ? d.total_score : 100;
+                var penalty = d.total_penalty || 0;
+                var penaltyDetails = d.penalty_details || [];
+
+                var scoreClass = total >= 80 ? 'good' : (total >= 60 ? 'mid' : 'low');
+                var penaltyHtml = penaltyDetails.length ? '<ul class="penalty-list">' + penaltyDetails.map(function(p){ return '<li>' + p + '</li>'; }).join('') + '</ul>' : '';
+
+                // Module max penalties for radar health calculation
+                var maxP = [50, 30, 20, 45, 55, 40, 30, 20];
+                var penalties = [m1,m2,m3,m4,m5,m6,m7,m8].map(function(m){ return m.penalty || 0; });
+                var health = penalties.map(function(p, i){ return Math.max(0, Math.min(100, 100 - (p / maxP[i]) * 100)); });
+
+                // ── Regime labels ──
+                var regimeLabel = ''; var regimeColor = ''; var posLabel = ''; var posColor = '';
+                if (total >= 85) { regimeLabel = '主升浪 / 活跃资金主导'; regimeColor = 'background:rgba(52,211,153,0.2);color:#34d399;'; posLabel = '满仓可攻'; posColor = 'background:rgba(52,211,153,0.15);color:#34d399;'; }
+                else if (total >= 70) { regimeLabel = '温和多头 / 结构性行情'; regimeColor = 'background:rgba(96,165,250,0.2);color:#60a5fa;'; posLabel = '7成仓持有'; posColor = 'background:rgba(96,165,250,0.15);color:#60a5fa;'; }
+                else if (total >= 50) { regimeLabel = '震荡分化 / 选股为王'; regimeColor = 'background:rgba(251,191,36,0.2);color:#fbbf24;'; posLabel = '5成仓精选'; posColor = 'background:rgba(251,191,36,0.15);color:#fbbf24;'; }
+                else if (total >= 30) { regimeLabel = '弱势防御 / 风控优先'; regimeColor = 'background:rgba(251,146,60,0.2);color:#fb923c;'; posLabel = '3成仓观望'; posColor = 'background:rgba(251,146,60,0.15);color:#fb923c;'; }
+                else { regimeLabel = '极端恐慌 / 系统性风险'; regimeColor = 'background:rgba(248,113,113,0.2);color:#f87171;'; posLabel = '清仓回避'; posColor = 'background:rgba(248,113,113,0.15);color:#f87171;'; }
+
+                var html = '';
+
+                // ── Top dashboard: Score + Radar side by side ──
+                html += '<div class="top-dashboard">';
+                html += '<div class="score-card">';
+                html += '<div style="color:#9ca3af;font-size:13px;">交易日：' + day + '</div>';
+                html += '<div class="score-num ' + scoreClass + '">' + _mv('total_score', total, '截面总分') + '</div>';
+                html += '<div style="color:#9ca3af;font-size:13px;">满分100，扣分 ' + penalty + '</div>';
+                html += penaltyHtml;
+                html += '</div>';
+                html += '<div class="radar-wrap"><canvas id="radarChart" width="280" height="280"></canvas></div>';
+                html += '</div>';
+
+                // ── Regime card ──
+                html += '<div class="regime-card">';
+                html += '<div style="font-size:12px;color:#6b7280;">环境研判</div>';
+                html += '<span class="regime-tag" style="' + regimeColor + '">' + regimeLabel + '</span>';
+                html += '<div style="font-size:12px;color:#6b7280;">仓位指令</div>';
+                html += '<span class="regime-tag" style="' + posColor + '">' + posLabel + '</span>';
+                var riskLight = total >= 70 ? '🟢 绿灯通行' : (total >= 40 ? '🟡 黄灯谨慎' : '🔴 红灯停止');
+                html += '<span style="font-size:12px;margin-left:auto;margin-right:8px;">' + riskLight + '</span>';
+                html += '</div>';
+
+                // ── Energy Index Card ──
+                var ei = d.energy_index;
+                var er = d.energy_reset;
+                var eiStr = (ei != null && !isNaN(ei)) ? ei.toFixed(1) : null;
+                var eiColor = ei == null ? '#6b7280' : (ei > 30 ? '#34d399' : ei > 0 ? '#a5b4fc' : ei > -20 ? '#fbbf24' : '#f87171');
+                var eiLabel, eiDesc;
+                if (er) {
+                    eiLabel = '⚡ 冰点重置 · Regime Shift';
+                    eiColor = '#f87171';
+                    eiDesc = '多项极端异常共振触发，能量归零重计，市场正处于系统性绝望点。这是历史上最好的介入机会区间，等待右侧信号确认。';
+                } else if (ei == null || eiStr == null) {
+                    eiLabel = '历史数据不足';
+                    eiDesc = '需要至少 40 天历史截面分数才能启动能量计算。';
+                } else if (ei > 60) {
+                    eiLabel = '🔥 能量过热';
+                    eiDesc = '市场信心积累已达高位，自适应衰减增强，继续追高需谨慎，动能衰减风险上升。';
+                } else if (ei > 20) {
+                    eiLabel = '📈 能量上升期';
+                    eiDesc = '自冰点以来持续积累，多头合力有效，当前处于趋势运行阶段。';
+                } else if (ei > -10) {
+                    eiLabel = '〰 能量中性';
+                    eiDesc = '日分数贴近60日中性线，动能未明显偏向多空任何一侧，适合精选个股。';
+                } else {
+                    eiLabel = '❄ 能量消耗中';
+                    eiDesc = '连续负向偏差累积，信心仍在收缩，但尚未触发异常共振冰点，需持续观察M1/M6等指标。';
+                }
+                html += '<div class="module-card" style="margin-bottom:16px;border-color:rgba(165,180,252,0.2);background:rgba(99,102,241,0.06);">';
+                html += '<h3 style="color:#a5b4fc;border-bottom-color:rgba(165,180,252,0.15);">⚡ 连续能量指数 (Continuous Energy Index)' +
+                    '<span class="tip-icon">?<span class="tip-text" style="width:360px;">水库水位模型：从每次"冰点重置"归零后累计信心积聚。公式 S_t = S_{t-1}×(1−Decay_t) + ΔS_t。动态中性线=60日滚动均分；自适应衰减 Decay∝|S|/150；负向乘1.5倍（信心易碎效应）；异常共振（8维Z-Score）触发归零。</span></span>' +
+                    '</h3>';
+                html += '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">';
+                html += '<div style="text-align:center;min-width:100px;">';
+                html += '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">今日能量值</div>';
+                html += '<div style="font-size:40px;font-weight:800;color:' + eiColor + ';">' + _mv('energy_index', eiStr != null ? eiStr : '-', '连续能量指数') + '</div>';
+                html += '<div style="font-size:11px;margin-top:4px;padding:3px 10px;border-radius:12px;display:inline-block;background:rgba(165,180,252,0.1);color:' + eiColor + ';">' + eiLabel + '</div>';
+                html += '</div>';
+                html += '<div style="flex:1;min-width:200px;">';
+                html += '<div style="font-size:12px;color:#9ca3af;line-height:1.7;">' + eiDesc + '</div>';
+                var eiGuide = '';
+                if (eiStr != null && !er) {
+                    eiGuide += '<div style="margin-top:8px;font-size:11px;color:#6b7280;">';
+                    eiGuide += '<span style="color:#34d399;">●</span> >60 过热警戒 &nbsp;';
+                    eiGuide += '<span style="color:#a5b4fc;">●</span> 20~60 上升期 &nbsp;';
+                    eiGuide += '<span style="color:#fbbf24;">●</span> -10~20 中性区 &nbsp;';
+                    eiGuide += '<span style="color:#f87171;">●</span> <-10 消耗中 &nbsp;';
+                    eiGuide += '<span style="color:#f87171;font-weight:600;">⚡</span> 归零 冰点重置';
+                    eiGuide += '</div>';
+                }
+                html += eiGuide;
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+
+                // helper: tooltip
+                function tip(text) { return '<span class="tip-icon">?<span class="tip-text">' + text + '</span></span>'; }
+
+                // ===== Module 1 =====
+                html += '<div class="module-card"><h3>M1 资金多空比' + tip('Money Flow Ratio = Σ(上涨股成交额)/Σ(下跌股成交额)，用真金白银衡量多空。同时展示市值加权做多比，背离度揭示主力意图。') + '</h3>';
+                if (m1.error) { html += '<div class="error-msg">' + m1.error + '</div>'; }
+                else {
+                    html += '<div style="display:flex;gap:12px;margin-bottom:8px;">';
+                    html += '<div style="flex:1;background:rgba(99,102,241,0.1);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">成交额多空比</div>';
+                    var mfr = m1.money_flow_ratio;
+                    var mfrCls = mfr != null ? (mfr >= 1 ? 'color:#34d399' : mfr >= 0.5 ? 'color:#fbbf24' : 'color:#f87171') : '';
+                    html += '<div style="font-size:24px;font-weight:700;' + mfrCls + '">' + _mv('mfr', mfr != null ? mfr.toFixed(2) : '-', '成交额多空比(MFR)') + ' <span class="sparkline-wrap"><canvas data-spark="mfr" width="48" height="20"></canvas></span></div></div>';
+                    html += '<div style="flex:1;background:rgba(99,102,241,0.1);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">市值多空比</div>';
+                    var mvfr = m1.mv_flow_ratio;
+                    html += '<div style="font-size:24px;font-weight:700;color:#c7d2fe;">' + _mv('mv_flow_ratio', mvfr != null ? mvfr.toFixed(2) : '-', '市值多空比') + '</div></div>';
+                    html += '<div style="flex:1;background:rgba(99,102,241,0.1);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">背离度</div>';
+                    var dv = m1.divergence;
+                    var dvCls = dv != null ? (dv > 0 ? 'color:#34d399' : 'color:#f87171') : '';
+                    html += '<div style="font-size:24px;font-weight:700;' + dvCls + '">' + _mv('divergence', dv != null ? (dv > 0 ? '+' : '') + dv.toFixed(2) : '-', '多空背离度') + ' <span class="sparkline-wrap"><canvas data-spark="divergence" width="48" height="20"></canvas></span></div></div></div>';
+                    html += '<div class="grid">';
+                    html += '<span class="k">涨/跌</span><span class="v">' + (m1.up_count??'-') + '/' + (m1.down_count??'-') + '</span>';
+                    html += '<span class="k">涨停/跌停</span><span class="v">' + _mv('limit_up', m1.limit_up??'-', '涨停家数') + '/' + _mv('limit_down', m1.limit_down??'-', '跌停家数') + '</span>';
+                    html += '<span class="k">一字跌停</span><span class="v">' + _mv('one_word_limit_down', m1.one_word_limit_down??'-', '一字跌停家数') + '</span>';
+                    html += '<span class="k">扣分</span><span class="v" style="color:#f87171;">' + (m1.penalty??0) + '</span></div>';
+                    if ((m1.penalty_detail||[]).length) { html += '<ul class="penalty-list" style="margin-top:6px;">'; m1.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                }
+                html += '</div>';
+
+                // ===== Module 2 =====
+                html += '<div class="module-card"><h3>M2 流动性缩量' + tip('5日/20日均量对比+252日分位。Vol_5<0.7×Vol_20扣15分，当日成交额<252日10%分位再扣15分。') + '</h3>';
+                if (m2.error) { html += '<div class="error-msg">' + m2.error + '</div>'; }
+                else {
+                    html += '<div class="grid">';
+                    html += '<span class="k">当日(亿)</span><span class="v">' + _mv('turnover_today', m2.turnover_today??'-', '当日成交额(亿)') + '</span>';
+                    html += '<span class="k">5日/20日</span><span class="v">' + _mv('vol_5', m2.vol_5??'-', '5日均量(亿)') + '/' + _mv('vol_20', m2.vol_20??'-', '20日均量(亿)') + '</span>';
+                    html += '<span class="k">252日P10</span><span class="v">' + (m2.p10_turnover_252!=null?m2.p10_turnover_252:'-') + '</span>';
+                    html += '<span class="k">扣分</span><span class="v" style="color:#f87171;">' + (m2.penalty??0) + '</span>';
+                    if ((m2.penalty_detail||[]).length) { html += '</div><ul class="penalty-list" style="margin-top:6px;">'; m2.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                    else { html += '</div>'; }
+                }
+                html += '</div>';
+
+                // ===== Module 3 =====
+                html += '<div class="module-card"><h3>M3 WCSV离散度' + tip('√成交额加权横截面标准差，用sqrt降权大盘股寡头效应，让中小盘波动信号不被淹没。60日后10%分位=因子失效，扣20分。') + '</h3>';
+                if (m3.error) { html += '<div class="error-msg">' + m3.error + '</div>'; }
+                else {
+                    html += '<div class="grid">';
+                    html += '<span class="k">加权σ</span><span class="v">' + _mv('sigma_weighted', m3.sigma_weighted!=null?m3.sigma_weighted:'-', '加权σ(WCSV)') + '</span>';
+                    html += '<span class="k">等权σ</span><span class="v">' + _mv('sigma_equal', m3.sigma_equal!=null?m3.sigma_equal:'-', '等权σ') + '</span>';
+                    html += '<span class="k">60日分位</span><span class="v">' + _mv('sigma_percentile', m3.percentile!=null?m3.percentile+'%':'-', 'WCSV 60日分位(%)') + '</span>';
+                    html += '<span class="k">扣分</span><span class="v" style="color:#f87171;">' + (m3.penalty??0) + '</span>';
+                    if ((m3.penalty_detail||[]).length) { html += '</div><ul class="penalty-list" style="margin-top:6px;">'; m3.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                    else { html += '</div>'; }
+                }
+                html += '</div>';
+
+                // ===== Module 4 (capsules) =====
+                html += '<div class="module-card"><h3>M4 宽基指数趋势' + tip('中证1000破MA20扣15分，沪深300/中证500/中证1000同时破MA60再扣30分。') + '</h3>';
+                var indices = m4.indices || [];
+                var coreMap = {'沪深300': null, '中证500': null, '中证1000': null, '上证50': null};
+                indices.forEach(function(r) {
+                    var nm = r.name || r.abbr || '';
+                    for (var k in coreMap) { if (nm.indexOf(k) >= 0 && coreMap[k] === null) coreMap[k] = r; }
+                });
+                html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;">';
+                ['上证50','沪深300','中证500','中证1000'].forEach(function(nm) {
+                    var r = coreMap[nm];
+                    if (!r) { html += '<div class="idx-capsule gray"><div class="idx-name">' + nm + '</div><div class="idx-price" style="color:#6b7280;">-</div></div>'; return; }
+                    var cls = r.below_ma === true ? 'red' : (r.below_ma === false ? 'green' : 'gray');
+                    var pct = r.change_pct;
+                    var pctC = pct > 0 ? '#34d399' : (pct < 0 ? '#f87171' : '#e5e7eb');
+                    html += '<div class="idx-capsule ' + cls + '">';
+                    html += '<div class="idx-name">' + nm + '</div>';
+                    html += '<div class="idx-price" style="color:' + pctC + ';">' + (r.close!=null?r.close:'-') + '</div>';
+                    html += '<div class="idx-ma">MA20 ' + (r.ma20!=null?r.ma20:'-') + ' ' + (r.below_ma===true?'<span style="color:#f87171;">▼破</span>':'<span style="color:#34d399;">▲上</span>') + '</div>';
+                    html += '<div class="idx-ma" style="color:' + pctC + ';">' + (pct!=null?pct+'%':'-') + '</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                html += '<div class="grid"><span class="k">扣分</span><span class="v" style="color:#f87171;">' + (m4.penalty??0) + '</span></div>';
+                if ((m4.penalty_detail||[]).length) { html += '<ul class="penalty-list" style="margin-top:6px;">'; m4.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                html += '</div>';
+
+                // ===== Module 5 =====
+                html += '<div class="module-card"><h3>M5 风格因子' + tip('Size Spread=R小盘20%-R大盘20%；Vol Spread=R高波20%-R低波20%。近3日累计Spread<-3%触发扣分（比单日连续更灵敏）。同时保留中证1000vs上证50检查。') + '</h3>';
+                if (m5.error) { html += '<div class="error-msg">' + m5.error + '</div>'; }
+                else {
+                    html += '<div style="display:flex;gap:12px;margin-bottom:8px;">';
+                    html += '<div style="flex:1;background:rgba(168,85,247,0.1);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">Size Spread</div>';
+                    var ss5=m5.spread_size; var ss5C=ss5!=null?(ss5>=0?'color:#34d399':'color:#f87171'):'';
+                    html += '<div style="font-size:22px;font-weight:700;'+ss5C+'">' + _mv('spread_size', ss5!=null?(ss5*100).toFixed(2)+'%':'-', 'Size Spread（小盘-大盘）') + ' <span class="sparkline-wrap"><canvas data-spark="spread_size" width="48" height="18"></canvas></span></div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">连续 '+(m5.size_consec_days||0)+' 天</div></div>';
+                    html += '<div style="flex:1;background:rgba(236,72,153,0.1);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">Vol Spread</div>';
+                    var vs5=m5.spread_vol; var vs5C=vs5!=null?(vs5>=0?'color:#34d399':'color:#f87171'):'';
+                    html += '<div style="font-size:22px;font-weight:700;'+vs5C+'">' + _mv('spread_vol', vs5!=null?(vs5*100).toFixed(2)+'%':'-', 'Vol Spread（高波-低波）') + ' <span class="sparkline-wrap"><canvas data-spark="spread_vol" width="48" height="18"></canvas></span></div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">连续 '+(m5.vol_consec_days||0)+' 天</div></div>';
+                    html += '<div style="flex:1;background:rgba(14,165,233,0.1);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">1000 vs 50</div>';
+                    var idxDf=m5.r_csi1000_vs_sh50; var idDC=idxDf!=null?(idxDf>=0?'color:#34d399':'color:#f87171'):'';
+                    html += '<div style="font-size:22px;font-weight:700;'+idDC+'">'+(idxDf!=null?(idxDf*100).toFixed(2)+'%':'-')+'</div>';
+                    html += '</div></div>';
+                    html += '<div class="grid"><span class="k">扣分</span><span class="v" style="color:#f87171;">'+(m5.penalty??0)+'</span></div>';
+                    if ((m5.penalty_detail||[]).length) { html += '<ul class="penalty-list" style="margin-top:6px;">'; m5.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                }
+                html += '</div>';
+
+                // ===== Module 6 =====
+                html += '<div class="module-card"><h3>M6 短线赚钱效应' + tip('跟踪昨日涨停股今日表现。平均收益<-2%扣20分，核按钮比例≥20%再扣20分。') + '</h3>';
+                if (m6.error) { html += '<div class="error-msg">' + m6.error + '</div>'; }
+                else {
+                    html += '<div class="grid">';
+                    html += '<span class="k">昨涨停</span><span class="v">' + _mv('hot_count', m6.hot_count??'-', '昨日涨停家数') + '只</span>';
+                    html += '<span class="k">今均收益</span><span class="v">' + _mv('hot_avg_return', m6.hot_avg_return!=null?(m6.hot_avg_return*100).toFixed(2)+'%':'-', '昨涨停今均收益') + '</span>';
+                    html += '<span class="k">核按钮</span><span class="v">'+(m6.nuke_count??'-')+'/' + _mv('nuke_ratio', m6.nuke_ratio!=null?(m6.nuke_ratio*100).toFixed(1)+'%':'-', '核按钮比例') + '</span>';
+                    html += '<span class="k">扣分</span><span class="v" style="color:#f87171;">'+(m6.penalty??0)+'</span></div>';
+                    if ((m6.penalty_detail||[]).length) { html += '<ul class="penalty-list" style="margin-top:6px;">'; m6.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                }
+                html += '</div>';
+
+                // ===== Module 7 =====
+                html += '<div class="module-card"><h3>M7 聪明钱' + tip('四形态解构：诱多派发/诱空吸筹/单边上涨/单边下跌（成交额加权），净派发=派发−吸筹×0.8，≥60%扣满15分。换手率前10%活跃池收益≤-4%扣满15分。') + '</h3>';
+                if (m7.error) { html += '<div class="error-msg">' + m7.error + '</div>'; }
+                else {
+                    // 四形态能量条
+                    var sdr=m7.smart_distrib_ratio, sar=m7.smart_accum_ratio, uur=m7.unilateral_up_ratio, udr=m7.unilateral_down_ratio;
+                    var ndr=m7.net_distrib_ratio;
+                    html += '<div style="display:flex;gap:4px;height:18px;border-radius:4px;overflow:hidden;margin-bottom:8px;font-size:10px;color:#fff;text-align:center;line-height:18px;">';
+                    if (sdr!=null&&sar!=null&&uur!=null&&udr!=null) {
+                        var oth=Math.max(0,1-sdr-sar-uur-udr);
+                        if(sdr>0) html+='<div style="flex:'+sdr+';background:#ef4444;" title="诱多派发 '+(sdr*100).toFixed(1)+'%">派</div>';
+                        if(udr>0) html+='<div style="flex:'+udr+';background:#f97316;" title="单边下跌 '+(udr*100).toFixed(1)+'%">跌</div>';
+                        if(oth>0) html+='<div style="flex:'+oth+';background:#6b7280;" title="其他 '+(oth*100).toFixed(1)+'%"></div>';
+                        if(uur>0) html+='<div style="flex:'+uur+';background:#22c55e;" title="单边上涨 '+(uur*100).toFixed(1)+'%">涨</div>';
+                        if(sar>0) html+='<div style="flex:'+sar+';background:#14b8a6;" title="诱空吸筹 '+(sar*100).toFixed(1)+'%">筹</div>';
+                    }
+                    html += '</div>';
+                    // 数值展示
+                    html += '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">';
+                    html += '<div style="flex:1;min-width:90px;background:rgba(239,68,68,0.08);border-radius:10px;padding:10px;text-align:center;">';
+                    html += '<div style="font-size:10px;color:#9ca3af;">诱多派发</div>';
+                    html += '<div style="font-size:18px;font-weight:700;color:#ef4444;">'+(sdr!=null?(sdr*100).toFixed(1)+'%':'-')+'</div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">'+(m7.count_distrib||0)+' 只</div></div>';
+                    html += '<div style="flex:1;min-width:90px;background:rgba(20,184,166,0.08);border-radius:10px;padding:10px;text-align:center;">';
+                    html += '<div style="font-size:10px;color:#9ca3af;">诱空吸筹</div>';
+                    html += '<div style="font-size:18px;font-weight:700;color:#14b8a6;">'+(sar!=null?(sar*100).toFixed(1)+'%':'-')+'</div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">'+(m7.count_accum||0)+' 只</div></div>';
+                    html += '<div style="flex:1;min-width:90px;background:rgba(34,197,94,0.08);border-radius:10px;padding:10px;text-align:center;">';
+                    html += '<div style="font-size:10px;color:#9ca3af;">单边上涨</div>';
+                    html += '<div style="font-size:18px;font-weight:700;color:#22c55e;">'+(uur!=null?(uur*100).toFixed(1)+'%':'-')+'</div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">'+(m7.count_uni_up||0)+' 只</div></div>';
+                    html += '<div style="flex:1;min-width:90px;background:rgba(249,115,22,0.08);border-radius:10px;padding:10px;text-align:center;">';
+                    html += '<div style="font-size:10px;color:#9ca3af;">单边下跌</div>';
+                    html += '<div style="font-size:18px;font-weight:700;color:#f97316;">'+(udr!=null?(udr*100).toFixed(1)+'%':'-')+'</div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">'+(m7.count_uni_down||0)+' 只</div></div></div>';
+                    // 净派发 + 活跃池
+                    html += '<div style="display:flex;gap:12px;margin-bottom:8px;">';
+                    html += '<div style="flex:1;background:rgba(239,68,68,0.06);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">净派发能量</div>';
+                    var ndrCls=ndr!=null?(ndr>=0.5?'color:#f87171':ndr>=0.3?'color:#fbbf24':'color:#34d399'):'';
+                    html += '<div style="font-size:22px;font-weight:700;'+ndrCls+'">' + _mv('net_distrib_ratio', ndr!=null?(ndr*100).toFixed(1)+'%':'-', '净派发能量') + ' <span class="sparkline-wrap"><canvas data-spark="smart_distrib" width="48" height="18"></canvas></span></div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">派发−吸筹×0.8</div></div>';
+                    html += '<div style="flex:1;background:rgba(20,184,166,0.06);border-radius:10px;padding:12px;text-align:center;">';
+                    html += '<div style="font-size:11px;color:#9ca3af;">活跃池盈亏</div>';
+                    var ttr=m7.top_turnover_avg_return; var ttrCls=ttr!=null?(ttr>=0?'color:#34d399':ttr>-0.02?'color:#fbbf24':'color:#f87171'):'';
+                    html += '<div style="font-size:22px;font-weight:700;'+ttrCls+'">' + _mv('top_turnover_avg_return', ttr!=null?(ttr*100).toFixed(2)+'%':'-', '活跃池盈亏') + ' <span class="sparkline-wrap"><canvas data-spark="turnover_prem" width="48" height="18"></canvas></span></div>';
+                    html += '<div style="font-size:10px;color:#6b7280;">'+(m7.top_turnover_count||0)+' 只</div></div></div>';
+                    html += '<div class="grid"><span class="k">扣分</span><span class="v" style="color:#f87171;">'+(m7.penalty??0)+'</span></div>';
+                    if ((m7.penalty_detail||[]).length) { html += '<ul class="penalty-list" style="margin-top:6px;">'; m7.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                }
+                html += '</div>';
+
+                // ===== Module 8 =====
+                html += '<div class="module-card"><h3>M8 强势股补跌' + tip('过去20日收益前10%的强势股池，大盘下跌日其均跌<-3%=动量崩溃，扣20分。') + '</h3>';
+                if (m8.error) { html += '<div class="error-msg">' + m8.error + '</div>'; }
+                else {
+                    html += '<div class="grid">';
+                    html += '<span class="k">强势股</span><span class="v">'+(m8.strong_count??'-')+'只</span>';
+                    html += '<span class="k">今日均值</span><span class="v">' + _mv('strong_avg_return', m8.strong_avg_return!=null?(m8.strong_avg_return*100).toFixed(2)+'%':'-', '强势股今日均值') + '</span>';
+                    html += '<span class="k">20日阈值</span><span class="v">'+(m8.threshold_cum20!=null?(m8.threshold_cum20*100).toFixed(2)+'%':'-')+'</span>';
+                    html += '<span class="k">扣分</span><span class="v" style="color:#f87171;">'+(m8.penalty??0)+'</span></div>';
+                    if ((m8.penalty_detail||[]).length) { html += '<ul class="penalty-list" style="margin-top:6px;">'; m8.penalty_detail.forEach(function(p){html+='<li>'+p+'</li>';}); html += '</ul>'; }
+                }
+                html += '</div>';
+
+                resultEl.innerHTML = html;
+
+                // ── Draw Radar Chart ──
+                var radarCanvas = document.getElementById('radarChart');
+                if (radarCanvas && typeof Chart !== 'undefined') {
+                    var existing = Chart.getChart(radarCanvas);
+                    if (existing) existing.destroy();
+                    new Chart(radarCanvas, {
+                        type: 'radar',
+                        data: {
+                            labels: ['M1 多空比','M2 流动性','M3 离散度','M4 趋势','M5 风格','M6 短线','M7 聪明钱','M8 强势股'],
+                            datasets: [{
+                                data: health,
+                                backgroundColor: 'rgba(99,102,241,0.2)',
+                                borderColor: 'rgba(129,140,248,0.8)',
+                                borderWidth: 2,
+                                pointBackgroundColor: health.map(function(h){ return h >= 80 ? '#34d399' : h >= 50 ? '#fbbf24' : '#f87171'; }),
+                                pointRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                r: {
+                                    min: 0, max: 100,
+                                    ticks: { display: false, stepSize: 25 },
+                                    grid: { color: 'rgba(255,255,255,0.06)' },
+                                    angleLines: { color: 'rgba(255,255,255,0.08)' },
+                                    pointLabels: { color: '#9ca3af', font: { size: 11 } }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // ── Sparklines ──
+                if (day) {
+                    fetch('{{ url_for("api_market_sentiment_sparkline") }}?trading_day=' + encodeURIComponent(day))
+                        .then(function(r){ return r.json(); })
+                        .then(function(res){
+                            if (!res.success || !res.series || res.series.length < 2) return;
+                            var s = res.series;
+                            var fields = ['mfr','divergence','spread_size','spread_vol','smart_distrib','turnover_prem'];
+                            fields.forEach(function(key){
+                                var canvas = document.querySelector('canvas[data-spark="'+key+'"]');
+                                if (!canvas) return;
+                                var vals = s.map(function(r){ return r[key]; }).filter(function(v){ return v != null; });
+                                if (vals.length < 2) return;
+                                var ctx = canvas.getContext('2d');
+                                var w = canvas.width, h = canvas.height;
+                                ctx.clearRect(0,0,w,h);
+                                var mn = Math.min.apply(null,vals), mx = Math.max.apply(null,vals);
+                                var range = mx - mn || 1;
+                                var step = w / (vals.length - 1);
+                                var last = vals[vals.length-1];
+                                var prev = vals[vals.length-2];
+                                var color = last >= prev ? '#34d399' : '#f87171';
+                                ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+                                ctx.beginPath();
+                                vals.forEach(function(v,i){
+                                    var x = i * step;
+                                    var y = h - 2 - ((v - mn) / range) * (h - 4);
+                                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                                });
+                                ctx.stroke();
+                                ctx.fillStyle = color;
+                                var lx = (vals.length-1)*step, ly = h-2-((last-mn)/range)*(h-4);
+                                ctx.beginPath(); ctx.arc(lx, ly, 2, 0, Math.PI*2); ctx.fill();
+                            });
+                        }).catch(function(){});
+                }
+            }
+
+            // 若有历史结果，初次打开页面直接渲染
+            if (initialData) {
+                try {
+                    render({ data: initialData });
+                    if (initialData.trading_day) {
+                        tradingDayEl.value = initialData.trading_day;
+                    }
+                } catch (e) {
+                    console.error('渲染历史市场情绪结果失败', e);
+                }
+            }
+
+            // 高级：区间批量计算面板切换
+            if (toggleRangePanel) {
+                toggleRangePanel.addEventListener('click', function () {
+                    if (!rangePanel) return;
+                    var show = rangePanel.style.display === 'none' || rangePanel.style.display === '';
+                    rangePanel.style.display = show ? 'block' : 'none';
+                });
+            }
+
+            // ── 报告生成 ──
+            function simpleMarkdown(md) {
+                return md
+                    .replace(/^# (.+)$/gm, '<h2 style="font-size:18px;font-weight:700;color:#e5e7eb;margin:16px 0 8px;">$1</h2>')
+                    .replace(/^## (.+)$/gm, '<h3 style="font-size:15px;font-weight:600;color:#c7d2fe;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">$1</h3>')
+                    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;">')
+                    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#f0abfc;">$1</strong>')
+                    .replace(/^> (.+)$/gm, '<blockquote style="border-left:3px solid #6366f1;padding-left:10px;color:#9ca3af;margin:6px 0;">$1</blockquote>')
+                    .replace(/^- (.+)$/gm, '<div style="padding:2px 0 2px 14px;position:relative;"><span style="position:absolute;left:0;color:#6366f1;">•</span>$1</div>')
+                    .replace(/\n\n/g, '<br>')
+                    .replace(/\n/g, '');
+            }
+            if (btnReport) {
+                btnReport.addEventListener('click', function() {
+                    var day = tradingDayEl.value;
+                    if (!day) { alert('请先选择交易日'); return; }
+                    btnReport.disabled = true;
+                    btnReport.textContent = '生成中…';
+                    fetch('{{ url_for("api_market_sentiment_report") }}?trading_day=' + encodeURIComponent(day))
+                        .then(function(r){ return r.json(); })
+                        .then(function(res){
+                            btnReport.disabled = false;
+                            btnReport.textContent = '📝 生成报告';
+                            if (res.success) {
+                                reportContent.innerHTML = simpleMarkdown(res.report);
+                                reportPanel.style.display = 'block';
+                                reportPanel.scrollIntoView({behavior:'smooth', block:'start'});
+                            } else {
+                                alert(res.error || '生成失败');
+                            }
+                        }).catch(function(e){
+                            btnReport.disabled = false;
+                            btnReport.textContent = '📝 生成报告';
+                            alert('请求失败: ' + e);
+                        });
+                });
+            }
+
+            function doCalc(force) {
+                var day = tradingDayEl.value;
+                if (!day) {
+                    resultEl.innerHTML = '<div class="error-msg">请选择交易日</div>';
+                    return;
+                }
+                btnCalc.disabled = true;
+                btnForce.disabled = true;
+                resultEl.innerHTML = '<div class="loading">' + (force ? '重新计算中…' : (cachedDates.has(day) ? '加载缓存…' : '计算中…')) + '</div>';
+                fetch('{{ url_for("api_market_sentiment_score") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trading_day: day, force: !!force })
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    btnCalc.disabled = false;
+                    btnForce.disabled = false;
+                    if (res.success) {
+                        render(res);
+                        cachedDates.add(res.data.trading_day || day);
+                        updateCacheHint();
+                        if (res.from_cache) {
+                            resultEl.insertAdjacentHTML('afterbegin',
+                                '<div style="font-size:11px;color:#6b7280;text-align:right;margin-bottom:8px;">来自缓存 · 如需更新请点击"重新计算"</div>');
+                        }
+                    } else {
+                        resultEl.innerHTML = '<div class="error-msg">' + (res.error || '请求失败') + '</div>';
+                    }
+                })
+                .catch(function (err) {
+                    btnCalc.disabled = false;
+                    btnForce.disabled = false;
+                    resultEl.innerHTML = '<div class="error-msg">' + (err && err.message ? err.message : '网络错误') + '</div>';
+                });
+            }
+            btnCalc.addEventListener('click', function () { doCalc(false); });
+            btnForce.addEventListener('click', function () { doCalc(true); });
+
+            // 区间批量计算（SSE 流式进度）
+            if (btnRangeCalc) {
+                btnRangeCalc.addEventListener('click', function () {
+                    var s = rangeStartEl.value;
+                    var e = rangeEndEl.value;
+                    if (!s || !e) {
+                        rangeStatusEl.innerHTML = '<span class="error-msg">请先选择起始和结束日期</span>';
+                        return;
+                    }
+                    btnRangeCalc.disabled = true;
+                    btnRangeExport.disabled = true;
+                    rangeResultEl.style.display = 'none';
+
+                    // 进度条 UI
+                    rangeStatusEl.innerHTML =
+                        '<div style="margin-bottom:6px;">' +
+                            '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">' +
+                                '<span id="rangeStageText">正在初始化…</span>' +
+                                '<span id="rangePctText">0%</span>' +
+                            '</div>' +
+                            '<div style="background:rgba(255,255,255,0.08);border-radius:6px;height:20px;overflow:hidden;">' +
+                                '<div id="rangeProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:6px;transition:width 0.3s ease;"></div>' +
+                            '</div>' +
+                            '<div id="rangeDetailText" style="font-size:11px;color:#6b7280;margin-top:4px;"></div>' +
+                        '</div>';
+
+                    var stageEl = document.getElementById('rangeStageText');
+                    var pctEl = document.getElementById('rangePctText');
+                    var barEl = document.getElementById('rangeProgressBar');
+                    var detailEl = document.getElementById('rangeDetailText');
+                    var allRows = [];
+                    var forceFlag = document.getElementById('rangeForce').checked ? '1' : '0';
+                    var sseUrl = '{{ url_for("api_market_sentiment_range_score_stream") }}' +
+                        '?start_date=' + encodeURIComponent(s) + '&end_date=' + encodeURIComponent(e) +
+                        '&force=' + forceFlag;
+                    var source = new EventSource(sseUrl);
+
+                    source.onmessage = function (ev) {
+                        var d;
+                        try { d = JSON.parse(ev.data); } catch(x) { return; }
+
+                        if (d.type === 'stage') {
+                            stageEl.textContent = d.msg || d.stage;
+                            if (d.stage === 'cache_check') {
+                                barEl.style.background = 'linear-gradient(90deg,#34d399,#6366f1)';
+                                barEl.style.width = '3%';
+                                pctEl.textContent = '缓存检查';
+                            } else if (d.stage === 'load_stocks') {
+                                barEl.style.background = 'linear-gradient(90deg,#f59e0b,#f97316)';
+                                barEl.style.width = '5%';
+                                pctEl.textContent = '数据加载中…';
+                            } else if (d.stage === 'load_index') {
+                                barEl.style.width = '15%';
+                                pctEl.textContent = '加载指数…';
+                            } else if (d.stage === 'precompute') {
+                                barEl.style.width = '18%';
+                                barEl.style.background = 'linear-gradient(90deg,#a855f7,#6366f1)';
+                                pctEl.textContent = '预计算…';
+                            } else if (d.stage === 'computing') {
+                                barEl.style.background = 'linear-gradient(90deg,#6366f1,#8b5cf6)';
+                                barEl.style.width = '20%';
+                                pctEl.textContent = '0%';
+                            }
+                        } else if (d.type === 'heartbeat') {
+                            stageEl.textContent = d.msg || '加载中…';
+                            if (d.batch && d.total_batches) {
+                                var batchPct = d.batch / d.total_batches;
+                                var barW = 5 + batchPct * 10;
+                                barEl.style.width = barW.toFixed(1) + '%';
+                                pctEl.textContent = d.batch + '/' + d.total_batches + ' 批';
+                                detailEl.textContent = (d.rows ? d.rows.toLocaleString() + ' 行' : '') + (d.elapsed ? '  ' + d.elapsed + 's' : '');
+                            } else {
+                                pctEl.textContent = d.elapsed ? d.elapsed + 's' : '…';
+                                var pulse = 5 + Math.min(d.elapsed || 0, 120) / 120 * 10;
+                                barEl.style.width = pulse.toFixed(1) + '%';
+                            }
+                        } else if (d.type === 'result') {
+                            allRows.push(d.data);
+                            if (d.date) cachedDates.add(d.date);
+                            var pct = d.pct || 0;
+                            var barPct = 20 + pct * 0.8;
+                            barEl.style.width = barPct.toFixed(1) + '%';
+                            pctEl.textContent = d.current + '/' + d.total;
+                            detailEl.textContent = d.msg || '';
+                            stageEl.textContent = d.from_cache ? '读取缓存中…' : '正在逐日评分…';
+                        } else if (d.type === 'done') {
+                            source.close();
+                            barEl.style.width = '100%';
+                            barEl.style.background = 'linear-gradient(90deg,#34d399,#10b981)';
+                            pctEl.textContent = '完成';
+                            stageEl.textContent = d.msg || '全部完成';
+                            detailEl.textContent = '';
+                            btnRangeCalc.disabled = false;
+                            btnRangeExport.disabled = false;
+                            _renderRangeResult(allRows);
+                        } else if (d.type === 'error') {
+                            source.close();
+                            barEl.style.background = '#f87171';
+                            barEl.style.width = '100%';
+                            stageEl.textContent = '出错：' + (d.error || '未知错误');
+                            pctEl.textContent = '';
+                            btnRangeCalc.disabled = false;
+                            btnRangeExport.disabled = false;
+                        }
+                    };
+                    source.onerror = function () {
+                        source.close();
+                        stageEl.textContent = '连接中断';
+                        barEl.style.background = '#f87171';
+                        btnRangeCalc.disabled = false;
+                        btnRangeExport.disabled = false;
+                    };
+                });
+            }
+
+            // ============ 图表 / 表格 Tab 切换 ============
+            var rangeChartWrap = document.getElementById('rangeChartWrap');
+            var rangeTableWrap = document.getElementById('rangeTableWrap');
+            var rangeTabs = document.querySelectorAll('.range-tab');
+            rangeTabs.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    rangeTabs.forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    var tab = btn.getAttribute('data-tab');
+                    rangeChartWrap.style.display = tab === 'chart' ? 'block' : 'none';
+                    rangeTableWrap.style.display = tab === 'table' ? 'block' : 'none';
+                });
+            });
+
+            var _scoreChart = null;
+            var _penaltyChart = null;
+
+            // ── 十字星准星插件（两张图共用）────────────────────────────
+            var _crosshairPlugin = {
+                id: 'crosshair',
+                afterDatasetsDraw: function(chart) {
+                    if (chart._chX == null) return;
+                    var ctx = chart.ctx;
+                    var ca = chart.chartArea;
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(200,210,255,0.55)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([5, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(chart._chX, ca.top);
+                    ctx.lineTo(chart._chX, ca.bottom);
+                    ctx.moveTo(ca.left, chart._chY);
+                    ctx.lineTo(ca.right, chart._chY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.restore();
+                },
+                afterEvent: function(chart, args) {
+                    var ev = args.event;
+                    var ca = chart.chartArea;
+                    if (!ca) return;
+                    if (ev.type === 'mousemove' &&
+                        ev.x >= ca.left && ev.x <= ca.right &&
+                        ev.y >= ca.top  && ev.y <= ca.bottom) {
+                        if (chart._chX !== ev.x || chart._chY !== ev.y) {
+                            chart._chX = ev.x;
+                            chart._chY = ev.y;
+                            args.changed = true;
+                        }
+                    } else if (ev.type === 'mouseout' || ev.type === 'mouseleave') {
+                        if (chart._chX != null) {
+                            chart._chX = null;
+                            chart._chY = null;
+                            args.changed = true;
+                        }
+                    }
+                }
+            };
+
+            var MODULE_NAMES = ['资金多空比', '流动性', 'WCSV离散度', '指数趋势', '风格因子', '短线效应', '聪明钱', '强势股补跌'];
+            var MODULE_COLORS = [
+                'rgba(239,68,68,0.75)',
+                'rgba(249,115,22,0.75)',
+                'rgba(234,179,8,0.75)',
+                'rgba(14,165,233,0.75)',
+                'rgba(168,85,247,0.75)',
+                'rgba(236,72,153,0.75)',
+                'rgba(20,184,166,0.75)',
+                'rgba(100,116,139,0.75)'
+            ];
+
+            function _renderRangeResult(rows) {
+                if (!rows.length) { rangeResultEl.style.display = 'none'; return; }
+                rangeResultEl.style.display = 'block';
+                _renderRangeChart(rows);
+                _renderRangeTable(rows);
+            }
+
+            function _renderRangeChart(rows) {
+                var labels = rows.map(function (r) { return r.trading_day; });
+                var scores = rows.map(function (r) { return r.total_score != null ? r.total_score : 100; });
+                var energies = rows.map(function (r) {
+                    return (r.energy_index != null && !isNaN(r.energy_index)) ? r.energy_index : null;
+                });
+
+                // ── P20 / P80 分位阈值（用于背景色带）────────────────
+                var validScores = scores.filter(function(s){ return s != null; }).slice().sort(function(a,b){ return a-b; });
+                var p20Val = validScores.length ? validScores[Math.max(0, Math.floor(validScores.length * 0.2) - 1)] : 60;
+                var p80Val = validScores.length ? validScores[Math.min(validScores.length - 1, Math.floor(validScores.length * 0.8))] : 90;
+
+                // 分位背景色带插件（仅作用于总分图的 y 轴）
+                var _zonePlugin = {
+                    id: 'scoreZones',
+                    beforeDatasetsDraw: function(chart) {
+                        var yScale = chart.scales['y'];
+                        if (!yScale) return;
+                        var ctx = chart.ctx;
+                        var ca = chart.chartArea;
+                        var y80 = yScale.getPixelForValue(p80Val);
+                        var y20 = yScale.getPixelForValue(p20Val);
+                        ctx.save();
+                        // 前20% 浅绿
+                        ctx.fillStyle = 'rgba(52,211,153,0.07)';
+                        ctx.fillRect(ca.left, ca.top, ca.right - ca.left, y80 - ca.top);
+                        // 后20% 浅红
+                        ctx.fillStyle = 'rgba(248,113,113,0.07)';
+                        ctx.fillRect(ca.left, y20, ca.right - ca.left, ca.bottom - y20);
+                        // P80 边界线（绿色虚线）
+                        ctx.strokeStyle = 'rgba(52,211,153,0.35)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([4, 3]);
+                        ctx.beginPath();
+                        ctx.moveTo(ca.left, y80); ctx.lineTo(ca.right, y80);
+                        ctx.stroke();
+                        // P20 边界线（红色虚线）
+                        ctx.strokeStyle = 'rgba(248,113,113,0.35)';
+                        ctx.beginPath();
+                        ctx.moveTo(ca.left, y20); ctx.lineTo(ca.right, y20);
+                        ctx.stroke();
+                        // 标注文字（画在图表区域内右侧）
+                        ctx.setLineDash([]);
+                        ctx.font = '10px sans-serif';
+                        ctx.textAlign = 'right';
+                        ctx.fillStyle = 'rgba(52,211,153,0.7)';
+                        ctx.fillText('前20% ≥' + p80Val.toFixed(0), ca.right - 4, y80 - 3);
+                        ctx.fillStyle = 'rgba(248,113,113,0.7)';
+                        ctx.fillText('后20% ≤' + p20Val.toFixed(0), ca.right - 4, y20 + 11);
+                        ctx.textAlign = 'left';
+                        ctx.restore();
+                    }
+                };
+
+                // ── 动态中性线（60日滚动均值，与 Python 端公式一致）──
+                var rollMean = scores.map(function(_, i) {
+                    var win = scores.slice(Math.max(0, i - 59), i + 1).filter(function(v){ return v != null; });
+                    return win.length >= 1 ? parseFloat((win.reduce(function(a,b){return a+b;},0) / win.length).toFixed(1)) : null;
+                });
+
+                // ── 柱状图按"是否高于动态中性线"染色（直观体现每日能量贡献方向）──
+                var barColors = scores.map(function(s, i) {
+                    var nm = rollMean[i];
+                    if (nm == null) return 'rgba(99,102,241,0.4)';
+                    return s >= nm ? 'rgba(52,211,153,0.55)' : 'rgba(248,113,113,0.55)';
+                });
+                var barBorders = scores.map(function(s, i) {
+                    var nm = rollMean[i];
+                    if (nm == null) return 'rgba(99,102,241,0.8)';
+                    return s >= nm ? 'rgba(52,211,153,0.9)' : 'rgba(248,113,113,0.9)';
+                });
+
+                // 冰点重置散点
+                var resetPoints = rows.map(function (r) {
+                    return r.energy_reset ? 0 : null;
+                });
+
+                var penaltyDatasets = [];
+                for (var m = 1; m <= 8; m++) {
+                    var key = 'module' + m;
+                    penaltyDatasets.push({
+                        label: MODULE_NAMES[m - 1],
+                        data: rows.map(function (r) { return r[key] ? Math.abs(r[key].penalty || 0) : 0; }),
+                        backgroundColor: MODULE_COLORS[m - 1],
+                        borderWidth: 0,
+                        borderRadius: 1,
+                    });
+                }
+
+                // 面积渐变用于总分柱体
+                var ctx1 = document.getElementById('rangeScoreChart').getContext('2d');
+                var grad = ctx1.createLinearGradient(0, 0, 0, 260);
+                grad.addColorStop(0, 'rgba(99,102,241,0.35)');
+                grad.addColorStop(1, 'rgba(99,102,241,0.02)');
+
+                if (_scoreChart) _scoreChart.destroy();
+                _scoreChart = new Chart(ctx1, {
+                    type: 'bar',
+                    plugins: [_zonePlugin, _crosshairPlugin],
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                type: 'bar',
+                                label: '截面总分（绿=高于中性线，红=低于）',
+                                data: scores,
+                                backgroundColor: barColors,
+                                borderColor: barBorders,
+                                borderWidth: 1,
+                                yAxisID: 'y',
+                            },
+                            {
+                                type: 'line',
+                                label: '60日动态中性线',
+                                data: rollMean,
+                                borderColor: 'rgba(251,191,36,0.7)',
+                                borderWidth: 1.5,
+                                borderDash: [5, 4],
+                                pointRadius: 0,
+                                spanGaps: true,
+                                yAxisID: 'y',
+                                tension: 0.3,
+                                fill: false,
+                            },
+                            {
+                                type: 'line',
+                                label: '连续能量指数',
+                                data: energies,
+                                borderColor: 'rgba(165,180,252,0.95)',
+                                borderWidth: 2.5,
+                                pointRadius: 0,
+                                pointHoverRadius: 4,
+                                spanGaps: true,
+                                yAxisID: 'y1',
+                                tension: 0.3,
+                                fill: false,
+                            },
+                            {
+                                type: 'scatter',
+                                label: '⚡ 冰点重置',
+                                data: resetPoints.map(function(v, i) {
+                                    return v !== null ? { x: labels[i], y: v } : null;
+                                }).filter(function(v) { return v !== null; }),
+                                backgroundColor: 'rgba(251,113,133,0.9)',
+                                borderColor: '#fff',
+                                borderWidth: 1.5,
+                                pointRadius: 9,
+                                pointStyle: 'star',
+                                pointHoverRadius: 11,
+                                yAxisID: 'y1',
+                                showLine: false,
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    color: '#9ca3af', font: { size: 11 },
+                                    filter: function(item) { return item.datasetIndex < 3; }
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: [
+                                    '截面总分（柱：绿=高于中性线/红=低于）· 黄虚线=60日动态中性线 · 紫线=连续能量 · ⚡=冰点重置',
+                                    '绿色背景=区间前20%（≥' + p80Val.toFixed(0) + '）· 红色背景=后20%（≤' + p20Val.toFixed(0) + '）'
+                                ],
+                                color: '#c7d2fe',
+                                font: { size: 12, weight: '600' },
+                                padding: { bottom: 12 }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15,23,42,0.95)',
+                                titleColor: '#e5e7eb',
+                                bodyColor: '#d1d5db',
+                                borderColor: 'rgba(99,102,241,0.4)',
+                                borderWidth: 1,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function (c) {
+                                        if (c.datasetIndex === 0) {
+                                            var nm = rollMean[c.dataIndex];
+                                            var contrib = (c.parsed.y != null && nm != null) ? (c.parsed.y - nm).toFixed(1) : '-';
+                                            var dir = parseFloat(contrib) >= 0 ? '↑正贡献' : '↓负贡献';
+                                            return '截面分: ' + c.parsed.y + '  中性线: ' + (nm||'-') + '  ΔS=' + contrib + ' ' + dir;
+                                        } else if (c.datasetIndex === 1) {
+                                            return '60日中性线: ' + (c.parsed.y != null ? c.parsed.y.toFixed(1) : '-');
+                                        } else if (c.datasetIndex === 2) {
+                                            var e = c.parsed.y;
+                                            var tag = e > 60 ? ' 🔥过热' : e > 20 ? ' 📈上升' : e > -10 ? ' 〰中性' : ' ❄消耗';
+                                            return '能量指数: ' + (e != null ? e.toFixed(1) + tag : '-');
+                                        }
+                                        return null;
+                                    },
+                                    afterBody: function (items) {
+                                        var idx = items[0] ? items[0].dataIndex : -1;
+                                        if (idx < 0) return [];
+                                        var r = rows[idx];
+                                        if (!r) return [];
+                                        var lines = [];
+                                        if (r.energy_reset) {
+                                            lines.push('');
+                                            lines.push('⚡ Regime Shift — 冰点重置');
+                                            lines.push('多维度异常共振触发，能量归零重计');
+                                        }
+                                        var parts = [];
+                                        for (var m = 1; m <= 8; m++) {
+                                            var p = r['module' + m] ? (r['module' + m].penalty || 0) : 0;
+                                            if (p !== 0) parts.push(MODULE_NAMES[m - 1] + ':' + p);
+                                        }
+                                        if (parts.length) {
+                                            lines.push('');
+                                            lines.push('扣分: ' + parts.join(' | '));
+                                        }
+                                        return lines;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+                                grid: { color: 'rgba(55,65,81,0.3)' },
+                            },
+                            y: {
+                                position: 'left',
+                                ticks: { color: '#6b7280', font: { size: 11 } },
+                                grid: { color: 'rgba(55,65,81,0.3)' },
+                                title: { display: true, text: '截面总分', color: '#6b7280', font: { size: 11 } }
+                            },
+                            y1: {
+                                position: 'right',
+                                ticks: { color: '#a5b4fc', font: { size: 11 } },
+                                grid: { drawOnChartArea: false },
+                                title: { display: true, text: '连续能量指数', color: '#a5b4fc', font: { size: 11 } }
+                            }
+                        }
+                    }
+                });
+
+                // 堆叠扣分柱状图
+                var ctx2 = document.getElementById('rangePenaltyChart').getContext('2d');
+                if (_penaltyChart) _penaltyChart.destroy();
+                _penaltyChart = new Chart(ctx2, {
+                    type: 'bar',
+                    plugins: [_crosshairPlugin],
+                    data: { labels: labels, datasets: penaltyDatasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 12, padding: 10, usePointStyle: true, pointStyle: 'rectRounded' }
+                            },
+                            title: {
+                                display: true,
+                                text: '各维度扣分堆叠（越高 = 风险越大）',
+                                color: '#c7d2fe',
+                                font: { size: 14, weight: '600' },
+                                padding: { bottom: 12 }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15,23,42,0.92)',
+                                titleColor: '#e5e7eb',
+                                bodyColor: '#e5e7eb',
+                                borderColor: 'rgba(99,102,241,0.4)',
+                                borderWidth: 1,
+                                cornerRadius: 8,
+                            }
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+                                grid: { display: false },
+                            },
+                            y: {
+                                stacked: true,
+                                ticks: { color: '#6b7280', font: { size: 11 } },
+                                grid: { color: 'rgba(55,65,81,0.3)' },
+                                title: { display: true, text: '扣分（绝对值）', color: '#6b7280', font: { size: 11 } }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function _renderRangeTable(rows) {
+                if (!rows.length) { rangeTableWrap.style.display = 'none'; return; }
+                var html = '<div class="index-list"><table><thead><tr>' +
+                    '<th>日期</th><th>总分</th><th>总扣分</th><th>能量指数</th>';
+                for (var m = 0; m < 8; m++) html += '<th>' + MODULE_NAMES[m] + '</th>';
+                html += '</tr></thead><tbody>';
+                rows.forEach(function (r) {
+                    var sc = r.total_score != null ? r.total_score : 100;
+                    var cls = sc >= 80 ? 'pct-up' : (sc >= 60 ? '' : 'pct-down');
+                    var ei = r.energy_index;
+                    var eiStr = (ei != null && !isNaN(ei)) ? ei.toFixed(1) : '-';
+                    var eiCls = r.energy_reset ? 'pct-down' : (ei > 20 ? 'pct-up' : '');
+                    var resetMark = r.energy_reset ? ' ⚡' : '';
+                    html += '<tr><td>' + r.trading_day + '</td><td class="' + cls + '">' + sc + '</td><td>' + (r.total_penalty || 0) + '</td>';
+                    html += '<td class="' + eiCls + '">' + eiStr + resetMark + '</td>';
+                    for (var m = 1; m <= 8; m++) {
+                        var p = r['module' + m] ? (r['module' + m].penalty || 0) : 0;
+                        var pcls = p > 0 ? 'pct-down' : '';
+                        html += '<td class="' + pcls + '">' + p + '</td>';
+                    }
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                rangeTableWrap.innerHTML = html;
+            }
+
+            // 区间导出 CSV
+            if (btnRangeExport) {
+                btnRangeExport.addEventListener('click', function () {
+                    var s = rangeStartEl.value;
+                    var e = rangeEndEl.value;
+                    if (!s || !e) {
+                        rangeStatusEl.innerHTML = '<span class="error-msg">请先选择起始和结束日期</span>';
+                        return;
+                    }
+                    var url = '{{ url_for("api_market_sentiment_range_export") }}' + '?start_date=' + encodeURIComponent(s) + '&end_date=' + encodeURIComponent(e);
+                    window.open(url, '_blank');
+                });
+            }
+        })();
+    </script>
+
+    <!-- ══ Metric History Modal ══ -->
+    <div id="metricModal">
+        <div class="metric-modal-card">
+            <div class="metric-modal-title" id="metricModalTitle">指标历史走势</div>
+            <button class="metric-modal-close" id="metricModalClose">✕ 关闭</button>
+            <div class="metric-modal-days">
+                <span style="font-size:11px;color:#6b7280;margin-right:4px;line-height:26px;">显示天数：</span>
+                <button data-days="30">30天</button>
+                <button data-days="60">60天</button>
+                <button data-days="90" class="active">90天</button>
+                <button data-days="180">180天</button>
+                <button data-days="365">365天</button>
+            </div>
+            <div style="position:relative;height:300px;">
+                <canvas id="metricModalChart"></canvas>
+            </div>
+            <div id="metricModalStat" style="font-size:11px;color:#6b7280;margin-top:8px;text-align:center;letter-spacing:0.4px;"></div>
+
+            <!-- Overlay panel -->
+            <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">
+                    <span style="font-size:11px;color:#9ca3af;font-weight:600;">叠加对比</span>
+                    <div style="display:flex;gap:5px;">
+                        <button id="scaleDualBtn" class="scale-btn active"
+                            title="主指标左轴保持原始单位，叠加指标右轴显示从首日起的相对涨跌幅(%)——两轴独立，避免量纲不匹配">双Y轴（默认）</button>
+                        <button id="scaleNormBtn" class="scale-btn"
+                            title="将所有指标统一转换为从首日的百分比变化，共用一条左轴——方便直接对比趋势方向">全归一化(%)</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:10px;color:#6b7280;margin-bottom:5px;">常用指数</div>
+                    <div id="overlayIdxRow" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:#6b7280;margin-bottom:5px;">计算指标</div>
+                    <div id="overlayMetRow" style="display:flex;flex-wrap:wrap;gap:5px;max-height:68px;overflow-y:auto;padding-right:2px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ══ Metric History Modal — v3 with overlay & dual-axis ══
+    (function(){
+        var modal        = document.getElementById('metricModal');
+        var closeBtn     = document.getElementById('metricModalClose');
+        var titleEl      = document.getElementById('metricModalTitle');
+        var statEl       = document.getElementById('metricModalStat');
+        var dayBtns      = document.querySelectorAll('.metric-modal-days button[data-days]');
+        var scaleDualBtn = document.getElementById('scaleDualBtn');
+        var scaleNormBtn = document.getElementById('scaleNormBtn');
+        var idxRow       = document.getElementById('overlayIdxRow');
+        var metRow       = document.getElementById('overlayMetRow');
+
+        var _chart        = null;
+        var _primaryRes   = null;
+        var _activeOv     = {};   // key → true
+        var _ovCache      = {};   // key → fetched res
+        var _scaleMode    = 'dual';  // 'dual' | 'allnorm'
+        var _curMetric    = null;
+        var _curDay       = null;
+        var _curDays      = 90;
+        var _dsMeta       = [];   // parallel to datasets: {type,label,origVals,origUnit}
+
+        // ── Constants ─────────────────────────────────────────────────
+        var PCT   = ['spread_size','spread_vol','hot_avg_return','divergence',
+                     'strong_avg_return','top_turnover_avg_return','nuke_ratio',
+                     'smart_distrib_ratio','smart_accum_ratio','net_distrib_ratio',
+                     'unilateral_up_ratio','unilateral_down_ratio'];
+        var ONE   = ['mfr','mv_flow_ratio'];
+        var ZERO  = PCT.slice();  // same set gets zero-line
+
+        var IDX_DEFS = [
+            {key:'idx_sh',    label:'上证综指', color:'#f87171'},
+            {key:'idx_sz',    label:'深证成指', color:'#fb923c'},
+            {key:'idx_cy',    label:'创业板指', color:'#fbbf24'},
+            {key:'idx_kcb',   label:'科创50',  color:'#34d399'},
+            {key:'idx_hs300', label:'沪深300',  color:'#60a5fa'},
+            {key:'idx_zz500', label:'中证500',  color:'#a78bfa'},
+            {key:'idx_zz1000',label:'中证1000', color:'#f472b6'},
+            {key:'idx_sh50',  label:'上证50',   color:'#22d3ee'},
+        ];
+        var MET_DEFS = [
+            {key:'total_score',            label:'截面总分'},
+            {key:'energy_index',           label:'能量指数'},
+            {key:'mfr',                    label:'成交额多空比'},
+            {key:'mv_flow_ratio',          label:'市值多空比'},
+            {key:'divergence',             label:'背离度'},
+            {key:'limit_up',               label:'涨停家数'},
+            {key:'limit_down',             label:'跌停家数'},
+            {key:'turnover_today',         label:'成交额(亿)'},
+            {key:'sigma_weighted',         label:'加权σ'},
+            {key:'sigma_percentile',       label:'WCSV分位'},
+            {key:'spread_size',            label:'Size Spread'},
+            {key:'spread_vol',             label:'Vol Spread'},
+            {key:'hot_count',              label:'昨涨停数'},
+            {key:'hot_avg_return',         label:'昨涨今收益'},
+            {key:'nuke_ratio',             label:'核按钮%'},
+            {key:'smart_distrib_ratio',    label:'诱多派发'},
+            {key:'smart_accum_ratio',      label:'诱空吸筹'},
+            {key:'net_distrib_ratio',      label:'净派发能量'},
+            {key:'unilateral_up_ratio',    label:'单边上涨'},
+            {key:'unilateral_down_ratio',  label:'单边下跌'},
+            {key:'top_turnover_avg_return',label:'活跃池盈亏'},
+            {key:'strong_avg_return',      label:'强势股均值'},
+        ];
+        var OV_COLORS = ['#fbbf24','#a78bfa','#60a5fa','#fb923c','#34d399',
+                         '#f472b6','#22d3ee','#6ee7b7','#c4b5fd','#fed7aa'];
+        var _colorMap = {}, _colorIdx = 0;
+
+        function _color(key) {
+            var ix = IDX_DEFS.find(function(d){ return d.key === key; });
+            if (ix) return ix.color;
+            if (!_colorMap[key]) { _colorMap[key] = OV_COLORS[_colorIdx++ % OV_COLORS.length]; }
+            return _colorMap[key];
+        }
+
+        // ── Data helpers ──────────────────────────────────────────────
+        function _toDisp(rawVals, key) {
+            return PCT.indexOf(key) >= 0
+                ? rawVals.map(function(v){ return v != null ? +(v*100).toFixed(4) : null; })
+                : rawVals;
+        }
+
+        // Normalise to % change from first non-zero valid value
+        // Handles near-zero bases (oscillating metrics) by using range as denominator
+        function _normBase(vals) {
+            var valid = vals.filter(function(v){ return v != null && isFinite(v); });
+            if (!valid.length) return vals.map(function(){ return null; });
+            var first = valid[0];
+            var mn = Math.min.apply(null, valid), mx = Math.max.apply(null, valid);
+            var range = mx - mn;
+            var denom = Math.abs(first);
+            if (denom < Math.abs(range) * 0.05 || denom < 1e-9) denom = range > 1e-9 ? range : 1.0;
+            return vals.map(function(v){
+                return (v != null && isFinite(v)) ? +((v - first) / denom * 100).toFixed(3) : null;
+            });
+        }
+
+        function _align(primaryLabels, ovRes, key) {
+            var ovDisp = _toDisp(ovRes.series.map(function(d){ return d.value; }), key);
+            var byDay  = {};
+            ovRes.series.forEach(function(d, i){ byDay[d.day] = ovDisp[i]; });
+            return primaryLabels.map(function(l){ var v = byDay[l]; return (v != null && isFinite(v)) ? v : null; });
+        }
+
+        // ── Overlay chip UI ───────────────────────────────────────────
+        function _buildChips() {
+            if (!idxRow || !metRow) return;
+            idxRow.innerHTML = IDX_DEFS.map(function(d) {
+                var a = !!_activeOv[d.key];
+                var s = a ? 'border-color:'+d.color+';color:'+d.color+';background:rgba(255,255,255,0.06);' : '';
+                return '<span class="overlay-chip'+(a?' active':'')+'" data-okey="'+d.key+'" style="'+s+'">'+d.label+'</span>';
+            }).join('');
+            metRow.innerHTML = MET_DEFS.filter(function(d){ return d.key !== _curMetric; }).map(function(d) {
+                var a = !!_activeOv[d.key];
+                var c = _color(d.key);
+                var s = a ? 'border-color:'+c+';color:'+c+';background:rgba(255,255,255,0.06);' : '';
+                return '<span class="overlay-chip'+(a?' active':'')+'" data-okey="'+d.key+'" style="'+s+'">'+d.label+'</span>';
+            }).join('');
+        }
+
+        function _toggleOv(key) {
+            if (_activeOv[key]) { delete _activeOv[key]; _buildChips(); _redraw(); }
+            else {
+                _activeOv[key] = true; _buildChips();
+                _ovCache[key] ? _redraw() : _fetchOv(key);
+            }
+        }
+
+        function _fetchOv(key) {
+            fetch('/api/market_sentiment/metric_history?metric='+encodeURIComponent(key)+
+                  '&trading_day='+encodeURIComponent(_curDay)+'&days='+_curDays)
+            .then(function(r){ return r.json(); })
+            .then(function(res){ if (res.success){ _ovCache[key]=res; if(_activeOv[key]) _redraw(); } })
+            .catch(function(){});
+        }
+
+        // ── Main render ───────────────────────────────────────────────
+        function _redraw() { if (_primaryRes) _renderChart(_primaryRes); }
+
+        function _renderChart(res) {
+            var series  = res.series || [];
+            var labels  = series.map(function(d){ return d.day; });
+            var rawVals = series.map(function(d){ return d.value; });
+            var primDisp = _toDisp(rawVals, res.metric);
+            var isPrimPct = PCT.indexOf(res.metric) >= 0;
+            var primUnit  = isPrimPct ? '%' : '';
+            var isZero    = ZERO.indexOf(res.metric) >= 0;
+            var isOne     = ONE.indexOf(res.metric) >= 0;
+
+            // Update title + stats
+            titleEl.textContent = '📈 ' + res.label + '  ·  最近 ' + series.length + ' 交易日';
+            var nonNull = primDisp.filter(function(v){ return v != null && isFinite(v); });
+            if (nonNull.length) {
+                var mn = Math.min.apply(null, nonNull), mx = Math.max.apply(null, nonNull);
+                var avg = nonNull.reduce(function(a,b){ return a+b; }, 0) / nonNull.length;
+                var cur = primDisp[primDisp.length - 1];
+                statEl.innerHTML = '当前: <b style="color:#e5e7eb;">'+(cur!=null?cur.toFixed(2)+primUnit:'-')+'</b>'+
+                    '&ensp;·&ensp;均值: '+avg.toFixed(2)+primUnit+
+                    '&ensp;·&ensp;最低: '+mn.toFixed(2)+primUnit+
+                    '&ensp;·&ensp;最高: '+mx.toFixed(2)+primUnit;
+            }
+
+            var activeKeys = Object.keys(_activeOv).filter(function(k){ return !!_ovCache[k]; });
+            var hasOv = activeKeys.length > 0;
+            var last = primDisp[primDisp.length-1], prev = primDisp[primDisp.length-2];
+            var primColor = (last!=null && prev!=null && last>=prev) ? '#34d399' : '#f87171';
+
+            var datasets = [];
+            _dsMeta = [];
+            var scalesCfg = {};
+
+            // ── No overlays: plain single-series chart ────────────────
+            if (!hasOv) {
+                datasets.push({
+                    label: res.label, data: primDisp,
+                    borderColor: primColor,
+                    backgroundColor: primColor==='#34d399' ? 'rgba(52,211,153,0.07)' : 'rgba(248,113,113,0.07)',
+                    borderWidth: 2.5, pointRadius: primDisp.length<=40?3:0,
+                    pointHoverRadius: 5, tension: 0.3, fill: true, spanGaps: true,
+                });
+                _dsMeta.push({type:'primary', label:res.label, origVals:primDisp, unit:primUnit});
+                if (isZero) {
+                    datasets.push({label:'零线', data:primDisp.map(function(){return 0;}),
+                        borderColor:'rgba(255,255,255,0.18)', borderWidth:1, borderDash:[4,3], pointRadius:0, fill:false, spanGaps:true});
+                    _dsMeta.push({type:'ref'});
+                }
+                if (isOne) {
+                    datasets.push({label:'1.0', data:primDisp.map(function(){return 1;}),
+                        borderColor:'rgba(251,191,36,0.45)', borderWidth:1, borderDash:[4,3], pointRadius:0, fill:false, spanGaps:true});
+                    _dsMeta.push({type:'ref'});
+                }
+                scalesCfg = {
+                    x: _xCfg(),
+                    y: { ticks:{color:'#6b7280', font:{size:11}, callback:function(v){return v+primUnit;}},
+                         grid:{color:'rgba(55,65,81,0.3)'} }
+                };
+
+            // ── All-norm: everything → % change from day 0, single axis ─
+            } else if (_scaleMode === 'allnorm') {
+                var pNorm = _normBase(primDisp);
+                datasets.push({
+                    label: res.label, data: pNorm,
+                    borderColor: primColor, backgroundColor:'transparent',
+                    borderWidth: 2.5, pointRadius: pNorm.length<=40?2:0,
+                    pointHoverRadius:5, tension:0.3, fill:false, spanGaps:true,
+                });
+                _dsMeta.push({type:'primary', label:res.label, origVals:primDisp, unit:primUnit});
+
+                activeKeys.forEach(function(key) {
+                    var ov = _ovCache[key]; if (!ov) return;
+                    var al = _align(labels, ov, key);
+                    var nv = _normBase(al);
+                    var c  = _color(key);
+                    var isIdx = key.startsWith('idx_');
+                    var ovUnit = PCT.indexOf(key)>=0 ? '%' : (isIdx ? '' : '');
+                    datasets.push({
+                        label: ov.label, data: nv,
+                        borderColor: c, backgroundColor:'transparent',
+                        borderWidth: isIdx?2:1.5, borderDash: isIdx?[]:[4,2],
+                        pointRadius:0, pointHoverRadius:4, tension:0.3, fill:false, spanGaps:true,
+                    });
+                    _dsMeta.push({type:'overlay', label:ov.label, origVals:al, unit:ovUnit});
+                });
+                scalesCfg = {
+                    x: _xCfg(),
+                    y: { ticks:{color:'#6b7280', font:{size:11}, callback:function(v){return v.toFixed(1)+'%';}},
+                         grid:{color:'rgba(55,65,81,0.3)'},
+                         title:{display:true, text:'相对首日变化率 (%)', color:'#6b7280', font:{size:9}} }
+                };
+
+            // ── Dual-axis: primary on left (raw), overlays on right (% change) ─
+            } else {
+                datasets.push({
+                    label: res.label, data: primDisp,
+                    borderColor: primColor,
+                    backgroundColor: primColor==='#34d399' ? 'rgba(52,211,153,0.07)' : 'rgba(248,113,113,0.07)',
+                    borderWidth: 2.5, pointRadius: primDisp.length<=40?3:0,
+                    pointHoverRadius:5, tension:0.3, fill:true, spanGaps:true, yAxisID:'yL',
+                });
+                _dsMeta.push({type:'primary', label:res.label, origVals:primDisp, unit:primUnit});
+
+                activeKeys.forEach(function(key) {
+                    var ov = _ovCache[key]; if (!ov) return;
+                    var al  = _align(labels, ov, key);
+                    var nv  = _normBase(al);
+                    var c   = _color(key);
+                    var isIdx = key.startsWith('idx_');
+                    var ovUnit = PCT.indexOf(key)>=0 ? '%' : (isIdx ? '' : '');
+                    datasets.push({
+                        label: ov.label+'(%)', data: nv,
+                        borderColor: c, backgroundColor:'transparent',
+                        borderWidth: isIdx?2:1.5, borderDash: isIdx?[]:[4,2],
+                        pointRadius:0, pointHoverRadius:4, tension:0.3, fill:false, spanGaps:true, yAxisID:'yR',
+                    });
+                    _dsMeta.push({type:'overlay', label:ov.label, origVals:al, unit:ovUnit});
+                });
+                scalesCfg = {
+                    x: _xCfg(),
+                    yL: {
+                        position:'left',
+                        ticks:{color:'#6b7280', font:{size:10}, callback:function(v){return v+primUnit;}},
+                        grid:{color:'rgba(55,65,81,0.3)'},
+                        title:{display:true, text:res.label, color:'#9ca3af', font:{size:9}}
+                    },
+                    yR: {
+                        position:'right',
+                        ticks:{color:'#9ca3af', font:{size:10}, callback:function(v){return v.toFixed(1)+'%';}},
+                        grid:{drawOnChartArea:false},
+                        title:{display:true, text:'叠加指标变化(%)', color:'#9ca3af', font:{size:9}}
+                    }
+                };
+            }
+
+            // Tooltip callback (closure over captured meta)
+            var capMeta = _dsMeta.slice();
+            var ttCallbacks = {
+                label: function(c) {
+                    var meta = capMeta[c.datasetIndex];
+                    if (!meta || meta.type === 'ref') return null;
+                    var v = c.parsed.y;
+                    if (v == null) return null;
+                    if (meta.type === 'primary') {
+                        if (hasOv && _scaleMode === 'allnorm') {
+                            var orig = meta.origVals ? meta.origVals[c.dataIndex] : null;
+                            var os = orig != null ? '  ['+orig.toFixed(2)+meta.unit+']' : '';
+                            return meta.label + ': ' + v.toFixed(2) + '%' + os;
+                        }
+                        return meta.label + ': ' + v.toFixed(3) + meta.unit;
+                    }
+                    // overlay
+                    var orig2 = meta.origVals ? meta.origVals[c.dataIndex] : null;
+                    var os2   = orig2 != null ? '  [原值:'+orig2.toFixed(3)+meta.unit+']' : '';
+                    return meta.label + ': ' + v.toFixed(2) + '%' + os2;
+                }
+            };
+
+            if (_chart) { _chart.destroy(); _chart = null; }
+            _chart = new Chart(document.getElementById('metricModalChart').getContext('2d'), {
+                type: 'line',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode:'index', intersect:false },
+                    plugins: {
+                        legend: {
+                            display: hasOv, position:'top',
+                            labels: {
+                                color:'#9ca3af', font:{size:10}, boxWidth:12, padding:8,
+                                filter: function(item) {
+                                    return capMeta[item.datasetIndex] && capMeta[item.datasetIndex].type !== 'ref';
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor:'rgba(15,23,42,0.95)',
+                            titleColor:'#e5e7eb', bodyColor:'#d1d5db',
+                            borderColor:'rgba(99,102,241,0.4)', borderWidth:1, cornerRadius:8,
+                            callbacks: ttCallbacks
+                        }
+                    },
+                    scales: scalesCfg
+                }
+            });
+        }
+
+        function _xCfg() {
+            return { ticks:{color:'#6b7280',font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:16},
+                     grid:{color:'rgba(55,65,81,0.3)'} };
+        }
+
+        // ── Open / close ──────────────────────────────────────────────
+        function _close() { if (modal) modal.classList.remove('open'); }
+
+        function _open(metric, label, tradingDay, days) {
+            if (!modal) return;
+            var daysChanged = (days && days !== _curDays) || (tradingDay !== _curDay);
+            if (daysChanged) _ovCache = {};
+            _curMetric = metric; _curDay = tradingDay; _curDays = days || _curDays;
+            modal.classList.add('open');
+            dayBtns.forEach(function(b){ b.classList.toggle('active', +b.getAttribute('data-days')===_curDays); });
+            _buildChips();
+            _loadPrimary();
+            Object.keys(_activeOv).forEach(function(k){ if (!_ovCache[k]) _fetchOv(k); });
+        }
+
+        function _loadPrimary() {
+            titleEl.textContent = '⏳ 加载中…'; statEl.textContent = '';
+            fetch('/api/market_sentiment/metric_history?metric='+encodeURIComponent(_curMetric)+
+                  '&trading_day='+encodeURIComponent(_curDay)+'&days='+_curDays)
+            .then(function(r){ return r.json(); })
+            .then(function(res){ if (!res.success){ titleEl.textContent='❌ '+(res.error||'加载失败'); return; }
+                                  _primaryRes=res; _redraw(); })
+            .catch(function(){ titleEl.textContent='❌ 请求失败'; });
+        }
+
+        // Day selector
+        dayBtns.forEach(function(b){
+            b.addEventListener('click', function(){
+                if (!_curMetric) return;
+                _curDays = +b.getAttribute('data-days');
+                _ovCache = {};
+                _loadPrimary();
+                Object.keys(_activeOv).forEach(function(k){ _fetchOv(k); });
+            });
+        });
+
+        // Scale mode toggle
+        if (scaleDualBtn) scaleDualBtn.addEventListener('click', function(){
+            _scaleMode='dual'; scaleDualBtn.classList.add('active'); scaleNormBtn.classList.remove('active'); _redraw();
+        });
+        if (scaleNormBtn) scaleNormBtn.addEventListener('click', function(){
+            _scaleMode='allnorm'; scaleNormBtn.classList.add('active'); scaleDualBtn.classList.remove('active'); _redraw();
+        });
+
+        // Overlay chip clicks (delegated)
+        document.addEventListener('click', function(e){
+            var chip = e.target.closest('.overlay-chip');
+            if (chip) { var k = chip.getAttribute('data-okey'); if (k) _toggleOv(k); return; }
+            // metric-clink in the report
+            var t = e.target.closest('.metric-clink');
+            if (t) {
+                var mk  = t.getAttribute('data-metric');
+                var lbl = t.getAttribute('data-label') || mk;
+                var dayEl = document.getElementById('tradingDay');
+                var day   = dayEl ? dayEl.value : '';
+                if (mk && day) _open(mk, lbl, day, _curDays);
+            }
+        });
+
+        // Close handlers
+        if (closeBtn) closeBtn.addEventListener('click', _close);
+        if (modal) modal.addEventListener('click', function(e){ if (e.target===modal) _close(); });
+        document.addEventListener('keydown', function(e){ if (e.key==='Escape') _close(); });
+
+        window._openMetricModal = _open;
+    })();
+    </script>
+</body>
+</html>

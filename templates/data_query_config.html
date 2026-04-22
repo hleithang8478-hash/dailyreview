@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据查询构建器 - 配置</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+        }
+        
+        /* 返回按钮 */
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 12px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-button:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.6);
+            transform: translateX(-4px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        .back-button:active {
+            transform: translateX(-2px);
+        }
+        
+        .config-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .config-container > h1 {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 32px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 6px;
+        }
+        
+        .tab-button {
+            padding: 14px 28px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            flex: 1;
+        }
+        
+        .tab-button:hover {
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .tab-button.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+        
+        .tab-button-small {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        
+        .tab-button-small:hover {
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .tab-button-small.active {
+            color: #ffffff;
+            border-bottom-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        .recognize-tab-content {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .panel-header h2 {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        
+        .table-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 24px;
+        }
+        
+        .table-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .table-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2);
+        }
+        
+        .table-card h3 {
+            color: #ffffff;
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+        
+        .table-card .table-name {
+            color: #6366f1;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .table-card .description {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+        
+        .table-card .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: rgba(15, 15, 35, 0.95);
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .modal-header h3 {
+            color: #ffffff;
+            font-size: 24px;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-btn:hover {
+            color: #ffffff;
+        }
+        
+        .field-list {
+            margin-top: 24px;
+        }
+        
+        .field-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .field-info {
+            flex: 1;
+        }
+        
+        .field-name {
+            color: #ffffff;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .field-details {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-button">
+        <span>←</span>
+        <span>返回主页</span>
+    </a>
+    <div class="config-container">
+        <h1>⚙️ 数据查询构建器 - 配置</h1>
+        
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('tables')">数据表配置</button>
+            <button class="tab-button" onclick="switchTab('fields')">字段配置</button>
+        </div>
+        
+        <!-- 数据表配置 -->
+        <div id="tables-tab" class="tab-content active">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>数据表列表</h2>
+                    <button class="btn" onclick="openTableModal()">+ 新增数据表</button>
+                </div>
+                <div id="tables-list" class="table-list">
+                    <!-- 表格列表将在这里动态加载 -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- 字段配置 -->
+        <div id="fields-tab" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>字段配置</h2>
+                    <select id="table-select" style="width: 300px; margin-right: 12px;">
+                        <option value="">请选择数据表...</option>
+                    </select>
+                    <button class="btn" onclick="openFieldModal()" id="add-field-btn" disabled>+ 新增字段</button>
+                </div>
+                <div id="fields-list" class="field-list">
+                    <!-- 字段列表将在这里动态加载 -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 数据表配置模态框 -->
+    <div id="table-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="table-modal-title">新增数据表</h3>
+                <button class="close-btn" onclick="closeTableModal()">&times;</button>
+            </div>
+            <form id="table-form" onsubmit="saveTable(event)">
+                <input type="hidden" id="table-id">
+                <div class="form-group">
+                    <label>数据表名称 *</label>
+                    <input type="text" id="table-name" required placeholder="例如：LC_MainDataNew">
+                </div>
+                <div class="form-group">
+                    <label>显示名称 *</label>
+                    <input type="text" id="table-display-name" required placeholder="例如：主要财务数据">
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <textarea id="table-description" rows="3" placeholder="数据表的描述信息"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>主键字段</label>
+                    <input type="text" id="table-primary-key" placeholder="例如：id">
+                </div>
+                <div class="form-group">
+                    <label>日期字段</label>
+                    <input type="text" id="table-date-field" placeholder="例如：EndDate">
+                </div>
+                <div class="form-group">
+                    <label>代码字段</label>
+                    <input type="text" id="table-code-field" placeholder="例如：CompanyCode 或 SecuCode">
+                </div>
+                <div class="form-group">
+                    <label>名称字段</label>
+                    <input type="text" id="table-name-field" placeholder="例如：SecuAbbr">
+                </div>
+                <div class="form-group">
+                    <label>关联SecuMain的方式 * <span style="color: #f59e0b;">⚠️ 重要</span></label>
+                    <select id="table-join-type" required>
+                        <option value="CompanyCode">CompanyCode（公司代码）</option>
+                        <option value="InnerCode">InnerCode（内部代码）</option>
+                    </select>
+                    <small style="color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 4px; display: block;">
+                        选择与SecuMain表关联时使用的字段类型。此配置用于多表关联查询，确保数据唯一性。
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label>关联字段名 * <span style="color: #f59e0b;">⚠️ 关键字段</span></label>
+                    <input type="text" id="table-join-field" required placeholder="例如：CompanyCode 或 InnerCode" 
+                           style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3);">
+                    <small style="color: rgba(245, 158, 11, 0.9); font-size: 12px; margin-top: 4px; display: block; font-weight: 600;">
+                        ⚠️ 这是与SecuMain关联的关键字段，必须正确配置！<br>
+                        数据表中用于关联SecuMain的字段名（必须与上方的关联方式匹配）<br>
+                        • 如果选择CompanyCode，此处应填写数据表中的CompanyCode字段名<br>
+                        • 如果选择InnerCode，此处应填写数据表中的InnerCode字段名<br>
+                        • 此字段用于多表关联查询，确保不同表的数据能正确关联到同一只股票
+                    </small>
+                </div>
+                
+                <div style="margin-top: 32px; padding-top: 24px; border-top: 2px solid rgba(255,255,255,0.1);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="color: #ffffff; font-size: 18px; margin: 0;">字段配置</h4>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn btn-small btn-secondary" onclick="openImageUploadModal()" style="width: auto;">🤖 AI识别字段（上传截图）</button>
+                            <button type="button" class="btn btn-small" onclick="addFieldRow()" style="width: auto;">+ 添加字段</button>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; background: rgba(255,255,255,0.02); border-radius: 8px; overflow: hidden;">
+                            <thead>
+                                <tr style="background: rgba(99, 102, 241, 0.15);">
+                                    <th style="padding: 12px; text-align: left; color: #ffffff; font-weight: 600; font-size: 13px;">字段名 *</th>
+                                    <th style="padding: 12px; text-align: left; color: #ffffff; font-weight: 600; font-size: 13px;">显示名称 *</th>
+                                    <th style="padding: 12px; text-align: left; color: #ffffff; font-weight: 600; font-size: 13px;">类型</th>
+                                    <th style="padding: 12px; text-align: left; color: #ffffff; font-weight: 600; font-size: 13px;">描述</th>
+                                    <th style="padding: 12px; text-align: center; color: #ffffff; font-weight: 600; font-size: 13px;">可排序</th>
+                                    <th style="padding: 12px; text-align: center; color: #ffffff; font-weight: 600; font-size: 13px;">可筛选</th>
+                                    <th style="padding: 12px; text-align: center; color: #ffffff; font-weight: 600; font-size: 13px;">顺序</th>
+                                    <th style="padding: 12px; text-align: center; color: #ffffff; font-weight: 600; font-size: 13px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fields-table-body">
+                                <!-- 字段行将在这里动态添加 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- 测试验证按钮 -->
+                    <div style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">
+                        <button type="button" class="btn btn-secondary" onclick="testValidateFields()" 
+                                style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(139, 92, 246, 0.8)); 
+                                       border: none; padding: 10px 20px; border-radius: 8px; color: #ffffff; 
+                                       font-weight: 500; cursor: pointer; transition: all 0.3s;">
+                            🧪 测试验证字段
+                        </button>
+                        <small style="color: rgba(255,255,255,0.5); font-size: 12px;">
+                            点击此按钮验证所有字段名是否在数据库表中存在（需要先填写"数据表名称"）
+                        </small>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeTableModal()">取消</button>
+                    <button type="submit" class="btn">保存数据表和字段</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 图片上传识别模态框 -->
+    <div id="image-upload-modal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3>🤖 AI识别字段</h3>
+                <button class="close-btn" onclick="closeImageUploadModal()">&times;</button>
+            </div>
+            <div style="padding: 24px;">
+                <!-- 标签页切换 -->
+                <div style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid rgba(255,255,255,0.1);">
+                    <button type="button" id="tab-upload" class="tab-button-small active" onclick="switchRecognizeTab('upload')">
+                        📷 上传截图
+                    </button>
+                    <button type="button" id="tab-text" class="tab-button-small" onclick="switchRecognizeTab('text')">
+                        ✍️ 输入文字（无需OCR）
+                    </button>
+                </div>
+                
+                <!-- 上传截图标签页 -->
+                <div id="upload-tab-content" class="recognize-tab-content">
+                    <div class="form-group">
+                        <label>上传截图（支持多张）</label>
+                        <input type="file" id="image-upload" multiple accept="image/*" 
+                               style="width: 100%; padding: 12px; background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; color: #ffffff; cursor: pointer;">
+                        <small style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 8px; display: block;">
+                            可以上传多张截图，AI将自动识别表结构并提取字段信息。支持的格式：PNG、JPG、JPEG、GIF、WEBP
+                            <br><span style="color: rgba(255,255,255,0.4);">⚠️ 注意：需要安装OCR引擎才能识别图片。如果无法安装，请使用"输入文字"选项。</span>
+                        </small>
+                    </div>
+                    
+                    <div id="image-preview" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; margin-bottom: 16px; min-height: 80px;">
+                        <div style="color: rgba(255,255,255,0.4); text-align: center; padding: 40px; grid-column: 1 / -1;">
+                            暂无图片，请上传截图
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 输入文字标签页 -->
+                <div id="text-tab-content" class="recognize-tab-content" style="display: none;">
+                    <div class="form-group">
+                        <label>粘贴表结构文字内容</label>
+                        <textarea id="text-input" rows="15" placeholder="请将表结构的文字内容粘贴到这里，例如：&#10;&#10;字段名 | 显示名称 | 类型 | 描述&#10;------|---------|------|------&#10;id | ID | INTEGER | 主键&#10;name | 名称 | TEXT | 产品名称&#10;price | 价格 | DECIMAL | 产品价格&#10;create_date | 创建日期 | DATE | 创建时间&#10;&#10;或者直接粘贴表结构的描述文字，AI会自动识别字段信息。" 
+                                  style="width: 100%; padding: 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #ffffff; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; resize: vertical;"></textarea>
+                        <small style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 8px; display: block;">
+                            💡 提示：可以直接从数据库工具、Excel、文档等地方复制表结构信息，粘贴到此处即可。AI会自动识别字段名称、类型、描述等信息。
+                        </small>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeImageUploadModal()">取消</button>
+                    <button type="button" class="btn" onclick="recognizeImages()" id="recognize-btn">
+                        <span id="recognize-btn-text">🚀 开始识别</span>
+                        <span id="recognize-loading" style="display: none;">识别中...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 字段配置模态框 -->
+    <div id="field-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="field-modal-title">新增字段</h3>
+                <button class="close-btn" onclick="closeFieldModal()">&times;</button>
+            </div>
+            <form id="field-form" onsubmit="saveField(event)">
+                <input type="hidden" id="field-id">
+                <input type="hidden" id="field-table-config-id">
+                <div class="form-group">
+                    <label>字段名称 *</label>
+                    <input type="text" id="field-name" required placeholder="例如：OperatingRevenue">
+                </div>
+                <div class="form-group">
+                    <label>显示名称 *</label>
+                    <input type="text" id="field-display-name" required placeholder="例如：营业收入">
+                </div>
+                <div class="form-group">
+                    <label>字段类型</label>
+                    <select id="field-type">
+                        <option value="TEXT">文本 (TEXT)</option>
+                        <option value="INTEGER">整数 (INTEGER)</option>
+                        <option value="REAL">浮点数 (REAL)</option>
+                        <option value="DATE">日期 (DATE)</option>
+                        <option value="DATETIME">日期时间 (DATETIME)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <textarea id="field-description" rows="2" placeholder="字段的描述信息"></textarea>
+                </div>
+                <div class="form-group" style="display: flex; gap: 24px;">
+                    <label style="flex: 1;">
+                        <input type="checkbox" id="field-sortable" checked style="margin-right: 8px;">
+                        可排序
+                    </label>
+                    <label style="flex: 1;">
+                        <input type="checkbox" id="field-filterable" checked style="margin-right: 8px;">
+                        可筛选
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>排序顺序</label>
+                    <input type="number" id="field-order-index" value="0" min="0">
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeFieldModal()">取消</button>
+                    <button type="submit" class="btn">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let currentTableId = null;
+        let currentFieldId = null;
+        
+        // 切换标签页
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tab === 'tables') {
+                document.querySelectorAll('.tab-button')[0].classList.add('active');
+                document.getElementById('tables-tab').classList.add('active');
+                loadTables();
+            } else {
+                document.querySelectorAll('.tab-button')[1].classList.add('active');
+                document.getElementById('fields-tab').classList.add('active');
+                loadTableSelect();
+            }
+        }
+        
+        // 加载数据表列表
+        async function loadTables() {
+            try {
+                const response = await fetch('/api/data_query/tables');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const tablesList = document.getElementById('tables-list');
+                    tablesList.innerHTML = '';
+                    
+                    if (data.tables.length === 0) {
+                        tablesList.innerHTML = '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 40px;">暂无数据表配置，请点击"新增数据表"添加</div>';
+                        return;
+                    }
+                    
+                    data.tables.forEach(table => {
+                        const card = document.createElement('div');
+                        card.className = 'table-card';
+                        card.innerHTML = `
+                            <div class="table-name">${table.table_name}</div>
+                            <h3>${table.table_display_name}</h3>
+                            <div class="description">${table.description || '无描述'}</div>
+                            <div class="actions">
+                                <button class="btn btn-small btn-secondary" onclick="editTable(${table.id})">编辑</button>
+                                <button class="btn btn-small btn-danger" onclick="deleteTable(${table.id})">删除</button>
+                            </div>
+                        `;
+                        tablesList.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error('加载数据表列表失败:', error);
+                alert('加载数据表列表失败: ' + error.message);
+            }
+        }
+        
+        // 关闭数据表配置模态框
+        function closeTableModal() {
+            document.getElementById('table-modal').classList.remove('active');
+        }
+        
+        // 编辑数据表
+        function editTable(id) {
+            openTableModal(id);
+        }
+        
+        // 删除数据表
+        async function deleteTable(id) {
+            if (!confirm('确定要删除这个数据表配置吗？删除后相关的字段配置也会被删除。')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/data_query/tables/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('删除成功！');
+                    loadTables();
+                } else {
+                    alert('删除失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('删除数据表失败:', error);
+                alert('删除数据表失败: ' + error.message);
+            }
+        }
+        
+        // 加载数据表选择下拉框
+        async function loadTableSelect() {
+            try {
+                const response = await fetch('/api/data_query/tables');
+                const data = await response.json();
+                
+                const select = document.getElementById('table-select');
+                select.innerHTML = '<option value="">请选择数据表...</option>';
+                
+                if (data.success) {
+                    data.tables.forEach(table => {
+                        const option = document.createElement('option');
+                        option.value = table.id;
+                        option.textContent = `${table.table_display_name} (${table.table_name})`;
+                        select.appendChild(option);
+                    });
+                }
+                
+                select.onchange = function() {
+                    const tableId = this.value;
+                    document.getElementById('add-field-btn').disabled = !tableId;
+                    if (tableId) {
+                        loadFields(tableId);
+                    } else {
+                        document.getElementById('fields-list').innerHTML = '';
+                    }
+                };
+            } catch (error) {
+                console.error('加载数据表列表失败:', error);
+            }
+        }
+        
+        // 加载字段列表
+        async function loadFields(tableId) {
+            try {
+                const response = await fetch(`/api/data_query/tables/${tableId}/fields`);
+                const data = await response.json();
+                
+                const fieldsList = document.getElementById('fields-list');
+                fieldsList.innerHTML = '';
+                
+                if (data.success) {
+                    if (data.fields.length === 0) {
+                        fieldsList.innerHTML = '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 40px;">暂无字段配置，请点击"新增字段"添加</div>';
+                        return;
+                    }
+                    
+                    data.fields.forEach(field => {
+                        const item = document.createElement('div');
+                        item.className = 'field-item';
+                        item.innerHTML = `
+                            <div class="field-info">
+                                <div class="field-name">${field.field_display_name} (${field.field_name})</div>
+                                <div class="field-details">
+                                    类型: ${field.field_type} | 
+                                    ${field.is_sortable ? '可排序' : '不可排序'} | 
+                                    ${field.is_filterable ? '可筛选' : '不可筛选'}
+                                    ${field.description ? ' | ' + field.description : ''}
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-small btn-secondary" onclick="editField(${field.id}, ${tableId})">编辑</button>
+                                <button class="btn btn-small btn-danger" onclick="deleteField(${field.id})">删除</button>
+                            </div>
+                        `;
+                        fieldsList.appendChild(item);
+                    });
+                }
+            } catch (error) {
+                console.error('加载字段列表失败:', error);
+                alert('加载字段列表失败: ' + error.message);
+            }
+        }
+        
+        // 打开字段配置模态框
+        function openFieldModal(id = null) {
+            const tableId = document.getElementById('table-select').value;
+            if (!tableId && !id) {
+                alert('请先选择数据表');
+                return;
+            }
+            
+            currentFieldId = id;
+            const modal = document.getElementById('field-modal');
+            const form = document.getElementById('field-form');
+            
+            if (id) {
+                document.getElementById('field-modal-title').textContent = '编辑字段';
+                // 加载字段信息
+                fetch(`/api/data_query/tables/${tableId}/fields`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const field = data.fields.find(f => f.id === id);
+                        if (field) {
+                            document.getElementById('field-id').value = field.id;
+                            document.getElementById('field-table-config-id').value = field.table_config_id;
+                            document.getElementById('field-name').value = field.field_name;
+                            document.getElementById('field-display-name').value = field.field_display_name;
+                            document.getElementById('field-type').value = field.field_type;
+                            document.getElementById('field-description').value = field.description || '';
+                            document.getElementById('field-sortable').checked = field.is_sortable;
+                            document.getElementById('field-filterable').checked = field.is_filterable;
+                            document.getElementById('field-order-index').value = field.order_index;
+                        }
+                    });
+            } else {
+                document.getElementById('field-modal-title').textContent = '新增字段';
+                form.reset();
+                document.getElementById('field-id').value = '';
+                document.getElementById('field-table-config-id').value = tableId;
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        // 关闭字段配置模态框
+        function closeFieldModal() {
+            document.getElementById('field-modal').classList.remove('active');
+        }
+        
+        // 保存字段
+        async function saveField(event) {
+            event.preventDefault();
+            
+            const formData = {
+                id: document.getElementById('field-id').value || null,
+                table_config_id: document.getElementById('field-table-config-id').value,
+                field_name: document.getElementById('field-name').value,
+                field_display_name: document.getElementById('field-display-name').value,
+                field_type: document.getElementById('field-type').value,
+                description: document.getElementById('field-description').value,
+                is_sortable: document.getElementById('field-sortable').checked,
+                is_filterable: document.getElementById('field-filterable').checked,
+                order_index: parseInt(document.getElementById('field-order-index').value) || 0
+            };
+            
+            try {
+                const response = await fetch('/api/data_query/fields', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('保存成功！');
+                    closeFieldModal();
+                    const tableId = document.getElementById('table-select').value;
+                    if (tableId) {
+                        loadFields(tableId);
+                    }
+                } else {
+                    alert('保存失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('保存字段失败:', error);
+                alert('保存字段失败: ' + error.message);
+            }
+        }
+        
+        // 编辑字段
+        function editField(id, tableId) {
+            openFieldModal(id);
+        }
+        
+        // 删除字段
+        async function deleteField(id) {
+            if (!confirm('确定要删除这个字段配置吗？')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/data_query/fields/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('删除成功！');
+                    const tableId = document.getElementById('table-select').value;
+                    if (tableId) {
+                        loadFields(tableId);
+                    }
+                } else {
+                    alert('删除失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('删除字段失败:', error);
+                alert('删除字段失败: ' + error.message);
+            }
+        }
+        
+        // 字段行计数器
+        let fieldRowCounter = 0;
+        
+        // 添加字段行
+        function addFieldRow(fieldData = null) {
+            const tbody = document.getElementById('fields-table-body');
+            const rowId = fieldRowCounter++;
+            
+            const row = document.createElement('tr');
+            row.id = `field-row-${rowId}`;
+            row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+            
+            const checkedAttr = fieldData ? (fieldData.is_sortable ? 'checked' : '') : 'checked';
+            const checkedFilterAttr = fieldData ? (fieldData.is_filterable ? 'checked' : '') : 'checked';
+            
+            row.innerHTML = `
+                <td style="padding: 8px;">
+                    <input type="text" class="field-input" data-field="field_name" 
+                           value="${fieldData ? (fieldData.field_name || '') : ''}" 
+                           placeholder="例如：OperatingRevenue" required 
+                           style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff; font-size: 13px;">
+                </td>
+                <td style="padding: 8px;">
+                    <input type="text" class="field-input" data-field="field_display_name" 
+                           value="${fieldData ? (fieldData.field_display_name || '') : ''}" 
+                           placeholder="例如：营业收入" required
+                           style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff; font-size: 13px;">
+                </td>
+                <td style="padding: 8px;">
+                    <select class="field-input" data-field="field_type" 
+                            style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff; font-size: 13px;">
+                        <option value="TEXT" ${fieldData && fieldData.field_type === 'TEXT' ? 'selected' : ''}>文本 (TEXT)</option>
+                        <option value="INTEGER" ${fieldData && fieldData.field_type === 'INTEGER' ? 'selected' : ''}>整数 (INTEGER)</option>
+                        <option value="REAL" ${fieldData && fieldData.field_type === 'REAL' ? 'selected' : ''}>浮点数 (REAL)</option>
+                        <option value="DATE" ${fieldData && fieldData.field_type === 'DATE' ? 'selected' : ''}>日期 (DATE)</option>
+                        <option value="DATETIME" ${fieldData && fieldData.field_type === 'DATETIME' ? 'selected' : ''}>日期时间 (DATETIME)</option>
+                    </select>
+                </td>
+                <td style="padding: 8px;">
+                    <input type="text" class="field-input" data-field="description" 
+                           value="${fieldData ? (fieldData.description || '') : ''}" 
+                           placeholder="字段描述"
+                           style="width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff; font-size: 13px;">
+                </td>
+                <td style="padding: 8px; text-align: center;">
+                    <input type="checkbox" class="field-checkbox" data-field="is_sortable" ${checkedAttr}
+                           style="width: 18px; height: 18px; cursor: pointer;">
+                </td>
+                <td style="padding: 8px; text-align: center;">
+                    <input type="checkbox" class="field-checkbox" data-field="is_filterable" ${checkedFilterAttr}
+                           style="width: 18px; height: 18px; cursor: pointer;">
+                </td>
+                <td style="padding: 8px;">
+                    <input type="number" class="field-input" data-field="order_index" 
+                           value="${fieldData ? (fieldData.order_index || 0) : 0}" min="0"
+                           style="width: 60px; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff; font-size: 13px; text-align: center;">
+                </td>
+                <td style="padding: 8px; text-align: center;">
+                    <button type="button" class="btn btn-small btn-danger" onclick="removeFieldRow('field-row-${rowId}')" style="padding: 6px 12px; font-size: 12px;">删除</button>
+                </td>
+            `;
+            
+            tbody.appendChild(row);
+        }
+        
+        // 删除字段行
+        function removeFieldRow(rowId) {
+            const row = document.getElementById(rowId);
+            if (row) {
+                row.remove();
+            }
+        }
+        
+        // 清空字段表格
+        function clearFieldsTable() {
+            document.getElementById('fields-table-body').innerHTML = '';
+            fieldRowCounter = 0;
+        }
+        
+        // 获取所有字段数据
+        function getAllFieldsData() {
+            const rows = document.querySelectorAll('#fields-table-body tr');
+            const fields = [];
+            
+            rows.forEach((row, index) => {
+                const inputs = row.querySelectorAll('.field-input, .field-checkbox');
+                const fieldData = {
+                    field_name: '',
+                    field_display_name: '',
+                    field_type: 'TEXT',
+                    description: '',
+                    is_sortable: true,
+                    is_filterable: true,
+                    order_index: index
+                };
+                
+                inputs.forEach(input => {
+                    const field = input.getAttribute('data-field');
+                    if (input.type === 'checkbox') {
+                        fieldData[field] = input.checked;
+                    } else {
+                        fieldData[field] = input.value;
+                    }
+                });
+                
+                // 只添加有字段名和显示名称的行
+                if (fieldData.field_name && fieldData.field_display_name) {
+                    fields.push(fieldData);
+                }
+            });
+            
+            return fields;
+        }
+        
+        // 加载已有字段到表格
+        function loadFieldsToTable(tableId) {
+            clearFieldsTable();
+            
+            if (!tableId) {
+                return;
+            }
+            
+            fetch(`/api/data_query/tables/${tableId}/fields`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.fields.length > 0) {
+                        data.fields.forEach(field => {
+                            addFieldRow(field);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('加载字段失败:', error);
+                });
+        }
+        
+        // 验证单个字段
+        async function validateSingleField(input) {
+            const tableName = document.getElementById('table-name').value.trim();
+            const fieldName = input.value.trim();
+            
+            if (!tableName || !fieldName) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/data_query/validate_fields', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        table_name: tableName,
+                        field_names: [fieldName]
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const row = input.closest('tr');
+                    if (result.invalid_fields && result.invalid_fields.includes(fieldName)) {
+                        // 标记为无效
+                        input.style.border = '2px solid #ef4444';
+                        input.style.background = 'rgba(239, 68, 68, 0.1)';
+                        input.title = '该字段在表中不存在，请检查字段名是否正确';
+                        row.style.background = 'rgba(239, 68, 68, 0.05)';
+                    } else {
+                        // 标记为有效
+                        input.style.border = '1px solid rgba(34, 197, 94, 0.5)';
+                        input.style.background = 'rgba(34, 197, 94, 0.05)';
+                        input.title = '字段验证通过';
+                        row.style.background = '';
+                    }
+                }
+            } catch (error) {
+                console.error('验证字段失败:', error);
+            }
+        }
+        
+        // 测试验证所有字段（手动触发）
+        async function testValidateFields() {
+            const tableName = document.getElementById('table-name').value.trim();
+            if (!tableName) {
+                alert('⚠️ 请先填写"数据表名称"，才能验证字段是否正确。');
+                return;
+            }
+            
+            // 获取所有字段名
+            const fieldRows = document.querySelectorAll('#fields-table-body tr');
+            const fieldNames = [];
+            fieldRows.forEach(row => {
+                const fieldNameInput = row.querySelector('input[data-field="field_name"]');
+                if (fieldNameInput && fieldNameInput.value.trim()) {
+                    fieldNames.push(fieldNameInput.value.trim());
+                }
+            });
+            
+            if (fieldNames.length === 0) {
+                alert('⚠️ 请先添加至少一个字段，才能进行验证。');
+                return;
+            }
+            
+            // 显示加载提示
+            const btn = document.querySelector('button[onclick="testValidateFields()"]');
+            const originalText = btn ? btn.innerHTML : '🧪 测试验证字段';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '🔄 验证中...';
+            }
+            
+            try {
+                await validateFieldsAfterRecognition(tableName, fieldNames);
+            } catch (error) {
+                console.error('验证失败:', error);
+                alert(`验证失败: ${error.message || '未知错误'}`);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            }
+        }
+        
+        // 识别后批量验证字段
+        async function validateFieldsAfterRecognition(tableName, fieldNames) {
+            if (!tableName || !fieldNames || fieldNames.length === 0) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/data_query/validate_fields', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        table_name: tableName,
+                        field_names: fieldNames
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 标记每个字段的验证结果
+                    const fieldRows = document.querySelectorAll('#fields-table-body tr');
+                    fieldRows.forEach(row => {
+                        const fieldNameInput = row.querySelector('input[data-field="field_name"]');
+                        if (fieldNameInput && fieldNames.includes(fieldNameInput.value.trim())) {
+                            const fieldName = fieldNameInput.value.trim();
+                            
+                            if (result.invalid_fields && result.invalid_fields.includes(fieldName)) {
+                                // 标记为无效
+                                fieldNameInput.style.border = '2px solid #ef4444';
+                                fieldNameInput.style.background = 'rgba(239, 68, 68, 0.1)';
+                                fieldNameInput.title = '该字段在表中不存在，请检查字段名是否正确';
+                                row.style.background = 'rgba(239, 68, 68, 0.05)';
+                            } else {
+                                // 标记为有效
+                                fieldNameInput.style.border = '1px solid rgba(34, 197, 94, 0.5)';
+                                fieldNameInput.style.background = 'rgba(34, 197, 94, 0.05)';
+                                fieldNameInput.title = '字段验证通过';
+                                row.style.background = '';
+                            }
+                        }
+                    });
+                    
+                    // 显示验证结果提示
+                    if (result.invalid_fields && result.invalid_fields.length > 0) {
+                        const invalidCount = result.invalid_fields.length;
+                        const validCount = result.valid_fields ? result.valid_fields.length : 0;
+                        
+                        // 构建详细提示信息
+                        let message = `字段验证完成！\n\n✅ 有效字段: ${validCount} 个\n❌ 无效字段: ${invalidCount} 个\n\n无效字段已用红色标记，请检查并修正。\n\n无效字段列表：\n${result.invalid_fields.join(', ')}`;
+                        
+                        // 如果有可用的列名建议，添加到提示中
+                        if (result.all_columns && result.all_columns.length > 0) {
+                            // 为每个无效字段查找相似的列名
+                            const suggestions = [];
+                            result.invalid_fields.forEach(invalidField => {
+                                const invalidUpper = invalidField.toUpperCase();
+                                const similar = result.all_columns.filter(col => {
+                                    const colUpper = col.toUpperCase();
+                                    // 检查是否包含相似字符或部分匹配
+                                    const minLen = Math.min(3, Math.min(invalidUpper.length, colUpper.length));
+                                    return colUpper.includes(invalidUpper) || invalidUpper.includes(colUpper) || 
+                                           (minLen > 0 && colUpper.startsWith(invalidUpper.substring(0, minLen))) ||
+                                           (minLen > 0 && invalidUpper.startsWith(colUpper.substring(0, minLen)));
+                                }).slice(0, 3); // 最多显示3个相似项
+                                
+                                if (similar.length > 0) {
+                                    suggestions.push(`  "${invalidField}" 可能的正确字段: ${similar.join(', ')}`);
+                                }
+                            });
+                            
+                            if (suggestions.length > 0) {
+                                message += `\n\n💡 建议（可能的正确字段名）：\n${suggestions.join('\n')}`;
+                            }
+                        }
+                        
+                        alert(message);
+                    } else {
+                        alert(`✅ 字段验证完成！所有 ${fieldNames.length} 个字段都有效。\n\n可以放心保存配置了！`);
+                    }
+                } else {
+                    console.error('验证字段失败:', result.error);
+                    alert(`字段验证失败: ${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                console.error('验证字段失败:', error);
+                alert(`字段验证失败: ${error.message || '网络错误'}`);
+            }
+        }
+        
+        // 重新定义保存数据表函数，同时保存字段
+        async function saveTable(event) {
+            event.preventDefault();
+            
+            // 验证关联字段名（关键字段）
+            const joinField = document.getElementById('table-join-field').value.trim();
+            const joinType = document.getElementById('table-join-type').value;
+            
+            if (!joinField) {
+                alert('⚠️ 关联字段名不能为空！这是与SecuMain关联的关键字段，必须正确配置。\n\n此字段用于多表关联查询，确保不同表的数据能正确关联到同一只股票。');
+                document.getElementById('table-join-field').focus();
+                return;
+            }
+            
+            // 验证字段名格式（简单的SQL标识符验证）
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(joinField)) {
+                alert('⚠️ 关联字段名格式无效！\n\n字段名必须是有效的SQL标识符：\n• 以字母或下划线开头\n• 只能包含字母、数字、下划线\n• 不能包含空格或特殊字符');
+                document.getElementById('table-join-field').focus();
+                return;
+            }
+            
+            // 给出匹配性提示（不阻止保存，但提醒用户）
+            const joinFieldLower = joinField.toLowerCase();
+            if (joinType === 'InnerCode' && joinFieldLower.includes('company') && !joinFieldLower.includes('inner')) {
+                if (!confirm('⚠️ 警告：关联方式设置为InnerCode，但关联字段名看起来像是CompanyCode字段。\n\n是否继续保存？\n\n建议：如果数据表中确实是InnerCode字段，请确认字段名是否正确。')) {
+                    return;
+                }
+            } else if (joinType === 'CompanyCode' && joinFieldLower.includes('inner') && !joinFieldLower.includes('company')) {
+                if (!confirm('⚠️ 警告：关联方式设置为CompanyCode，但关联字段名看起来像是InnerCode字段。\n\n是否继续保存？\n\n建议：如果数据表中确实是CompanyCode字段，请确认字段名是否正确。')) {
+                    return;
+                }
+            }
+            
+            const tableData = {
+                id: document.getElementById('table-id').value || null,
+                table_name: document.getElementById('table-name').value,
+                table_display_name: document.getElementById('table-display-name').value,
+                description: document.getElementById('table-description').value,
+                primary_key_field: document.getElementById('table-primary-key').value,
+                date_field: document.getElementById('table-date-field').value,
+                code_field: document.getElementById('table-code-field').value,
+                name_field: document.getElementById('table-name-field').value,
+                join_type: joinType,
+                join_field: joinField
+            };
+            
+            // 在保存前验证所有字段
+            const fieldRows = document.querySelectorAll('#fields-table-body tr');
+            const fieldNames = [];
+            fieldRows.forEach(row => {
+                const fieldNameInput = row.querySelector('input[data-field="field_name"]');
+                if (fieldNameInput && fieldNameInput.value.trim()) {
+                    fieldNames.push(fieldNameInput.value.trim());
+                }
+            });
+            
+            if (tableData.table_name && fieldNames.length > 0) {
+                try {
+                    const validateResponse = await fetch('/api/data_query/validate_fields', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            table_name: tableData.table_name,
+                            field_names: fieldNames
+                        })
+                    });
+                    
+                    const validateResult = await validateResponse.json();
+                    
+                    if (validateResult.success && validateResult.invalid_fields && validateResult.invalid_fields.length > 0) {
+                        const confirmMsg = `⚠️ 发现 ${validateResult.invalid_fields.length} 个无效字段：\n${validateResult.invalid_fields.join(', ')}\n\n这些字段在数据库表中不存在，可能会导致查询失败。\n\n是否仍要继续保存？`;
+                        if (!confirm(confirmMsg)) {
+                            return; // 用户取消保存
+                        }
+                    }
+                } catch (error) {
+                    console.error('验证字段失败:', error);
+                    // 验证失败不影响保存，只是提示
+                }
+            }
+            
+            try {
+                // 先保存数据表
+                const response = await fetch('/api/data_query/tables', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(tableData)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    const tableId = data.id || tableData.id;
+                    
+                    // 获取所有字段数据
+                    const fields = getAllFieldsData();
+                    
+                    // 如果是编辑模式，先获取现有字段ID
+                    if (tableId) {
+                        // 获取现有字段
+                        const existingFieldsResponse = await fetch(`/api/data_query/tables/${tableId}/fields`);
+                        const existingFieldsData = await existingFieldsResponse.json();
+                        const existingFields = existingFieldsData.success ? existingFieldsData.fields : [];
+                        
+                        // 删除不再存在的字段
+                        const newFieldNames = fields.map(f => f.field_name);
+                        for (const existingField of existingFields) {
+                            if (!newFieldNames.includes(existingField.field_name)) {
+                                await fetch(`/api/data_query/fields/${existingField.id}`, {
+                                    method: 'DELETE'
+                                });
+                            }
+                        }
+                        
+                        // 保存或更新字段
+                        for (const field of fields) {
+                            const existingField = existingFields.find(f => f.field_name === field.field_name);
+                            field.id = existingField ? existingField.id : null;
+                            field.table_config_id = tableId;
+                            
+                            await fetch('/api/data_query/fields', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(field)
+                            });
+                        }
+                    }
+                    
+                    alert('保存成功！');
+                    closeTableModal();
+                    loadTables();
+                } else {
+                    alert('保存失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('保存数据表失败:', error);
+                alert('保存数据表失败: ' + error.message);
+            }
+        }
+        
+        // 修改openTableModal函数，加载字段
+        const originalOpenTableModal = openTableModal;
+        function openTableModal(id = null) {
+            currentTableId = id;
+            const modal = document.getElementById('table-modal');
+            const form = document.getElementById('table-form');
+            
+            // 先清空字段表格
+            clearFieldsTable();
+            
+            if (id) {
+                document.getElementById('table-modal-title').textContent = '编辑数据表';
+                // 加载数据表信息
+                fetch(`/api/data_query/tables`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const table = data.tables.find(t => t.id === id);
+                        if (table) {
+                            // 填充表单字段
+                            document.getElementById('table-id').value = table.id || '';
+                            document.getElementById('table-name').value = table.table_name || '';
+                            document.getElementById('table-display-name').value = table.table_display_name || '';
+                            document.getElementById('table-description').value = table.description || '';
+                            document.getElementById('table-primary-key').value = table.primary_key_field || '';
+                            document.getElementById('table-date-field').value = table.date_field || '';
+                            document.getElementById('table-code-field').value = table.code_field || '';
+                            document.getElementById('table-name-field').value = table.name_field || '';
+                            
+                            // 关键：正确加载关联字段配置（这些配置保存后会自动加载，不需要每次都重新配置）
+                            const joinType = (table.join_type && table.join_type.trim()) || 'CompanyCode';
+                            const joinField = (table.join_field && table.join_field.trim()) || '';
+                            
+                            document.getElementById('table-join-type').value = joinType;
+                            document.getElementById('table-join-field').value = joinField;
+                            
+                            // 调试日志（开发时使用）
+                            if (joinField) {
+                                console.log(`已加载表配置: ${table.table_display_name}, join_type=${joinType}, join_field=${joinField}`);
+                            } else {
+                                console.warn(`警告: 表 ${table.table_display_name} 的关联字段名为空，请配置！`);
+                            }
+                            
+                            // 加载字段
+                            loadFieldsToTable(id);
+                        }
+                    });
+            } else {
+                document.getElementById('table-modal-title').textContent = '新增数据表';
+                form.reset();
+                document.getElementById('table-id').value = '';
+                // 重置关联字段配置为默认值
+                document.getElementById('table-join-type').value = 'CompanyCode';
+                document.getElementById('table-join-field').value = '';
+                // 添加一行空字段作为示例
+                addFieldRow();
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        // 图片上传相关
+        let uploadedImages = [];
+        let currentRecognizeTab = 'upload'; // 'upload' 或 'text'
+        
+        // 切换识别标签页
+        function switchRecognizeTab(tab) {
+            currentRecognizeTab = tab;
+            
+            // 更新标签按钮状态
+            document.getElementById('tab-upload').classList.remove('active');
+            document.getElementById('tab-text').classList.remove('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            
+            // 更新内容显示
+            document.getElementById('upload-tab-content').style.display = tab === 'upload' ? 'block' : 'none';
+            document.getElementById('text-tab-content').style.display = tab === 'text' ? 'block' : 'none';
+        }
+        
+        // 打开图片上传模态框
+        function openImageUploadModal() {
+            document.getElementById('image-upload-modal').classList.add('active');
+            uploadedImages = [];
+            currentRecognizeTab = 'upload';
+            document.getElementById('image-preview').innerHTML = '<div style="color: rgba(255,255,255,0.4); text-align: center; padding: 40px; grid-column: 1 / -1;">暂无图片，请上传截图</div>';
+            document.getElementById('image-upload').value = '';
+            document.getElementById('text-input').value = '';
+            switchRecognizeTab('upload');
+            
+            // 监听文件选择
+            document.getElementById('image-upload').onchange = function(e) {
+                handleImageSelect(e.target.files);
+            };
+        }
+        
+        // 关闭图片上传模态框
+        function closeImageUploadModal() {
+            document.getElementById('image-upload-modal').classList.remove('active');
+            uploadedImages = [];
+            document.getElementById('image-preview').innerHTML = '';
+            document.getElementById('image-upload').value = '';
+            document.getElementById('text-input').value = '';
+            currentRecognizeTab = 'upload';
+            switchRecognizeTab('upload');
+        }
+        
+        // 处理图片选择
+        function handleImageSelect(files) {
+            const preview = document.getElementById('image-preview');
+            preview.innerHTML = '';
+            uploadedImages = [];
+            
+            if (!files || files.length === 0) {
+                preview.innerHTML = '<div style="color: rgba(255,255,255,0.4); text-align: center; padding: 40px; grid-column: 1 / -1;">暂无图片，请上传截图</div>';
+                return;
+            }
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (!file.type.startsWith('image/')) {
+                    continue;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const index = uploadedImages.length;
+                    const img = document.createElement('div');
+                    img.style.position = 'relative';
+                    img.style.border = '2px solid rgba(255,255,255,0.1)';
+                    img.style.borderRadius = '8px';
+                    img.style.overflow = 'hidden';
+                    img.style.background = 'rgba(255,255,255,0.05)';
+                    img.innerHTML = `
+                        <img src="${e.target.result}" style="width: 100%; height: 150px; object-fit: cover; display: block;">
+                        <button type="button" onclick="removeImage(${index})" 
+                                style="position: absolute; top: 4px; right: 4px; background: rgba(239,68,68,0.9); 
+                                       border: none; border-radius: 4px; color: white; width: 24px; height: 24px; 
+                                       cursor: pointer; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center;">&times;</button>
+                        <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            ${file.name}
+                        </div>
+                    `;
+                    preview.appendChild(img);
+                    
+                    uploadedImages.push(file);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // 移除图片
+        function removeImage(index) {
+            if (index >= 0 && index < uploadedImages.length) {
+                uploadedImages.splice(index, 1);
+                // 重新渲染预览
+                const input = document.getElementById('image-upload');
+                const dt = new DataTransfer();
+                uploadedImages.forEach(file => dt.items.add(file));
+                input.files = dt.files;
+                handleImageSelect(input.files);
+            }
+        }
+        
+        // 识别图片或文字
+        async function recognizeImages() {
+            const btn = document.getElementById('recognize-btn');
+            const btnText = document.getElementById('recognize-btn-text');
+            const loading = document.getElementById('recognize-loading');
+            
+            // 检查当前标签页
+            if (currentRecognizeTab === 'upload') {
+                // 上传图片模式
+                if (uploadedImages.length === 0) {
+                    alert('请先上传至少一张图片，或切换到"输入文字"标签页');
+                    return;
+                }
+            } else {
+                // 输入文字模式
+                const textInput = document.getElementById('text-input').value.trim();
+                if (!textInput) {
+                    alert('请先输入表结构文字内容');
+                    return;
+                }
+            }
+            
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            loading.style.display = 'inline';
+            
+            try {
+                let response;
+                
+                if (currentRecognizeTab === 'upload') {
+                    // 上传图片模式
+                    const formData = new FormData();
+                    uploadedImages.forEach(file => {
+                        formData.append('images', file);
+                    });
+                    
+                    // 创建一个超时的fetch请求（5分钟超时，因为OCR需要时间）
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5分钟超时
+                    
+                    try {
+                        response = await fetch('/api/data_query/recognize_table', {
+                            method: 'POST',
+                            body: formData,
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeoutId);
+                    } catch (error) {
+                        clearTimeout(timeoutId);
+                        if (error.name === 'AbortError') {
+                            throw new Error('请求超时（已等待5分钟）。识别过程在服务器端执行，OCR和AI分析需要较长时间。\n\n建议：\n1. 减少上传的图片数量\n2. 确保图片清晰\n3. 检查网络连接\n4. 稍后重试');
+                        }
+                        throw error;
+                    }
+                } else {
+                    // 输入文字模式
+                    const textInput = document.getElementById('text-input').value.trim();
+                    // 创建一个超时的fetch请求（3分钟超时）
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3分钟超时
+                    
+                    try {
+                        response = await fetch('/api/data_query/recognize_table_from_text', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                text: textInput
+                            }),
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeoutId);
+                    } catch (error) {
+                        clearTimeout(timeoutId);
+                        if (error.name === 'AbortError') {
+                            throw new Error('请求超时（已等待3分钟）。请检查输入的文字是否过长，或稍后重试。');
+                        }
+                        throw error;
+                    }
+                }
+                
+                const result = await response.json();
+                
+                if (result.success && result.fields && result.fields.length > 0) {
+                    // 不清空现有字段，而是追加到现有字段后面
+                    const currentRowCount = document.querySelectorAll('#fields-table-body tr').length;
+                    
+                    // 先添加识别到的字段
+                    const addedFieldNames = [];
+                    result.fields.forEach((field, index) => {
+                        addFieldRow({
+                            field_name: field.field_name || '',
+                            field_display_name: field.field_display_name || field.field_name || '',
+                            field_type: field.field_type || 'TEXT',
+                            description: field.description || '',
+                            is_sortable: field.is_sortable !== false,
+                            is_filterable: field.is_filterable !== false,
+                            order_index: field.order_index !== undefined ? field.order_index : (currentRowCount + index)
+                        });
+                        addedFieldNames.push(field.field_name || '');
+                    });
+                    
+                    // 自动验证字段（如果已填写表名）
+                    const tableName = document.getElementById('table-name').value.trim();
+                    if (tableName) {
+                        await validateFieldsAfterRecognition(tableName, addedFieldNames);
+                    } else {
+                        alert(`成功识别 ${result.fields.length} 个字段并已添加到表格中！\n\n提示：请填写"数据表名称"后，可以自动验证字段是否正确。`);
+                    }
+                    
+                    closeImageUploadModal();
+                } else {
+                    alert('识别失败: ' + (result.error || '未识别到字段信息，请确保输入的内容包含表结构信息'));
+                }
+            } catch (error) {
+                console.error('识别失败:', error);
+                let errorMsg = error.message;
+                if (error.name === 'AbortError' || errorMsg.includes('timeout') || errorMsg.includes('超时')) {
+                    errorMsg = '请求超时。识别过程在服务器端执行，OCR和AI分析需要较长时间。\n\n建议：\n1. 减少上传的图片数量\n2. 确保图片清晰\n3. 检查网络连接\n4. 稍后重试或使用"输入文字"功能';
+                } else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('Network') || errorMsg.includes('连接')) {
+                    errorMsg = '网络连接失败。请检查网络连接后重试。';
+                }
+                alert('识别失败: ' + errorMsg);
+            } finally {
+                btn.disabled = false;
+                btnText.style.display = 'inline';
+                loading.style.display = 'none';
+            }
+        }
+        
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            loadTables();
+        });
+        
+        // 点击模态框外部关闭
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                closeTableModal();
+                closeFieldModal();
+                closeImageUploadModal();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>标题词云 · 爬虫数据看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+    <style>
+        :root {
+            --bg: #05070f;
+            --card: rgba(16, 22, 36, 0.82);
+            --border: rgba(103, 232, 249, 0.2);
+            --text: #e6edf7;
+            --muted: #8fa3bf;
+            --cyan: #22d3ee;
+            --violet: #a78bfa;
+            --pink: #f472b6;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "PingFang SC", sans-serif;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 211, 238, 0.12), transparent),
+                radial-gradient(circle at 100% 0%, rgba(167, 139, 250, 0.08), transparent 40%),
+                radial-gradient(circle at 20% 0%, #12203d 0%, var(--bg) 45%), var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .wrap { max-width: 1320px; margin: 0 auto; padding: 22px 20px 40px; }
+        .topbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+        .brand { display: flex; flex-direction: column; gap: 4px; }
+        .title { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+        .subtitle { font-size: 12px; color: var(--muted); }
+        .nav-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .nav-pills {
+            display: inline-flex;
+            padding: 4px;
+            border-radius: 999px;
+            background: rgba(8, 12, 24, 0.65);
+            border: 1px solid var(--border);
+        }
+        .nav-pill {
+            color: var(--muted);
+            text-decoration: none;
+            padding: 8px 18px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: color .2s, background .2s, box-shadow .2s;
+        }
+        .nav-pill:hover { color: var(--text); background: rgba(34, 211, 238, 0.08); }
+        .nav-pill.active {
+            color: #042f2e;
+            background: linear-gradient(135deg, #5eead4, #22d3ee);
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.35);
+        }
+        .back {
+            color: var(--text);
+            text-decoration: none;
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 999px;
+            background: rgba(10, 15, 27, 0.75);
+            font-size: 13px;
+        }
+        .back:hover { border-color: rgba(34, 211, 238, 0.45); }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            backdrop-filter: blur(10px);
+        }
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .panel-head h2 { margin: 0; font-size: 17px; color: #dbeafe; font-weight: 600; }
+        .hint { font-size: 12px; color: var(--muted); max-width: 640px; line-height: 1.5; }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+        .field label {
+            display: block;
+            font-size: 11px;
+            color: #93abc9;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .field input, .field select {
+            width: 100%;
+            border: 1px solid var(--border);
+            background: rgba(8, 12, 22, 0.85);
+            color: var(--text);
+            padding: 9px 11px;
+            border-radius: 10px;
+            font-size: 13px;
+            outline: none;
+        }
+        .field input:focus, .field select:focus {
+            border-color: rgba(34, 211, 238, 0.5);
+            box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15);
+        }
+        .field-interval { display: none; }
+        .field-interval.show { display: block; }
+
+        .btn-primary {
+            border: none;
+            cursor: pointer;
+            padding: 11px 22px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #042f2e;
+            background: linear-gradient(135deg, #5eead4, #22d3ee);
+            box-shadow: 0 4px 24px rgba(34, 211, 238, 0.25);
+            transition: transform .15s, box-shadow .15s;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(34, 211, 238, 0.35); }
+        .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+        .meta-bar {
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+
+        .bucket-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+            max-height: 120px;
+            overflow-y: auto;
+            padding: 2px;
+        }
+        .bucket-tab {
+            border: 1px solid rgba(143, 163, 191, 0.25);
+            background: rgba(8, 12, 22, 0.55);
+            color: var(--muted);
+            padding: 7px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .bucket-tab:hover { color: var(--text); border-color: rgba(167, 139, 250, 0.45); }
+        .bucket-tab.active {
+            color: #fae8ff;
+            border-color: rgba(244, 114, 182, 0.55);
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(244, 114, 182, 0.12));
+        }
+
+        #wcChart {
+            width: 100%;
+            height: min(72vh, 640px);
+            min-height: 420px;
+            border-radius: 14px;
+            background: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.06), rgba(5, 7, 15, 0.92));
+            border: 1px solid rgba(103, 232, 249, 0.12);
+        }
+        #blChart {
+            width: 100%;
+            height: min(36vh, 320px);
+            min-height: 240px;
+            border-radius: 14px;
+            background: radial-gradient(ellipse at center, rgba(244, 114, 182, 0.07), rgba(5, 7, 15, 0.92));
+            border: 1px solid rgba(244, 114, 182, 0.2);
+        }
+        .bl-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .bl-toolbar input {
+            flex: 1;
+            min-width: 160px;
+            border: 1px solid var(--border);
+            background: rgba(8, 12, 22, 0.85);
+            color: var(--text);
+            padding: 9px 11px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+        .btn-ghost {
+            border: 1px solid rgba(244, 114, 182, 0.45);
+            background: rgba(20, 12, 24, 0.6);
+            color: #fbcfe8;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-ghost:hover { background: rgba(244, 114, 182, 0.12); }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header class="topbar">
+        <div class="brand">
+            <div class="title">标题词云</div>
+            <div class="subtitle">基于新闻标题分词 · 支持按日或自定义时间粒度聚合</div>
+        </div>
+        <div class="nav-row">
+            <nav class="nav-pills" aria-label="爬虫看板子页面">
+                <a class="nav-pill" href="{{ url_for('crawler_dashboard') }}">资讯流</a>
+                <a class="nav-pill active" href="{{ url_for('crawler_dashboard_wordcloud') }}">标题词云</a>
+            </nav>
+            <a class="back" href="{{ url_for('index') }}">返回主页</a>
+        </div>
+    </header>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>筛选与聚合</h2>
+                <p class="hint">时间按「发布或抓取时间」与资讯流一致。筛选分多层（见后端 L0–L6）。下方主词云<strong>点击任意词</strong>即加入<strong>你的黑名单</strong>（仅本人、存本地库），之后生成词云会自动排除；黑名单也以词云展示，<strong>点击词可移除</strong>。无动词白名单。建议安装 <code style="color:#7dd3fc;">jieba</code>。</p>
+            </div>
+        </div>
+        <div class="controls">
+            <div class="field">
+                <label>渠道</label>
+                <select id="sourceSelect"><option value="">全部渠道</option></select>
+            </div>
+            <div class="field">
+                <label>开始时间</label>
+                <input type="datetime-local" id="startInput">
+            </div>
+            <div class="field">
+                <label>结束时间</label>
+                <input type="datetime-local" id="endInput">
+            </div>
+            <div class="field">
+                <label>聚合方式</label>
+                <select id="groupSelect">
+                    <option value="whole">整段合并（一词云）</option>
+                    <option value="day">按自然日</option>
+                    <option value="interval">按时间间隔（小时）</option>
+                </select>
+            </div>
+            <div class="field field-interval" id="intervalWrap">
+                <label>间隔（小时）</label>
+                <input type="number" id="intervalHours" min="1" max="168" value="24" step="1">
+            </div>
+            <div class="field">
+                <label>链接</label>
+                <select id="hasLinkSelect">
+                    <option value="">全部</option>
+                    <option value="yes">仅有链接</option>
+                    <option value="no">仅无链接</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>词云侧重（A 股）</label>
+                <select id="focusSelect" title="entities=偏实体与政策；balanced=保留盘面词">
+                    <option value="entities">实体优先（默认）</option>
+                    <option value="balanced">均衡（含涨停/连板等）</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <button type="button" class="btn-primary" id="runBtn">生成词云</button>
+            </div>
+        </div>
+        <div class="meta-bar" id="metaBar"></div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2>词云预览</h2>
+        </div>
+        <div id="bucketTabs" class="bucket-tabs" style="display:none;"></div>
+        <div id="wcChart"></div>
+        <div id="emptyHint" class="empty-state" style="display:none;">该条件下暂无标题数据，请调整时间范围或渠道。</div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>我的词云黑名单</h2>
+                <p class="hint">点击主词云中的词 → 加入此处；点击此处词云中的词 → 确认后移除。也可手动输入后点「加入黑名单」。</p>
+            </div>
+        </div>
+        <div class="bl-toolbar">
+            <input type="text" id="manualBlacklistInput" maxlength="64" placeholder="手动输入要屏蔽的词（≥2 字）" autocomplete="off">
+            <button type="button" class="btn-ghost" id="manualBlacklistBtn">加入黑名单</button>
+        </div>
+        <div id="blEmptyHint" class="empty-state">暂无黑名单词条。在上方主词云中点击一个词即可加入。</div>
+        <div id="blChart" style="display:none;"></div>
+    </section>
+</div>
+
+<script>
+    const mainChart = echarts.init(document.getElementById('wcChart'));
+    const blChart = echarts.init(document.getElementById('blChart'));
+    let lastBuckets = [];
+    let activeIdx = 0;
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function toLocalDatetimeValue(d) {
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    function setDefaultRange() {
+        const end = new Date();
+        const start = new Date(end.getTime() - 7 * 24 * 3600 * 1000);
+        document.getElementById('endInput').value = toLocalDatetimeValue(end);
+        document.getElementById('startInput').value = toLocalDatetimeValue(start);
+    }
+
+    function toggleIntervalField() {
+        const g = document.getElementById('groupSelect').value;
+        document.getElementById('intervalWrap').classList.toggle('show', g === 'interval');
+    }
+
+    async function loadSources() {
+        try {
+            const res = await fetch('/api/crawler_dashboard/channel_summary');
+            const data = await res.json();
+            if (!data.success) return;
+            const sel = document.getElementById('sourceSelect');
+            const keep = sel.value;
+            sel.innerHTML = '<option value="">全部渠道</option>';
+            (data.channels || []).forEach(ch => {
+                const s = ch.source || '-';
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = `${s} (${ch.message_count || 0})`;
+                sel.appendChild(opt);
+            });
+            if (keep) sel.value = keep;
+        } catch (e) { /* ignore */ }
+    }
+
+    function renderTabs() {
+        const wrap = document.getElementById('bucketTabs');
+        if (!lastBuckets || lastBuckets.length <= 1) {
+            wrap.style.display = 'none';
+            wrap.innerHTML = '';
+            return;
+        }
+        wrap.style.display = 'flex';
+        wrap.innerHTML = '';
+        lastBuckets.forEach((b, i) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bucket-tab' + (i === activeIdx ? ' active' : '');
+            btn.textContent = `${b.label} (${b.article_count})`;
+            btn.addEventListener('click', () => {
+                activeIdx = i;
+                renderTabs();
+                applyChart(i);
+            });
+            wrap.appendChild(btn);
+        });
+    }
+
+    function applyChart(idx) {
+        const b = lastBuckets[idx];
+        const words = (b && b.words) ? b.words : [];
+        document.getElementById('emptyHint').style.display = words.length ? 'none' : 'block';
+        document.getElementById('wcChart').style.display = words.length ? 'block' : 'none';
+        if (!words.length) {
+            mainChart.clear();
+            return;
+        }
+
+        mainChart.setOption({
+            tooltip: {
+                show: true,
+                formatter: p => `${p.name}：${p.value}<br/><span style="opacity:.85;font-size:11px;">点击加入黑名单</span>`
+            },
+            series: [{
+                type: 'wordCloud',
+                shape: 'circle',
+                keepAspect: false,
+                left: 'center',
+                top: 'center',
+                width: '92%',
+                height: '92%',
+                sizeRange: [14, 56],
+                rotationRange: [-28, 28],
+                gridSize: 10,
+                drawOutOfBound: false,
+                layoutAnimation: true,
+                textStyle: {
+                    color: () => {
+                        const palette = ['#5eead4', '#22d3ee', '#7dd3fc', '#a78bfa', '#f472b6', '#fcd34d', '#86efac'];
+                        return palette[Math.floor(Math.random() * palette.length)];
+                    }
+                },
+                emphasis: { focus: 'self', textStyle: { textShadowBlur: 8, textShadowColor: 'rgba(0,0,0,0.45)' } },
+                data: words
+            }]
+        }, true);
+    }
+
+    async function postBlacklistWord(word) {
+        const res = await fetch('/api/crawler_dashboard/wordcloud/blacklist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert(data.error || '加入失败');
+            return false;
+        }
+        return true;
+    }
+
+    async function deleteBlacklistWord(word) {
+        const res = await fetch('/api/crawler_dashboard/wordcloud/blacklist?word=' + encodeURIComponent(word), {
+            method: 'DELETE'
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert(data.error || '移除失败');
+            return false;
+        }
+        return true;
+    }
+
+    async function loadBlacklistCloud() {
+        try {
+            const res = await fetch('/api/crawler_dashboard/wordcloud/blacklist');
+            const data = await res.json();
+            if (!data.success) return;
+            const words = data.cloud || [];
+            const hint = document.getElementById('blEmptyHint');
+            const box = document.getElementById('blChart');
+            if (!words.length) {
+                hint.style.display = 'block';
+                box.style.display = 'none';
+                blChart.clear();
+                return;
+            }
+            hint.style.display = 'none';
+            box.style.display = 'block';
+            blChart.setOption({
+                tooltip: {
+                    show: true,
+                    formatter: p => `${p.name}<br/><span style="opacity:.85;font-size:11px;">点击从黑名单移除</span>`
+                },
+                series: [{
+                    type: 'wordCloud',
+                    shape: 'circle',
+                    left: 'center',
+                    top: 'center',
+                    width: '90%',
+                    height: '90%',
+                    sizeRange: [14, 44],
+                    rotationRange: [0, 0],
+                    gridSize: 12,
+                    textStyle: {
+                        color: () => {
+                            const palette = ['#f9a8d4', '#fbcfe8', '#fda4af', '#fdba74', '#e9d5ff'];
+                            return palette[Math.floor(Math.random() * palette.length)];
+                        }
+                    },
+                    emphasis: { focus: 'self' },
+                    data: words
+                }]
+            }, true);
+        } catch (e) { /* ignore */ }
+    }
+
+    mainChart.on('click', async (params) => {
+        if (params.seriesType !== 'wordCloud' || !params.name) return;
+        const w = String(params.name).trim();
+        if (w.length < 2) return;
+        if (!confirm(`将「${w}」加入你的词云黑名单？\n之后所有词云生成都会排除该词。`)) return;
+        if (await postBlacklistWord(w)) {
+            await loadBlacklistCloud();
+            await runWordcloud();
+        }
+    });
+
+    blChart.on('click', async (params) => {
+        if (params.seriesType !== 'wordCloud' || !params.name) return;
+        const w = String(params.name).trim();
+        if (!confirm(`从黑名单中移除「${w}」？`)) return;
+        if (await deleteBlacklistWord(w)) {
+            await loadBlacklistCloud();
+            await runWordcloud();
+        }
+    });
+
+    async function runWordcloud() {
+        const btn = document.getElementById('runBtn');
+        btn.disabled = true;
+        const start = document.getElementById('startInput').value;
+        const end = document.getElementById('endInput').value;
+        const group = document.getElementById('groupSelect').value;
+        const source = document.getElementById('sourceSelect').value;
+        const hasLink = document.getElementById('hasLinkSelect').value;
+        const intervalHours = document.getElementById('intervalHours').value || '24';
+        const focus = (document.getElementById('focusSelect') && document.getElementById('focusSelect').value) || 'entities';
+
+        const qs = new URLSearchParams();
+        if (start) qs.set('start_time', start.replace('T', ' '));
+        if (end) qs.set('end_time', end.replace('T', ' '));
+        qs.set('group', group);
+        qs.set('focus', focus);
+        if (source) qs.set('source', source);
+        if (hasLink) qs.set('has_link', hasLink);
+        if (group === 'interval') qs.set('interval_hours', intervalHours);
+
+        try {
+            const res = await fetch('/api/crawler_dashboard/wordcloud?' + qs.toString());
+            const data = await res.json();
+            if (!data.success) {
+                alert(data.error || '加载失败');
+                return;
+            }
+            lastBuckets = data.buckets || [];
+            activeIdx = 0;
+            const meta = document.getElementById('metaBar');
+            const groupLabel = { whole: '整段', day: '按日', interval: '按间隔' };
+            const focusLabel = { entities: '实体优先', balanced: '均衡(含盘面词)' };
+            meta.textContent = [
+                `扫描标题条数：${data.total_rows_scanned ?? 0}`,
+                `区间：${data.start_time || '-'} ~ ${data.end_time || '-'}`,
+                data.source ? `渠道：${data.source}` : '渠道：全部',
+                `聚合：${groupLabel[data.group] || data.group}`,
+                `侧重：${focusLabel[data.focus] || data.focus || '-'}`,
+                `我的黑名单：${data.blacklist_count ?? 0} 条`
+            ].join(' ｜ ');
+            renderTabs();
+            applyChart(activeIdx);
+        } catch (e) {
+            alert('请求异常：' + e);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    document.getElementById('groupSelect').addEventListener('change', toggleIntervalField);
+    document.getElementById('runBtn').addEventListener('click', runWordcloud);
+    document.getElementById('manualBlacklistBtn').addEventListener('click', async () => {
+        const raw = (document.getElementById('manualBlacklistInput').value || '').trim();
+        if (raw.length < 2) {
+            alert('至少输入 2 个字符');
+            return;
+        }
+        if (await postBlacklistWord(raw)) {
+            document.getElementById('manualBlacklistInput').value = '';
+            await loadBlacklistCloud();
+            await runWordcloud();
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        mainChart.resize();
+        blChart.resize();
+    });
+
+    setDefaultRange();
+    toggleIntervalField();
+    loadSources().then(async () => {
+        await loadBlacklistCloud();
+        await runWordcloud();
+    });
+</script>
+</body>
+</html>

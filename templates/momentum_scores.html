@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>动量评分</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            background: radial-gradient(circle at top, #0f172a 0, #020617 45%, #000 100%);
+            color: #e5e7eb;
+        }
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(15,23,42,0.85);
+            color: #e5e7eb;
+            text-decoration: none;
+            font-size: 13px;
+            border: 1px solid rgba(148,163,184,0.5);
+            box-shadow: 0 10px 30px rgba(15,23,42,0.7);
+            backdrop-filter: blur(16px);
+            z-index: 10;
+        }
+        .back-button span:first-child {
+            font-size: 16px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 80px auto 40px;
+            padding: 0 24px 40px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .title-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .card {
+            background: radial-gradient(circle at top left, rgba(94,234,212,0.08), transparent 60%),
+                        radial-gradient(circle at bottom right, rgba(129,140,248,0.08), transparent 60%),
+                        rgba(15,23,42,0.92);
+            border-radius: 18px;
+            padding: 20px 20px 16px;
+            border: 1px solid rgba(148,163,184,0.4);
+            box-shadow: 0 20px 50px rgba(15,23,42,0.8);
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .controls-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        label {
+            font-size: 13px;
+            color: #9ca3af;
+        }
+        input[type="date"] {
+            background: #020617;
+            border-radius: 8px;
+            border: 1px solid rgba(148,163,184,0.6);
+            padding: 8px 10px;
+            color: #e5e7eb;
+            font-size: 13px;
+        }
+        button.btn {
+            border-radius: 999px;
+            border: none;
+            padding: 8px 18px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #f9fafb;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            box-shadow: 0 10px 25px rgba(79,70,229,0.6);
+        }
+        button.btn-secondary {
+            border-radius: 999px;
+            border: 1px solid rgba(148,163,184,0.5);
+            padding: 8px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #e5e7eb;
+            background: rgba(15,23,42,0.9);
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        thead {
+            background: rgba(15,23,42,0.95);
+        }
+        th, td {
+            padding: 8px 10px;
+            text-align: left;
+            position: relative;
+        }
+        th {
+            font-weight: 600;
+            color: #9ca3af;
+            border-bottom: 1px solid rgba(55,65,81,0.9);
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s;
+        }
+        th:hover {
+            background: rgba(55,65,81,0.5);
+        }
+        th.sortable {
+            padding-right: 24px;
+        }
+        th.sortable::after {
+            content: '⇅';
+            position: absolute;
+            right: 8px;
+            opacity: 0.5;
+            font-size: 12px;
+        }
+        th.sort-asc::after {
+            content: '↑';
+            opacity: 1;
+        }
+        th.sort-desc::after {
+            content: '↓';
+            opacity: 1;
+        }
+        tbody tr:nth-child(even) {
+            background: rgba(15,23,42,0.65);
+        }
+        tbody tr:nth-child(odd) {
+            background: rgba(15,23,42,0.4);
+        }
+        tbody tr:hover {
+            background: rgba(55,65,81,0.9);
+        }
+        .code-cell {
+            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+        }
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(34,197,94,0.15);
+            color: #bbf7d0;
+            font-weight: 500;
+            font-size: 12px;
+        }
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(148,163,184,0.12);
+            color: #e5e7eb;
+            font-size: 11px;
+        }
+        .pagination {
+            margin-top: 8px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        .pagination button {
+            border-radius: 999px;
+            border: 1px solid rgba(148,163,184,0.5);
+            padding: 4px 10px;
+            background: rgba(15,23,42,0.9);
+            color: #e5e7eb;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .empty {
+            padding: 24px 8px 16px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+        }
+        /* 详细弹窗页签样式（拆成两页） */
+        .detail-tabs {
+            display: inline-flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            background: rgba(15,23,42,0.6);
+            padding: 4px;
+            border-radius: 999px;
+        }
+        .detail-tab-btn {
+            border: none;
+            border-radius: 999px;
+            padding: 4px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #9ca3af;
+            background: transparent;
+        }
+        .detail-tab-btn.active {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #f9fafb;
+            box-shadow: 0 6px 18px rgba(79,70,229,0.6);
+        }
+        .detail-tab-content {
+            display: none;
+        }
+        .detail-tab-content.active {
+            display: block;
+        }
+        .volume-metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
+        .volume-card {
+            background: rgba(15,23,42,0.85);
+            border-radius: 10px;
+            padding: 10px 12px;
+            border: 1px solid rgba(148,163,184,0.4);
+            font-size: 12px;
+        }
+        .volume-card-title {
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+        .volume-card-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e5e7eb;
+        }
+        .volume-card-sub {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+        /* 配置弹窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,41,59,0.95));
+            border: 1px solid rgba(148,163,184,0.4);
+            border-radius: 16px;
+            padding: 20px 24px;
+            min-width: 360px;
+            max-width: 90vw;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+        }
+        .modal h3 { margin: 0 0 16px; font-size: 16px; color: #e5e7eb; }
+        .modal-row { margin-bottom: 12px; }
+        .modal-row label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
+        .modal-row input[type="number"] {
+            width: 100%;
+            box-sizing: border-box;
+            background: #020617;
+            border: 1px solid rgba(148,163,184,0.5);
+            border-radius: 8px;
+            padding: 8px 10px;
+            color: #e5e7eb;
+            font-size: 13px;
+        }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+        .modal-actions .btn { padding: 8px 16px; }
+        .modal-actions .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(148,163,184,0.5);
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-button">
+        <span>←</span>
+        <span>返回主页</span>
+    </a>
+
+    <div class="container">
+        <div class="header">
+            <div class="title">
+                <div class="title-icon">M</div>
+                <div>
+                    <div>动量评分</div>
+                    <div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">每日为全市场A股计算动量得分，可手动或自动运行</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="controls">
+                <div class="controls-group">
+                    <label for="momentum-date">评分日期</label>
+                    <input type="date" id="momentum-date">
+                </div>
+                <div class="controls-group">
+                    <button class="btn" id="run-momentum-btn">运行动量打分</button>
+                    <button class="btn-secondary" id="refresh-btn">刷新列表</button>
+                    <button class="btn-secondary" id="config-btn">⚙️ 配置</button>
+                    <button class="btn-secondary" id="refresh-trading-date-btn">🔄 刷新交易日</button>
+                    <button class="btn-secondary" id="toggle-filter-btn">🔍 筛选</button>
+                </div>
+                <div class="controls-group">
+                    <span class="tag" id="current-date-tag">当前日期：--</span>
+                    <span class="tag" id="latest-trading-date-tag" style="margin-left: 8px; display: none;">数据库最新交易日：--</span>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <div id="status-text">请先选择日期并点击“运行动量打分”，或直接刷新查看已有结果。</div>
+                <div id="total-text"></div>
+            </div>
+
+            <!-- 执行日志区域 -->
+            <div id="log-container" style="display: none; margin-top: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="margin: 0; font-size: 14px; color: #e5e7eb;">执行日志</h4>
+                    <button class="btn-secondary" id="clear-logs-btn" style="padding: 4px 12px; font-size: 12px;">清空</button>
+                </div>
+                <div id="log-content" style="
+                    background: #020617;
+                    border: 1px solid rgba(148,163,184,0.3);
+                    border-radius: 8px;
+                    padding: 12px;
+                    max-height: 300px;
+                    overflow-y: auto;
+                    font-family: 'Courier New', monospace;
+                    font-size: 12px;
+                    line-height: 1.6;
+                    color: #9ca3af;
+                ">
+                    <div style="color: #6b7280; font-style: italic;">等待日志输出...</div>
+                </div>
+            </div>
+
+            <!-- 筛选栏（仅按动量分范围） -->
+            <div id="filter-bar" style="display: none; margin-bottom: 12px; padding: 12px; background: rgba(15,23,42,0.6); border-radius: 8px; border: 1px solid rgba(148,163,184,0.3);">
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="font-size: 12px; color: #9ca3af;">动量分范围:</label>
+                        <input type="number" id="filter-score-min" placeholder="最小值" step="0.1" style="background: #020617; border: 1px solid rgba(148,163,184,0.6); border-radius: 6px; padding: 6px 10px; color: #e5e7eb; font-size: 12px; width: 100px;">
+                        <span style="color: #6b7280;">~</span>
+                        <input type="number" id="filter-score-max" placeholder="最大值" step="0.1" style="background: #020617; border: 1px solid rgba(148,163,184,0.6); border-radius: 6px; padding: 6px 10px; color: #e5e7eb; font-size: 12px; width: 100px;">
+                    </div>
+                    <button class="btn-secondary" id="filter-apply" style="padding: 6px 14px; font-size: 12px;">应用筛选</button>
+                    <button class="btn-secondary" id="filter-clear" style="padding: 6px 14px; font-size: 12px;">清除</button>
+                    <button class="btn-secondary" id="toggle-filter" style="padding: 6px 14px; font-size: 12px; display: none;">隐藏筛选</button>
+                </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+                <table id="momentum-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="rank" style="width: 60px;">排名</th>
+                            <th class="sortable" data-sort="code" style="width: 100px;">代码</th>
+                            <th class="sortable" data-sort="score" style="width: 90px;">动量分</th>
+                            <th class="sortable" data-sort="return_1d" style="width: 80px;">1日涨幅</th>
+                            <th class="sortable" data-sort="return_5d" style="width: 80px;">5日涨幅</th>
+                            <th class="sortable" data-sort="return_10d" style="width: 85px;">10日涨幅</th>
+                            <th class="sortable" data-sort="return_20d" style="width: 85px;">20日涨幅</th>
+                            <th class="sortable" data-sort="amplitude_5d" style="width: 80px;">5日振幅</th>
+                            <th class="sortable" data-sort="max_gain_20d" style="width: 90px;">20日最大涨幅</th>
+                            <th class="sortable" data-sort="max_drawdown_20d" style="width: 100px;">20日最大回撤</th>
+                            <th class="sortable" data-sort="price_vs_ma5" style="width: 90px;">价格/MA5</th>
+                            <th class="sortable" data-sort="ma5_slope" style="width: 85px;">MA5斜率</th>
+                            <th class="sortable" data-sort="volume_ratio_5d" style="width: 80px;">5日量比</th>
+                            <th style="width: 100px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="momentum-tbody">
+                        <tr><td colspan="14" class="empty">暂无数据</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button id="prev-page">上一页</button>
+                <span id="page-info">第 1 页</span>
+                <button id="next-page">下一页</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配置弹窗 -->
+    <div class="modal-overlay" id="config-modal">
+        <div class="modal">
+            <h3>动量评分参数</h3>
+            <p style="font-size:12px;color:#9ca3af;margin:0 0 12px;">不配置则使用默认值；修改后点击「确定」保存到本地，运行打分时自动带入。</p>
+            <div class="modal-row">
+                <label>取数区间（天）<br><span style="color:#6b7280">目标日前拉取多少天行情，需 ≥ 因子计算窗口。默认 600</span></label>
+                <input type="number" id="cfg-lookback_days" min="400" max="2000" step="10" placeholder="600">
+            </div>
+            <div class="modal-row">
+                <label>因子计算窗口（天）<br><span style="color:#6b7280">截取 [目标日-窗口, 目标日] 做因子计算，须 ≤ 取数区间。默认 500</span></label>
+                <input type="number" id="cfg-calc_window_days" min="300" max="1000" step="10" placeholder="500">
+            </div>
+            <div class="modal-row">
+                <label>单只股票最少交易日<br><span style="color:#6b7280">不足则排除，默认 300</span></label>
+                <input type="number" id="cfg-min_trading_days" min="60" max="500" step="10" placeholder="300">
+            </div>
+            <div class="modal-row">
+                <label>去极值分位数<br><span style="color:#6b7280">如 0.025 表示 2.5%~97.5% 缩尾，默认 0.025</span></label>
+                <input type="number" id="cfg-winsorize_alpha" min="0.001" max="0.2" step="0.001" placeholder="0.025">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" id="config-reset">恢复默认</button>
+                <button class="btn btn-outline" id="config-cancel">取消</button>
+                <button class="btn" id="config-ok">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 状态分析配置弹窗（已停用，保留占位以便将来需要时恢复） -->
+
+    <!-- 详细数据弹窗 -->
+    <div class="modal-overlay" id="detail-modal">
+        <div class="modal" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <h3 id="detail-title">详细数据</h3>
+            <div id="detail-content" style="font-size: 13px; line-height: 1.8;">
+                <!-- 详细数据将在这里显示 -->
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn" onclick="document.getElementById('detail-modal').classList.remove('show')">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG_KEY = 'momentum_scores_config';
+        const DEFAULTS = { lookback_days: 600, calc_window_days: 500, min_trading_days: 300, winsorize_alpha: 0.025 };
+        
+        const STATUS_CONFIG_KEY = 'status_analyzer_config';
+        const STATUS_DEFAULTS = {
+            mass_short_period: 60,
+            mass_long_period: 360,
+            mass_threshold: 50.0,
+            ma_slope_period: 5,
+            ma_slope_threshold: 0.002,  // 优化：从0.0提高到0.002，提高趋势确认质量
+            oscillation_lookback_days: 60,
+            oscillation_ma_period: 60,
+            oscillation_amplitude_threshold: 0.10,  // 优化：从0.15收紧到0.10，只识别真正窄幅盘整
+            oscillation_ma_slope_max: 0.001,
+            volume_surge_multiplier: 1.5,
+            volume_surge_days: 3,
+            five_day_return_window: 5,
+            five_day_return_acceleration_threshold: 0.02,
+            history_years: 3
+        };
+
+        function getConfig() {
+            try {
+                const s = localStorage.getItem(CONFIG_KEY);
+                if (s) {
+                    const o = JSON.parse(s);
+                    return {
+                        lookback_days: parseInt(o.lookback_days, 10) || DEFAULTS.lookback_days,
+                        calc_window_days: parseInt(o.calc_window_days, 10) || DEFAULTS.calc_window_days,
+                        min_trading_days: parseInt(o.min_trading_days, 10) || DEFAULTS.min_trading_days,
+                        winsorize_alpha: parseFloat(o.winsorize_alpha) || DEFAULTS.winsorize_alpha
+                    };
+                }
+            } catch (e) {}
+            return { ...DEFAULTS };
+        }
+        function applyConfigToForm(c) {
+            document.getElementById('cfg-lookback_days').value = c.lookback_days || '';
+            document.getElementById('cfg-calc_window_days').value = c.calc_window_days || '';
+            document.getElementById('cfg-min_trading_days').value = c.min_trading_days || '';
+            document.getElementById('cfg-winsorize_alpha').value = c.winsorize_alpha ?? '';
+        }
+        function collectConfigFromForm() {
+            const v = (id) => (document.getElementById(id).value || '').trim();
+            return {
+                lookback_days: parseInt(v('cfg-lookback_days'), 10) || DEFAULTS.lookback_days,
+                calc_window_days: parseInt(v('cfg-calc_window_days'), 10) || DEFAULTS.calc_window_days,
+                min_trading_days: parseInt(v('cfg-min_trading_days'), 10) || DEFAULTS.min_trading_days,
+                winsorize_alpha: parseFloat(v('cfg-winsorize_alpha')) || DEFAULTS.winsorize_alpha
+            };
+        }
+        
+        // 状态分析配置函数
+        function getStatusConfig() {
+            try {
+                const s = localStorage.getItem(STATUS_CONFIG_KEY);
+                if (s) {
+                    const o = JSON.parse(s);
+                    return {
+                        mass_short_period: parseInt(o.mass_short_period, 10) || STATUS_DEFAULTS.mass_short_period,
+                        mass_long_period: parseInt(o.mass_long_period, 10) || STATUS_DEFAULTS.mass_long_period,
+                        mass_threshold: parseFloat(o.mass_threshold) || STATUS_DEFAULTS.mass_threshold,
+                        ma_slope_period: parseInt(o.ma_slope_period, 10) || STATUS_DEFAULTS.ma_slope_period,
+                        ma_slope_threshold: parseFloat(o.ma_slope_threshold) || STATUS_DEFAULTS.ma_slope_threshold,
+                        oscillation_lookback_days: parseInt(o.oscillation_lookback_days, 10) || STATUS_DEFAULTS.oscillation_lookback_days,
+                        oscillation_ma_period: parseInt(o.oscillation_ma_period, 10) || STATUS_DEFAULTS.oscillation_ma_period,
+                        oscillation_amplitude_threshold: parseFloat(o.oscillation_amplitude_threshold) || STATUS_DEFAULTS.oscillation_amplitude_threshold,
+                        oscillation_ma_slope_max: parseFloat(o.oscillation_ma_slope_max) || STATUS_DEFAULTS.oscillation_ma_slope_max,
+                        volume_surge_multiplier: parseFloat(o.volume_surge_multiplier) || STATUS_DEFAULTS.volume_surge_multiplier,
+                        volume_surge_days: parseInt(o.volume_surge_days, 10) || STATUS_DEFAULTS.volume_surge_days,
+                        five_day_return_window: parseInt(o.five_day_return_window, 10) || STATUS_DEFAULTS.five_day_return_window,
+                        five_day_return_acceleration_threshold: parseFloat(o.five_day_return_acceleration_threshold) || STATUS_DEFAULTS.five_day_return_acceleration_threshold,
+                        history_years: parseInt(o.history_years, 10) || STATUS_DEFAULTS.history_years
+                    };
+                }
+            } catch (e) {}
+            return { ...STATUS_DEFAULTS };
+        }
+        
+        function applyStatusConfigToForm(c) {
+            document.getElementById('status-cfg-mass_short_period').value = c.mass_short_period || '';
+            document.getElementById('status-cfg-mass_long_period').value = c.mass_long_period || '';
+            document.getElementById('status-cfg-mass_threshold').value = c.mass_threshold || '';
+            document.getElementById('status-cfg-ma_slope_period').value = c.ma_slope_period || '';
+            document.getElementById('status-cfg-ma_slope_threshold').value = c.ma_slope_threshold || '';
+            document.getElementById('status-cfg-oscillation_lookback_days').value = c.oscillation_lookback_days || '';
+            document.getElementById('status-cfg-oscillation_ma_period').value = c.oscillation_ma_period || '';
+            document.getElementById('status-cfg-oscillation_amplitude_threshold').value = c.oscillation_amplitude_threshold || '';
+            document.getElementById('status-cfg-oscillation_ma_slope_max').value = c.oscillation_ma_slope_max || '';
+            document.getElementById('status-cfg-volume_surge_multiplier').value = c.volume_surge_multiplier || '';
+            document.getElementById('status-cfg-volume_surge_days').value = c.volume_surge_days || '';
+            document.getElementById('status-cfg-five_day_return_window').value = c.five_day_return_window || '';
+            document.getElementById('status-cfg-five_day_return_acceleration_threshold').value = c.five_day_return_acceleration_threshold || '';
+            document.getElementById('status-cfg-history_years').value = c.history_years || '';
+        }
+        
+        function collectStatusConfigFromForm() {
+            const v = (id) => (document.getElementById(id).value || '').trim();
+            return {
+                mass_short_period: parseInt(v('status-cfg-mass_short_period'), 10) || STATUS_DEFAULTS.mass_short_period,
+                mass_long_period: parseInt(v('status-cfg-mass_long_period'), 10) || STATUS_DEFAULTS.mass_long_period,
+                mass_threshold: parseFloat(v('status-cfg-mass_threshold')) || STATUS_DEFAULTS.mass_threshold,
+                ma_slope_period: parseInt(v('status-cfg-ma_slope_period'), 10) || STATUS_DEFAULTS.ma_slope_period,
+                ma_slope_threshold: parseFloat(v('status-cfg-ma_slope_threshold')) || STATUS_DEFAULTS.ma_slope_threshold,
+                oscillation_lookback_days: parseInt(v('status-cfg-oscillation_lookback_days'), 10) || STATUS_DEFAULTS.oscillation_lookback_days,
+                oscillation_ma_period: parseInt(v('status-cfg-oscillation_ma_period'), 10) || STATUS_DEFAULTS.oscillation_ma_period,
+                oscillation_amplitude_threshold: parseFloat(v('status-cfg-oscillation_amplitude_threshold')) || STATUS_DEFAULTS.oscillation_amplitude_threshold,
+                oscillation_ma_slope_max: parseFloat(v('status-cfg-oscillation_ma_slope_max')) || STATUS_DEFAULTS.oscillation_ma_slope_max,
+                volume_surge_multiplier: parseFloat(v('status-cfg-volume_surge_multiplier')) || STATUS_DEFAULTS.volume_surge_multiplier,
+                volume_surge_days: parseInt(v('status-cfg-volume_surge_days'), 10) || STATUS_DEFAULTS.volume_surge_days,
+                five_day_return_window: parseInt(v('status-cfg-five_day_return_window'), 10) || STATUS_DEFAULTS.five_day_return_window,
+                five_day_return_acceleration_threshold: parseFloat(v('status-cfg-five_day_return_acceleration_threshold')) || STATUS_DEFAULTS.five_day_return_acceleration_threshold,
+                history_years: parseInt(v('status-cfg-history_years'), 10) || STATUS_DEFAULTS.history_years
+            };
+        }
+
+        let currentDate = null;
+        let currentPage = 1;
+        const pageSize = 100;
+        let allItems = [];  // 存储所有数据用于排序和筛选
+        let currentSort = { column: 'score', direction: 'desc' };  // 当前排序状态
+        let currentFilters = {};  // 当前筛选条件
+
+        function formatScore(score) {
+            if (score === null || score === undefined) return '--';
+            return Number(score).toFixed(3);
+        }
+
+        function setStatus(message) {
+            document.getElementById('status-text').textContent = message;
+        }
+        
+        function showDetailData(button) {
+            const item = JSON.parse(button.getAttribute('data-item'));
+            const modal = document.getElementById('detail-modal');
+            const title = document.getElementById('detail-title');
+            const content = document.getElementById('detail-content');
+            
+            title.textContent = `详细数据 - ${item.code}`;
+            
+            const ud = item.underlying_data || {};
+            const metrics = item.momentum_metrics || {};
+            const formatPercent = (val) => val !== null && val !== undefined && !isNaN(val) ? (parseFloat(val) * 100).toFixed(2) + '%' : '--';
+            const formatNumber = (val, decimals = 4) => val !== null && val !== undefined && !isNaN(val) ? parseFloat(val).toFixed(decimals) : '--';
+            const formatInt = (val) => val !== null && val !== undefined && !isNaN(val) ? Math.round(parseFloat(val)).toLocaleString('zh-CN') : '--';
+            
+            // 量能强弱文字标签
+            function volumeLevelLabel(ratio) {
+                if (ratio === null || ratio === undefined || isNaN(ratio)) return '--';
+                const x = parseFloat(ratio);
+                if (x < 0.7) return '明显缩量';
+                if (x < 1.2) return '正常成交';
+                if (x < 2.0) return '温和放量';
+                return '显著放量';
+            }
+            // 5日均量 vs 10日均量标签
+            function volumeTrendLabel(ratio) {
+                if (ratio === null || ratio === undefined || isNaN(ratio)) return '--';
+                const x = parseFloat(ratio);
+                if (x > 1.2) return '量能短期走强';
+                if (x < 0.8) return '量能走弱';
+                return '量能平稳';
+            }
+            
+            let html = '';
+            html += '<div class="detail-tabs">';
+            html += '<button class="detail-tab-btn active" data-tab="page1">页 1：趋势 & 动量</button>';
+            html += '<button class="detail-tab-btn" data-tab="page2">页 2：量能分析</button>';
+            html += '</div>';
+            
+            // 页 1：趋势 & 动量（原有内容）
+            html += '<div class="detail-tab-content active" id="detail-page1">';
+            html += '<div style="display: grid; gap: 20px;">';
+            
+            // 底层数据（趋势判断的核心指标）
+            if (item.underlying_data) {
+                html += '<div><h4 style="margin: 0 0 10px; color: #e5e7eb; border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 8px;">趋势判断底层数据</h4>';
+                html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+                html += `<div><strong>MASS短期得分:</strong> ${ud.mass_short !== null && ud.mass_short !== undefined ? ud.mass_short.toFixed(2) : '--'}</div>`;
+                html += `<div><strong>MASS长期得分:</strong> ${ud.mass_long !== null && ud.mass_long !== undefined ? ud.mass_long.toFixed(2) : '--'}</div>`;
+                html += `<div><strong>MA5斜率:</strong> ${ud.ma5_slope !== null && ud.ma5_slope !== undefined ? ud.ma5_slope.toFixed(6) : '--'}</div>`;
+                html += `<div><strong>MA10斜率:</strong> ${ud.ma10_slope !== null && ud.ma10_slope !== undefined ? ud.ma10_slope.toFixed(6) : '--'}</div>`;
+                html += `<div><strong>当前价格:</strong> ${ud.current_price !== null && ud.current_price !== undefined ? ud.current_price.toFixed(2) : '--'}</div>`;
+                html += `<div><strong>MA5:</strong> ${ud.ma5 !== null && ud.ma5 !== undefined ? ud.ma5.toFixed(2) : '--'}</div>`;
+                html += `<div><strong>MA10:</strong> ${ud.ma10 !== null && ud.ma10 !== undefined ? ud.ma10.toFixed(2) : '--'}</div>`;
+                html += `<div><strong>MA20:</strong> ${ud.ma20 !== null && ud.ma20 !== undefined ? ud.ma20.toFixed(2) : '--'}</div>`;
+                html += `<div><strong>价格相对MA5偏离:</strong> ${ud.price_vs_ma5 !== null && ud.price_vs_ma5 !== undefined ? ud.price_vs_ma5.toFixed(2) + '%' : '--'}</div>`;
+                html += `</div></div>`;
+            }
+            
+            // 动量因子
+            if (item.factors) {
+                html += '<div><h4 style="margin: 0 0 10px; color: #e5e7eb; border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 8px;">动量因子</h4>';
+                html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+                const factorNames = {
+                    'MOM_12M_1M': '12月动量(1月平滑)',
+                    'MOM_6M_1M': '6月动量(1月平滑)',
+                    'MOM_3M': '3月动量',
+                    'MOM_1M': '1月动量',
+                    'SHARPE_20D': '20日夏普比率',
+                    'SHARPE_242D': '242日夏普比率',
+                    'REV_20D': '20日反转因子'
+                };
+                for (const [key, value] of Object.entries(item.factors)) {
+                    const displayName = factorNames[key] || key;
+                    const formattedValue = (value !== null && value !== undefined && !isNaN(value)) ? parseFloat(value).toFixed(4) : '--';
+                    html += `<div><strong>${displayName}:</strong> ${formattedValue}</div>`;
+                }
+                html += `</div></div>`;
+            }
+            
+            // 动量指标
+            if (item.momentum_metrics) {
+                html += '<div><h4 style="margin: 0 0 10px; color: #e5e7eb; border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 8px;">动量指标</h4>';
+                html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+                html += `<div><strong>1日涨幅:</strong> ${formatPercent(metrics.return_1d)}</div>`;
+                html += `<div><strong>5日涨幅:</strong> ${formatPercent(metrics.return_5d)}</div>`;
+                html += `<div><strong>10日涨幅:</strong> ${formatPercent(metrics.return_10d)}</div>`;
+                html += `<div><strong>20日涨幅:</strong> ${formatPercent(metrics.return_20d)}</div>`;
+                html += `<div><strong>60日涨幅:</strong> ${formatPercent(metrics.return_60d)}</div>`;
+                html += `<div><strong>120日涨幅:</strong> ${formatPercent(metrics.return_120d)}</div>`;
+                html += `<div><strong>250日涨幅:</strong> ${formatPercent(metrics.return_250d)}</div>`;
+                html += `<div><strong>5日振幅:</strong> ${formatPercent(metrics.amplitude_5d)}</div>`;
+                html += `<div><strong>20日振幅:</strong> ${formatPercent(metrics.amplitude_20d)}</div>`;
+                html += `<div><strong>20日最大涨幅:</strong> ${formatPercent(metrics.max_gain_20d)}</div>`;
+                html += `<div><strong>20日最大回撤:</strong> ${formatPercent(metrics.max_drawdown_20d)}</div>`;
+                html += `<div><strong>价格相对MA5:</strong> ${formatPercent(metrics.price_vs_ma5 ? metrics.price_vs_ma5 / 100 : null)}</div>`;
+                html += `<div><strong>MA5斜率:</strong> ${formatNumber(metrics.ma5_slope)}</div>`;
+                html += `<div><strong>MA10斜率:</strong> ${formatNumber(metrics.ma10_slope)}</div>`;
+                html += `<div><strong>MA20斜率:</strong> ${formatNumber(metrics.ma20_slope)}</div>`;
+                html += `<div><strong>趋势强度:</strong> ${formatPercent(metrics.trend_strength)}</div>`;
+                html += `<div><strong>5日量比:</strong> ${formatNumber(metrics.volume_ratio_5d, 2)}</div>`;
+                html += `<div><strong>20日量比:</strong> ${formatNumber(metrics.volume_ratio_20d, 2)}</div>`;
+                html += `</div></div>`;
+            }
+            
+            html += '</div></div>';  // 结束 page1
+            
+            // 页 2：量能分析
+            const vCur = ud.current_volume;
+            const vMa5 = ud.volume_ma5;
+            const vMa10 = ud.volume_ma10;
+            const r5 = ud.volume_vs_ma5;
+            const r10 = ud.volume_vs_ma10;
+            const vTrend = ud.volume_ma5_vs_ma10;
+            
+            html += '<div class="detail-tab-content" id="detail-page2">';
+            html += '<h4 style="margin: 0 0 10px; color: #e5e7eb; border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 8px;">量能分析（当前量 vs 均量）</h4>';
+            
+            html += '<div class="volume-metric-grid" style="margin-bottom: 10px;">';
+            html += '<div class="volume-card">';
+            html += '<div class="volume-card-title">当前成交量</div>';
+            html += `<div class="volume-card-value">${formatInt(vCur)}</div>`;
+            html += '<div class="volume-card-sub">单位：手 / 股（按原数据）</div>';
+            html += '</div>';
+            
+            html += '<div class="volume-card">';
+            html += '<div class="volume-card-title">5日均量</div>';
+            html += `<div class="volume-card-value">${formatInt(vMa5)}</div>`;
+            html += `<div class="volume-card-sub">当前量 / 5日均量：${r5 !== null && r5 !== undefined && !isNaN(r5) ? r5.toFixed(2) + ' 倍（' + volumeLevelLabel(r5) + '）' : '--'}</div>`;
+            html += '</div>';
+            
+            html += '<div class="volume-card">';
+            html += '<div class="volume-card-title">10日均量</div>';
+            html += `<div class="volume-card-value">${formatInt(vMa10)}</div>`;
+            html += `<div class="volume-card-sub">当前量 / 10日均量：${r10 !== null && r10 !== undefined && !isNaN(r10) ? r10.toFixed(2) + ' 倍（' + volumeLevelLabel(r10) + '）' : '--'}</div>`;
+            html += '</div>';
+            
+            html += '<div class="volume-card">';
+            html += '<div class="volume-card-title">均量结构（5日 vs 10日）</div>';
+            html += `<div class="volume-card-value">${vTrend !== null && vTrend !== undefined && !isNaN(vTrend) ? vTrend.toFixed(2) + ' 倍' : '--'}</div>`;
+            html += `<div class="volume-card-sub">${volumeTrendLabel(vTrend)}</div>`;
+            html += '</div>';
+            html += '</div>'; // end metric grid
+            
+            // 结合量比分布的补充说明
+            html += '<div style="margin-top: 6px; font-size: 12px; color: #9ca3af; line-height: 1.7;">';
+            html += `<div><strong>短期量比（5日量比）:</strong> ${formatNumber(metrics.volume_ratio_5d, 2)} 倍，用于和更长时间的常规水平对比。</div>`;
+            html += `<div><strong>中期量比（20日量比）:</strong> ${formatNumber(metrics.volume_ratio_20d, 2)} 倍，反映近一段时间整体活跃度。</div>`;
+            html += '<div>一般来说：当前量/5日均量在 0.7 以下视为明显缩量，1.2~2 视为温和放量，2 倍以上为显著放量；5日均量/10日均量>1.2 表示量能短期走强，<0.8 表示量能走弱。</div>';
+            html += '</div>';
+            
+            html += '</div>'; // end page2
+            
+            content.innerHTML = html;
+            
+            // 绑定页签切换
+            const tabButtons = content.querySelectorAll('.detail-tab-btn');
+            const tabContents = content.querySelectorAll('.detail-tab-content');
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.getAttribute('data-tab');
+                    tabButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    tabContents.forEach(c => {
+                        if (c.id === `detail-${tab}`) {
+                            c.classList.add('active');
+                        } else {
+                            c.classList.remove('active');
+                        }
+                    });
+                });
+            });
+            modal.classList.add('show');
+        }
+
+        async function fetchMomentum(dateStr, fetchAll = false) {
+            // 如果fetchAll为true，获取所有数据（用于前端分页、排序、筛选）
+            // 否则只获取当前页数据（已废弃，统一使用fetchAll模式）
+            const limit = fetchAll ? 10000 : pageSize;
+            const offset = 0;
+            const resp = await fetch(`/api/momentum_scores?date=${encodeURIComponent(dateStr)}&limit=${limit}&offset=${offset}`);
+            return await resp.json();
+        }
+        
+        // 排序和筛选函数（定义在loadMomentum之前，确保可以被访问）
+        function applySort(items, sortConfig) {
+            if (!sortConfig || !sortConfig.column) return items;
+            
+            const { column, direction } = sortConfig;
+            const sorted = [...items].sort((a, b) => {
+                let valA, valB;
+                
+                // 处理排名和代码
+                if (column === 'rank') {
+                    return direction === 'asc' ? 0 : 0; // 排名由索引决定，不需要排序
+                }
+                if (column === 'code') {
+                    valA = (a.code || '').toString();
+                    valB = (b.code || '').toString();
+                    return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+                if (column === 'score') {
+                    valA = parseFloat(a.momentum_score) || 0;
+                    valB = parseFloat(b.momentum_score) || 0;
+                } else {
+                    // 处理动量指标字段（从 momentum_metrics 中获取）
+                    const metricsA = a.momentum_metrics || {};
+                    const metricsB = b.momentum_metrics || {};
+                    valA = parseFloat(metricsA[column]) || 0;
+                    valB = parseFloat(metricsB[column]) || 0;
+                }
+                
+                if (direction === 'asc') {
+                    return valA - valB;
+                } else {
+                    return valB - valA;
+                }
+            });
+            
+            return sorted;
+        }
+        
+        function applySort_old(items, sortConfig) {
+            if (!sortConfig || !sortConfig.column) return items;
+            
+            const sorted = [...items];
+            sorted.sort((a, b) => {
+                let valA, valB;
+                switch(sortConfig.column) {
+                    case 'rank':
+                        valA = sorted.indexOf(a);
+                        valB = sorted.indexOf(b);
+                        break;
+                    case 'code':
+                        valA = (a.code || '').toString();
+                        valB = (b.code || '').toString();
+                        break;
+                    case 'score':
+                        valA = parseFloat(a.momentum_score) || 0;
+                        valB = parseFloat(b.momentum_score) || 0;
+                        break;
+                    case 'status':
+                        valA = (a.status || '').toString();
+                        valB = (b.status || '').toString();
+                        break;
+                    case 'status_start':
+                        valA = a.status_start_date || '';
+                        valB = b.status_start_date || '';
+                        break;
+                    default:
+                        // 处理动量指标字段（从 momentum_metrics 中获取）
+                        const metricsA = a.momentum_metrics || {};
+                        const metricsB = b.momentum_metrics || {};
+                        valA = parseFloat(metricsA[sortConfig.column]) || 0;
+                        valB = parseFloat(metricsB[sortConfig.column]) || 0;
+                        break;
+                }
+                
+                if (typeof valA === 'string') {
+                    return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                } else {
+                    return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+                }
+            });
+            return sorted;
+        }
+        
+        function applyFilters(items) {
+            if (!currentFilters || Object.keys(currentFilters).length === 0) return items;
+            
+            return items.filter(item => {
+                if (currentFilters.scoreMin !== undefined && currentFilters.scoreMin !== null && currentFilters.scoreMin !== '') {
+                    const score = parseFloat(item.momentum_score) || 0;
+                    if (score < parseFloat(currentFilters.scoreMin)) return false;
+                }
+                if (currentFilters.scoreMax !== undefined && currentFilters.scoreMax !== null && currentFilters.scoreMax !== '') {
+                    const score = parseFloat(item.momentum_score) || 0;
+                    if (score > parseFloat(currentFilters.scoreMax)) return false;
+                }
+                return true;
+            });
+        }
+        
+        function renderTable() {
+            if (!allItems.length || !currentDate) return;
+            
+            let filteredItems = applyFilters(allItems);
+            filteredItems = applySort(filteredItems, currentSort);
+            
+            const startIdx = (currentPage - 1) * pageSize;
+            const endIdx = startIdx + pageSize;
+            const items = filteredItems.slice(startIdx, endIdx);
+            
+            const tbody = document.getElementById('momentum-tbody');
+            tbody.innerHTML = '';
+            const startRank = startIdx + 1;
+            
+            items.forEach((item, idx) => {
+                try {
+                    const tr = document.createElement('tr');
+                    const code = (item.code || '').toString().padStart(6, '0');
+                    const score = formatScore(item.momentum_score);
+                    
+                    // 获取动量指标
+                    const metrics = item.momentum_metrics || {};
+                    const formatPercent = (val) => {
+                        if (val === null || val === undefined || isNaN(val)) return '--';
+                        return (parseFloat(val) * 100).toFixed(2) + '%';
+                    };
+                    const formatNumber = (val, decimals = 2) => {
+                        if (val === null || val === undefined || isNaN(val)) return '--';
+                        return parseFloat(val).toFixed(decimals);
+                    };
+                    
+                    const return1d = formatPercent(metrics.return_1d);
+                    const return5d = formatPercent(metrics.return_5d);
+                    const return10d = formatPercent(metrics.return_10d);
+                    const return20d = formatPercent(metrics.return_20d);
+                    const amplitude5d = formatPercent(metrics.amplitude_5d);
+                    const maxGain20d = formatPercent(metrics.max_gain_20d);
+                    const maxDrawdown20d = formatPercent(metrics.max_drawdown_20d);
+                    const priceVsMa5 = formatPercent(metrics.price_vs_ma5 ? metrics.price_vs_ma5 / 100 : null);
+                    const ma5Slope = formatNumber(metrics.ma5_slope, 4);
+                    const volumeRatio5d = formatNumber(metrics.volume_ratio_5d, 2);
+
+                    tr.innerHTML = `
+                        <td>${startRank + idx}</td>
+                        <td class="code-cell">${code}</td>
+                        <td><span class="score-badge">${score}</span></td>
+                        <td style="color: ${parseFloat(metrics.return_1d || 0) >= 0 ? '#10b981' : '#ef4444'}; font-weight: 500;">${return1d}</td>
+                        <td style="color: ${parseFloat(metrics.return_5d || 0) >= 0 ? '#10b981' : '#ef4444'}; font-weight: 500;">${return5d}</td>
+                        <td style="color: ${parseFloat(metrics.return_10d || 0) >= 0 ? '#10b981' : '#ef4444'}; font-weight: 500;">${return10d}</td>
+                        <td style="color: ${parseFloat(metrics.return_20d || 0) >= 0 ? '#10b981' : '#ef4444'}; font-weight: 500;">${return20d}</td>
+                        <td style="font-size: 11px; color: #9ca3af;">${amplitude5d}</td>
+                        <td style="color: #10b981; font-weight: 500;">${maxGain20d}</td>
+                        <td style="color: #ef4444; font-weight: 500;">${maxDrawdown20d}</td>
+                        <td style="font-size: 11px; color: #9ca3af;">${priceVsMa5}</td>
+                        <td style="font-size: 11px; color: #9ca3af;">${ma5Slope}</td>
+                        <td style="font-size: 11px; color: ${parseFloat(metrics.volume_ratio_5d || 0) >= 1.5 ? '#10b981' : '#9ca3af'}; font-weight: ${parseFloat(metrics.volume_ratio_5d || 0) >= 1.5 ? '500' : 'normal'};">${volumeRatio5d}</td>
+                        <td><button class="btn-secondary" style="padding: 4px 12px; font-size: 12px;" data-item='${JSON.stringify(item)}' onclick="showDetailData(this)">详细数据</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                } catch (e) {
+                    console.error('渲染行失败:', e, item);
+                }
+            });
+            
+            const filteredTotal = filteredItems.length;
+            const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
+            document.getElementById('page-info').textContent = `第 ${currentPage} / ${totalPages} 页`;
+            
+            // 更新状态信息
+            const total = allItems.length;
+            setStatus(`已加载动量评分结果：共 ${total} 只股票${filteredTotal !== total ? `（筛选后 ${filteredTotal} 只）` : ''}，当前显示第 ${currentPage} 页。`);
+        }
+
+        async function loadMomentum(dateStr, page = 1) {
+            if (!dateStr) {
+                setStatus('请选择日期');
+                return;
+            }
+            
+            setStatus('加载中...');
+            const tbody = document.getElementById('momentum-tbody');
+            if (!tbody) {
+                return;
+            }
+            tbody.innerHTML = '<tr><td colspan="14" class="empty">加载中...</td></tr>';
+
+            try {
+                // 一次性获取所有数据，用于前端筛选、排序和分页
+                const data = await fetchMomentum(dateStr, true);
+                
+                if (!data) {
+                    setStatus('加载失败：服务器无响应');
+                    tbody.innerHTML = '<tr><td colspan="14" class="empty">加载失败：服务器无响应</td></tr>';
+                    return;
+                }
+                
+                if (!data.success) {
+                    setStatus(data.error || '加载失败');
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty">' + (data.error || '暂无数据') + '</td></tr>';
+                    document.getElementById('total-text').textContent = '';
+                    return;
+                }
+
+                currentDate = data.date;
+                document.getElementById('current-date-tag').textContent = `当前日期：${currentDate}`;
+                document.getElementById('momentum-date').value = currentDate;
+
+                // 存储所有数据
+                allItems = data.items || [];
+                const total = data.total || 0;
+
+                document.getElementById('total-text').textContent = `共 ${total} 只股票`;
+
+                if (!allItems.length) {
+                    tbody.innerHTML = '<tr><td colspan="14" class="empty">该日期暂无动量评分结果，请先运行打分。</td></tr>';
+                    setStatus(`该日期（${dateStr}）暂无动量评分结果，共 ${total} 只股票。请先运行打分。`);
+                    return;
+                }
+
+                // 设置当前页并渲染表格
+                currentPage = page;
+                renderTable();
+                
+                // 显示筛选按钮
+                if (allItems.length > 0) {
+                    document.getElementById('toggle-filter-btn').style.display = 'inline-block';
+                }
+            } catch (e) {
+                setStatus('加载失败：' + (e.message || e));
+                document.getElementById('momentum-tbody').innerHTML = '<tr><td colspan="14" class="empty">加载失败</td></tr>';
+            }
+        }
+
+        let logPollingInterval = null;
+        let currentTaskId = null;
+        let lastLogIndex = 0;
+
+        function appendLog(message) {
+            const logContent = document.getElementById('log-content');
+            const logLine = document.createElement('div');
+            logLine.textContent = message;
+            logLine.style.marginBottom = '2px';
+            logContent.appendChild(logLine);
+            // 自动滚动到底部
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        function clearLogs() {
+            const logContent = document.getElementById('log-content');
+            logContent.innerHTML = '<div style="color: #6b7280; font-style: italic;">日志已清空</div>';
+            lastLogIndex = 0;
+        }
+
+        async function pollLogs(taskId) {
+            if (!taskId) return;
+            
+            try {
+                const resp = await fetch(`/api/momentum_scores/logs?task_id=${taskId}&last_index=${lastLogIndex}`);
+                const data = await resp.json();
+                
+                if (data.success && data.logs && data.logs.length > 0) {
+                    data.logs.forEach(log => {
+                        appendLog(log);
+                    });
+                    lastLogIndex = data.last_index;
+                }
+            } catch (e) {
+                console.error('获取日志失败', e);
+            }
+        }
+
+        function startLogPolling(taskId) {
+            if (logPollingInterval) {
+                clearInterval(logPollingInterval);
+            }
+            currentTaskId = taskId;
+            lastLogIndex = 0;
+            
+            // 显示日志区域
+            document.getElementById('log-container').style.display = 'block';
+            clearLogs();
+            appendLog('开始监听执行日志...');
+            
+            // 立即获取一次
+            pollLogs(taskId);
+            
+            // 每500ms轮询一次
+            logPollingInterval = setInterval(() => {
+                pollLogs(taskId);
+            }, 500);
+        }
+
+        function stopLogPolling() {
+            if (logPollingInterval) {
+                clearInterval(logPollingInterval);
+                logPollingInterval = null;
+            }
+            currentTaskId = null;
+        }
+
+        async function runMomentum() {
+            const btn = document.getElementById('run-momentum-btn');
+            const dateInput = document.getElementById('momentum-date');
+            let dateStr = dateInput.value;
+            
+            // 如果没有选择日期，先获取数据库最新日期
+            if (!dateStr) {
+                try {
+                    const resp = await fetch('/api/momentum_scores/latest_trading_date');
+                    const data = await resp.json();
+                    if (data.success && data.latest_trading_date) {
+                        dateStr = data.latest_trading_date;
+                        dateInput.value = dateStr;
+                        setStatus(`未选择日期，使用数据库最新交易日：${dateStr}`);
+                    } else {
+                        // 如果数据库为空，使用今天
+                        dateStr = new Date().toISOString().slice(0, 10);
+                        dateInput.value = dateStr;
+                        setStatus(`数据库为空，使用今天：${dateStr}`);
+                    }
+                } catch (e) {
+                    // 获取失败，使用今天
+                    dateStr = new Date().toISOString().slice(0, 10);
+                    dateInput.value = dateStr;
+                    setStatus(`获取数据库最新日期失败，使用今天：${dateStr}`);
+                }
+            } else {
+                // 如果选择了日期，检查是否比数据库最新日期新
+                try {
+                    const resp = await fetch('/api/momentum_scores/latest_trading_date');
+                    const data = await resp.json();
+                    if (data.success && data.latest_trading_date) {
+                        const latestDate = data.latest_trading_date;
+                        if (dateStr > latestDate) {
+                            // 选择的日期比数据库最新日期新，使用数据库最新日期
+                            dateStr = latestDate;
+                            dateInput.value = dateStr;
+                            setStatus(`选择的日期比数据库最新日期新，已自动调整为数据库最新交易日：${dateStr}`);
+                        }
+                    }
+                } catch (e) {
+                    // 获取失败，继续使用用户选择的日期
+                }
+            }
+
+            btn.disabled = true;
+            btn.textContent = '运行中...';
+            setStatus('正在运行动量流水线，这可能需要一定时间，请稍候...');
+
+            try {
+                const cfg = getConfig();
+                const statusCfg = getStatusConfig();
+                const resp = await fetch('/api/momentum_scores/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ date: dateStr, ...cfg, status_config: statusCfg })
+                });
+                const data = await resp.json();
+                
+                if (!data.success) {
+                    setStatus(data.error || '运行动量打分失败');
+                    if (data.task_id) {
+                        startLogPolling(data.task_id);
+                        // 继续轮询一段时间以获取错误日志
+                        setTimeout(() => stopLogPolling(), 5000);
+                    }
+                } else {
+                    // API返回success说明任务已完成，立即加载结果
+                    // 同时启动日志轮询以显示执行过程（如果还有日志的话）
+                    if (data.task_id) {
+                        startLogPolling(data.task_id);
+                    }
+                    
+                    // 立即加载结果
+                    setStatus(`已完成动量打分：${data.date}，共 ${data.count} 只股票。正在加载结果...`);
+                    currentPage = 1;
+                    try {
+                        await loadMomentum(data.date, currentPage);
+                    } catch (e) {
+                        console.error('Failed to load results:', e);
+                        setStatus('加载结果失败：' + (e.message || e));
+                    }
+                    
+                    // 继续轮询一段时间以获取完整的日志（可选）
+                    if (data.task_id) {
+                        setTimeout(() => {
+                            stopLogPolling();
+                        }, 5000);
+                    }
+                }
+            } catch (e) {
+                console.error('运行动量打分失败', e);
+                setStatus('运行动量打分失败：' + (e.message || e));
+                stopLogPolling();
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '运行动量打分';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 不要默认设置为今天，而是先获取数据库中最新的日期
+            // const today = new Date().toISOString().slice(0, 10);
+            // document.getElementById('momentum-date').value = today;
+
+            document.getElementById('run-momentum-btn').addEventListener('click', runMomentum);
+
+            // 配置弹窗
+            document.getElementById('config-btn').addEventListener('click', async () => {
+                applyConfigToForm(getConfig());
+                document.getElementById('config-modal').classList.add('show');
+            });
+            document.getElementById('config-cancel').addEventListener('click', () => {
+                document.getElementById('config-modal').classList.remove('show');
+            });
+            document.getElementById('config-reset').addEventListener('click', () => { applyConfigToForm(DEFAULTS); });
+            document.getElementById('config-ok').addEventListener('click', () => {
+                const c = collectConfigFromForm();
+                if (c.calc_window_days > c.lookback_days) c.calc_window_days = c.lookback_days;
+                try { localStorage.setItem(CONFIG_KEY, JSON.stringify(c)); } catch (e) {}
+                document.getElementById('config-modal').classList.remove('show');
+            });
+            
+            // 状态分析配置弹窗相关逻辑已停用（仅保留函数定义和本地存储读取，页面不再提供入口）
+
+            document.getElementById('refresh-btn').addEventListener('click', async () => {
+                // 获取日期选择器的值，如果没有则尝试获取数据库最新日期
+                let dateStr = document.getElementById('momentum-date').value;
+                if (!dateStr) {
+                    // 如果没有选择日期，尝试获取数据库最新日期
+                    try {
+                        const resp = await fetch('/api/momentum_scores');
+                        const data = await resp.json();
+                        if (data.success && data.date) {
+                            dateStr = data.date;
+                            document.getElementById('momentum-date').value = dateStr;
+                        } else {
+                            dateStr = new Date().toISOString().slice(0, 10);
+                        }
+                    } catch (e) {
+                        dateStr = new Date().toISOString().slice(0, 10);
+                    }
+                }
+                currentPage = 1;
+                await loadMomentum(dateStr, currentPage);
+            });
+
+            // 清空日志按钮
+            document.getElementById('clear-logs-btn').addEventListener('click', clearLogs);
+
+            // 刷新交易日按钮
+            document.getElementById('refresh-trading-date-btn').addEventListener('click', async () => {
+                const btn = document.getElementById('refresh-trading-date-btn');
+                const tag = document.getElementById('latest-trading-date-tag');
+                btn.disabled = true;
+                btn.textContent = '查询中...';
+                try {
+                    const resp = await fetch('/api/momentum_scores/latest_trading_date');
+                    const data = await resp.json();
+                    if (data.success) {
+                        const date = data.latest_trading_date;
+                        tag.textContent = `数据库最新交易日：${date}`;
+                        tag.style.display = 'inline-flex';
+                        // 如果评分日期为空或比最新交易日早，自动更新评分日期
+                        const dateInput = document.getElementById('momentum-date');
+                        if (!dateInput.value || dateInput.value < date) {
+                            dateInput.value = date;
+                        }
+                    } else {
+                        setStatus('获取最新交易日失败：' + (data.error || '未知错误'));
+                    }
+                } catch (e) {
+                    console.error('获取最新交易日失败', e);
+                    setStatus('获取最新交易日失败：' + (e.message || e));
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 刷新交易日';
+                }
+            });
+
+            // 初始化时设置默认排序（按动量分降序）
+            if (document.querySelector('th[data-sort="score"]')) {
+                document.querySelector('th[data-sort="score"]').classList.add('sort-desc');
+            }
+            
+            // 表头排序事件
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const column = th.getAttribute('data-sort');
+                    if (!column) return;
+                    
+                    // 更新排序状态
+                    if (currentSort.column === column) {
+                        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSort.column = column;
+                        currentSort.direction = 'desc';
+                    }
+                    
+                    // 更新表头样式
+                    document.querySelectorAll('th.sortable').forEach(h => {
+                        h.classList.remove('sort-asc', 'sort-desc');
+                    });
+                    th.classList.add(`sort-${currentSort.direction}`);
+                    
+                    // 重新渲染表格
+                    currentPage = 1;
+                    renderTable();
+                });
+            });
+            
+            // 筛选功能
+            document.getElementById('toggle-filter-btn')?.addEventListener('click', () => {
+                const filterBar = document.getElementById('filter-bar');
+                const toggleBtn = document.getElementById('toggle-filter-btn');
+                if (filterBar.style.display === 'none') {
+                    filterBar.style.display = 'block';
+                    toggleBtn.textContent = '隐藏筛选';
+                } else {
+                    filterBar.style.display = 'none';
+                    toggleBtn.textContent = '🔍 筛选';
+                }
+            });
+            
+            document.getElementById('toggle-filter')?.addEventListener('click', () => {
+                const filterBar = document.getElementById('filter-bar');
+                const toggleBtn = document.getElementById('toggle-filter');
+                if (filterBar.style.display === 'none') {
+                    filterBar.style.display = 'block';
+                    toggleBtn.textContent = '隐藏筛选';
+                } else {
+                    filterBar.style.display = 'none';
+                    toggleBtn.textContent = '🔍 筛选';
+                }
+            });
+            
+            document.getElementById('filter-apply')?.addEventListener('click', () => {
+                currentFilters = {
+                    scoreMin: document.getElementById('filter-score-min').value || null,
+                    scoreMax: document.getElementById('filter-score-max').value || null
+                };
+                currentPage = 1;
+                renderTable();
+            });
+            
+            document.getElementById('filter-clear')?.addEventListener('click', () => {
+                document.getElementById('filter-score-min').value = '';
+                document.getElementById('filter-score-max').value = '';
+                currentFilters = {};
+                currentPage = 1;
+                renderTable();
+            });
+            
+            document.getElementById('prev-page').addEventListener('click', () => {
+                if (currentDate && currentPage > 1) {
+                    currentPage -= 1;
+                    renderTable();
+                }
+            });
+
+            // 页面加载时：先获取数据库最新交易日，再尝试加载最新有结果的日期
+            (async () => {
+                try {
+                    const resp = await fetch('/api/momentum_scores/latest_trading_date');
+                    const data = await resp.json();
+                    if (data.success) {
+                        const tag = document.getElementById('latest-trading-date-tag');
+                        tag.textContent = `数据库最新交易日：${data.latest_trading_date}`;
+                        tag.style.display = 'inline-flex';
+                    }
+                } catch (e) {
+                    // 忽略错误
+                }
+            })();
+
+            // 尝试加载最新日期的结果（优先使用数据库中最新的日期）
+            (async () => {
+                try {
+                    // 先获取数据库中最新的日期（不传date参数，后端会自动返回最新日期）
+                    const resp = await fetch('/api/momentum_scores');
+                    const data = await resp.json();
+                    if (data.success && data.date) {
+                        currentDate = data.date;
+                        // 设置日期选择器为数据库中最新的日期
+                        document.getElementById('momentum-date').value = currentDate;
+                        document.getElementById('current-date-tag').textContent = `当前日期：${currentDate}`;
+                        // 加载该日期的数据
+                        await loadMomentum(currentDate, 1);
+                    } else {
+                        // 如果没有数据，设置为今天
+                        const today = new Date().toISOString().slice(0, 10);
+                        document.getElementById('momentum-date').value = today;
+                        setStatus('暂无动量评分数据，请先运行打分。');
+                    }
+                } catch (e) {
+                    console.error('Failed to load momentum scores on page load:', e);
+                    // 出错时设置为今天
+                    const today = new Date().toISOString().slice(0, 10);
+                    document.getElementById('momentum-date').value = today;
+                    setStatus('加载失败：' + (e.message || e));
+                }
+            })();
+        });
+    </script>
+</body>
+</html>
+

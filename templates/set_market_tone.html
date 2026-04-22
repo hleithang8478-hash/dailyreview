@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ '修改市场基调' if existing_tone else '设置今日市场基调' }}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* 统一极简配色 - 与index.html一致 */
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --bg-hover: #1a1a1a;
+            
+            --text-primary: #ffffff;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            
+            --border: rgba(255, 255, 255, 0.15);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            
+            --accent: #6366f1;
+            --essay-color: #10b981;
+            --review-color: #8b5cf6;
+            
+            --radius: 4px;
+            --transition: all 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body * {
+            text-rendering: optimizeLegibility;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .step-container {
+            background: rgba(17, 17, 17, 0.35);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius);
+            padding: 3rem 2.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+
+        .step-container.active {
+            display: block;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .step-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .step-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .step-description {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 480px) {
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .option-card {
+            padding: 1.5rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .option-card:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+
+        .option-card.selected {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.1);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .option-icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .option-label {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text-primary);
+        }
+
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 480px) {
+            .checkbox-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .checkbox-card {
+            padding: 1.25rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .checkbox-card:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .checkbox-card.selected {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.1);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .checkbox-card input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            font-weight: 500;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 2px;
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
+            transition: width 0.3s ease;
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.875rem 2rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            border-color: var(--accent);
+            color: white;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .step-indicator {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: var(--text-tertiary);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 20%"></div>
+        </div>
+
+        <form id="tone-form" method="post" action="{{ url_for('save_market_tone') }}">
+            <input type="hidden" name="date" value="{{ date }}">
+
+            <!-- 步骤1: 成交量状态 -->
+            <div class="step-container active" data-step="1">
+                <div class="step-header">
+                    <div class="step-title">📊 成交量状态</div>
+                    <div class="step-description">请选择今日市场的成交量状态</div>
+                </div>
+                <div class="options-grid">
+                    <div class="option-card" data-value="枯竭" onclick="selectOption(this, 'volume_status')">
+                        <div class="option-icon">💧</div>
+                        <div class="option-label">枯竭</div>
+                    </div>
+                    <div class="option-card" data-value="适中" onclick="selectOption(this, 'volume_status')">
+                        <div class="option-icon">⚖️</div>
+                        <div class="option-label">适中</div>
+                    </div>
+                    <div class="option-card" data-value="丰沛" onclick="selectOption(this, 'volume_status')">
+                        <div class="option-icon">🌊</div>
+                        <div class="option-label">丰沛</div>
+                    </div>
+                    <div class="option-card" data-value="泛滥" onclick="selectOption(this, 'volume_status')">
+                        <div class="option-icon">🌋</div>
+                        <div class="option-label">泛滥</div>
+                    </div>
+                </div>
+                <input type="hidden" name="volume_status" id="volume_status" value="{{ existing_tone.volume_status if existing_tone else '' }}">
+                <div class="navigation">
+                    <div></div>
+                    <button type="button" class="btn btn-primary" onclick="nextStep()" disabled id="btn-next-1">下一步 →</button>
+                </div>
+            </div>
+
+            <!-- 步骤2: 情绪状态 -->
+            <div class="step-container" data-step="2">
+                <div class="step-header">
+                    <div class="step-title">😊 情绪状态</div>
+                    <div class="step-description">请选择今日市场的情绪状态</div>
+                </div>
+                <div class="options-grid">
+                    <div class="option-card" data-value="低迷" onclick="selectOption(this, 'emotion_status')">
+                        <div class="option-icon">😔</div>
+                        <div class="option-label">低迷</div>
+                    </div>
+                    <div class="option-card" data-value="适中" onclick="selectOption(this, 'emotion_status')">
+                        <div class="option-icon">😐</div>
+                        <div class="option-label">适中</div>
+                    </div>
+                    <div class="option-card" data-value="活跃" onclick="selectOption(this, 'emotion_status')">
+                        <div class="option-icon">😊</div>
+                        <div class="option-label">活跃</div>
+                    </div>
+                    <div class="option-card" data-value="极端" onclick="selectOption(this, 'emotion_status')">
+                        <div class="option-icon">🔥</div>
+                        <div class="option-label">极端</div>
+                    </div>
+                </div>
+                <input type="hidden" name="emotion_status" id="emotion_status" value="{{ existing_tone.emotion_status if existing_tone else '' }}">
+                <div class="navigation">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep()">← 上一步</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep()" disabled id="btn-next-2">下一步 →</button>
+                </div>
+            </div>
+
+            <!-- 步骤3: 分化状态 -->
+            <div class="step-container" data-step="3">
+                <div class="step-header">
+                    <div class="step-title">📈 分化状态</div>
+                    <div class="step-description">请选择今日市场的分化状态</div>
+                </div>
+                <div class="options-grid">
+                    <div class="option-card" data-value="高分化" onclick="selectOption(this, 'divergence_status')">
+                        <div class="option-icon">📊</div>
+                        <div class="option-label">高分化</div>
+                    </div>
+                    <div class="option-card" data-value="一致" onclick="selectOption(this, 'divergence_status')">
+                        <div class="option-icon">📉</div>
+                        <div class="option-label">一致</div>
+                    </div>
+                    <div class="option-card" data-value="一致转分歧" onclick="selectOption(this, 'divergence_status')">
+                        <div class="option-icon">🔄</div>
+                        <div class="option-label">一致转分歧</div>
+                    </div>
+                </div>
+                <input type="hidden" name="divergence_status" id="divergence_status" value="{{ existing_tone.divergence_status if existing_tone else '' }}">
+                <div class="navigation">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep()">← 上一步</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep()" disabled id="btn-next-3">下一步 →</button>
+                </div>
+            </div>
+
+            <!-- 步骤4: 适合投资策略 -->
+            <div class="step-container" data-step="4">
+                <div class="step-header">
+                    <div class="step-title">🎯 适合投资策略</div>
+                    <div class="step-description">请选择适合的投资策略（可多选）</div>
+                </div>
+                <div class="checkbox-grid">
+                    <div class="checkbox-card" onclick="toggleCheckbox(this, 'investment_strategies', '情绪极值')">
+                        <input type="checkbox" name="investment_strategies" value="情绪极值" id="strategy-1">
+                        <label class="checkbox-label" for="strategy-1">情绪极值</label>
+                    </div>
+                    <div class="checkbox-card" onclick="toggleCheckbox(this, 'investment_strategies', '趋势')">
+                        <input type="checkbox" name="investment_strategies" value="趋势" id="strategy-2">
+                        <label class="checkbox-label" for="strategy-2">趋势</label>
+                    </div>
+                    <div class="checkbox-card" onclick="toggleCheckbox(this, 'investment_strategies', '题材')">
+                        <input type="checkbox" name="investment_strategies" value="题材" id="strategy-3">
+                        <label class="checkbox-label" for="strategy-3">题材</label>
+                    </div>
+                </div>
+                <div class="navigation">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep()">← 上一步</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep()">下一步 →</button>
+                </div>
+            </div>
+
+            <!-- 步骤5: 适合投资风格 -->
+            <div class="step-container" data-step="5">
+                <div class="step-header">
+                    <div class="step-title">💼 适合投资风格</div>
+                    <div class="step-description">请选择适合的投资风格（可多选）</div>
+                </div>
+                <div class="checkbox-grid">
+                    <div class="checkbox-card" onclick="toggleCheckbox(this, 'investment_styles', '成长')">
+                        <input type="checkbox" name="investment_styles" value="成长" id="style-1">
+                        <label class="checkbox-label" for="style-1">成长</label>
+                    </div>
+                    <div class="checkbox-card" onclick="toggleCheckbox(this, 'investment_styles', '蓝筹')">
+                        <input type="checkbox" name="investment_styles" value="蓝筹" id="style-2">
+                        <label class="checkbox-label" for="style-2">蓝筹</label>
+                    </div>
+                    <div class="checkbox-card" onclick="toggleCheckbox(this, 'investment_styles', '小盘')">
+                        <input type="checkbox" name="investment_styles" value="小盘" id="style-3">
+                        <label class="checkbox-label" for="style-3">小盘</label>
+                    </div>
+                    <div class="checkbox-card" onclick="toggleCheckbox(this, 'investment_styles', '大盘')">
+                        <input type="checkbox" name="investment_styles" value="大盘" id="style-4">
+                        <label class="checkbox-label" for="style-4">大盘</label>
+                    </div>
+                </div>
+                <div class="navigation">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep()">← 上一步</button>
+                    <button type="submit" class="btn btn-primary">✅ 完成设置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 5;
+
+        // 初始化：如果有已存在的基调，预填充
+        {% if existing_tone %}
+        window.addEventListener('DOMContentLoaded', function() {
+            // 预填充已选择的值
+            {% if existing_tone.volume_status %}
+            const volumeCard = document.querySelector(`[data-value="{{ existing_tone.volume_status }}"]`);
+            if (volumeCard) selectOption(volumeCard, 'volume_status', true);
+            {% endif %}
+            
+            {% if existing_tone.emotion_status %}
+            const emotionCard = document.querySelector(`[data-value="{{ existing_tone.emotion_status }}"]`);
+            if (emotionCard) selectOption(emotionCard, 'emotion_status', true);
+            {% endif %}
+            
+            {% if existing_tone.divergence_status %}
+            const divergenceCard = document.querySelector(`[data-value="{{ existing_tone.divergence_status }}"]`);
+            if (divergenceCard) selectOption(divergenceCard, 'divergence_status', true);
+            {% endif %}
+            
+            {% if existing_tone.investment_strategies %}
+            const strategies = "{{ existing_tone.investment_strategies }}".split(',');
+            strategies.forEach(strategy => {
+                const checkbox = document.querySelector(`input[value="${strategy.trim()}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                    checkbox.closest('.checkbox-card').classList.add('selected');
+                }
+            });
+            {% endif %}
+            
+            {% if existing_tone.investment_styles %}
+            const styles = "{{ existing_tone.investment_styles }}".split(',');
+            styles.forEach(style => {
+                const checkbox = document.querySelector(`input[value="${style.trim()}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                    checkbox.closest('.checkbox-card').classList.add('selected');
+                }
+            });
+            {% endif %}
+        });
+        {% endif %}
+
+        function selectOption(card, fieldName, skipCheck = false) {
+            // 移除同组其他选项的选中状态
+            const container = card.closest('.step-container');
+            container.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+            
+            // 选中当前选项
+            card.classList.add('selected');
+            document.getElementById(fieldName).value = card.dataset.value;
+            
+            // 启用下一步按钮
+            if (!skipCheck) {
+                const step = parseInt(container.dataset.step);
+                const nextBtn = document.getElementById(`btn-next-${step}`);
+                if (nextBtn) nextBtn.disabled = false;
+            }
+        }
+
+        function toggleCheckbox(card, fieldName, value) {
+            const checkbox = card.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+                currentStep++;
+                document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+                currentStep--;
+                document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function updateProgress() {
+            const progress = (currentStep / totalSteps) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+        }
+
+        // 初始化进度条
+        updateProgress();
+    </script>
+</body>
+</html>
+

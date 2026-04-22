@@ -1,0 +1,4539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据查询构建器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+        }
+        
+        /* 返回按钮 */
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 12px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-button:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.6);
+            transform: translateX(-4px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        .back-button:active {
+            transform: translateX(-2px);
+        }
+        
+        .query-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .query-container > h1 {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        
+        .search-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .search-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .toggle-switch.active {
+            background: #6366f1;
+        }
+        
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .toggle-switch.active::after {
+            left: 22px;
+        }
+        
+        .search-bar {
+            flex: 1;
+            position: relative;
+        }
+        
+        .search-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .search-input-wrapper input {
+            width: 100%;
+            padding: 14px 50px 14px 16px;
+            background: #f5f7fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            color: #1a1a2e;
+            transition: all 0.3s;
+        }
+        
+        .search-input-wrapper input:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        
+        .search-icon {
+            position: absolute;
+            right: 16px;
+            width: 20px;
+            height: 20px;
+            color: #999;
+            pointer-events: none;
+        }
+        
+        /* 搜索历史 */
+        .search-history {
+            margin-top: 16px;
+        }
+        
+        .search-history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .search-history-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin: 0;
+        }
+        
+        .clear-history {
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .clear-history:hover {
+            background: #f5f7fa;
+            color: #666;
+        }
+        
+        .history-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .history-tag {
+            padding: 6px 12px;
+            background: #f5f7fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 16px;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .history-tag:hover {
+            background: #6366f1;
+            color: white;
+            border-color: #6366f1;
+        }
+        
+        /* 热搜榜 */
+        .hot-search-section {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .hot-search-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .hot-search-header h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin: 0;
+        }
+        
+        .update-time {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .hot-search-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        
+        .hot-search-column {
+            background: #fafbfc;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .hot-search-column-header {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            color: white;
+        }
+        
+        .hot-search-column-header.public {
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+        }
+        
+        .hot-search-column-header.private {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .hot-search-column-header.insurance {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .hot-search-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .hot-search-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+        }
+        
+        .hot-search-item:hover {
+            background: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .hot-search-rank {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .hot-search-rank.top1 {
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
+        }
+        
+        .hot-search-rank.top2 {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        
+        .hot-search-rank.top3 {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+        
+        .hot-search-rank.other {
+            background: #f0f0f0;
+            color: #666;
+        }
+        
+        .hot-search-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .hot-search-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1a1a2e;
+            margin-bottom: 2px;
+        }
+        
+        .hot-search-code {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .query-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+            font-size: 15px;
+        }
+        
+        /* 维度选择器样式 */
+        .dimension-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .dimension-tab {
+            position: relative;
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .dimension-tab input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .dimension-tab label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
+        }
+        
+        .dimension-tab input[type="checkbox"]:checked + label {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%);
+            border-color: rgba(99, 102, 241, 0.6);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .dimension-tab label:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .dimension-icon {
+            font-size: 20px;
+        }
+        
+        .dimension-label {
+            font-size: 15px;
+        }
+        
+        /* 维度区域样式 */
+        .dimension-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .section-label {
+            display: block;
+            margin-bottom: 12px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        /* 美观的选择框样式 */
+        .beautiful-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #1a1a2e !important;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: #ffffff !important;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 40px;
+        }
+        
+        .beautiful-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: #1f1f3e !important;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        
+        .beautiful-select option {
+            background: #1a1a2e !important;
+            color: #ffffff !important;
+            padding: 12px;
+        }
+        
+        /* 概念选择器包装 */
+        .concept-selector-wrapper {
+            position: relative;
+        }
+        
+        .concept-selector-wrapper .beautiful-select {
+            min-height: 180px;
+        }
+        
+        /* 行业选择器包装 */
+        .industry-selector-wrapper {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto 1fr;
+            gap: 16px;
+            align-items: end;
+        }
+        
+        .industry-level {
+            flex: 1;
+        }
+        
+        .level-label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .industry-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(99, 102, 241, 0.8);
+            font-size: 24px;
+            font-weight: bold;
+            padding-bottom: 8px;
+        }
+        
+        .select-hint {
+            margin-top: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            font-style: italic;
+        }
+        
+        /* 已选择项显示区域 */
+        .selected-items {
+            margin-top: 16px;
+            padding: 16px;
+            background: rgba(99, 102, 241, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        
+        .selected-items-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .selected-count {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+        }
+        
+        .selected-count strong {
+            color: #6366f1;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .selected-items-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .selected-item-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 20px;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            animation: tagSlideIn 0.3s ease;
+        }
+        
+        @keyframes tagSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8) translateY(-5px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        .selected-item-tag:hover {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%);
+            border-color: rgba(99, 102, 241, 0.6);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+        }
+        
+        .selected-item-tag .item-icon {
+            font-size: 14px;
+        }
+        
+        .selected-item-tag .item-name {
+            flex: 1;
+        }
+        
+        .selected-item-tag .remove-btn {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            transition: all 0.2s ease;
+            margin-left: 4px;
+        }
+        
+        .selected-item-tag .remove-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+            color: #ffffff;
+            transform: rotate(90deg);
+        }
+        
+        .empty-selection {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 13px;
+            font-style: italic;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        /* 股票预览区域 */
+        .stocks-preview {
+            margin-top: 16px;
+            padding: 16px;
+            background: rgba(16, 185, 129, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .preview-title {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .preview-count {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+        }
+        
+        .preview-count strong {
+            color: #10b981;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .preview-stocks-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        
+        .preview-stock-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 16px;
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .preview-stock-tag .stock-code {
+            color: #10b981;
+            font-weight: 600;
+        }
+        
+        .preview-stock-tag .stock-name {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .form-group select,
+        .form-group input[type="date"] {
+            width: 100%;
+            padding: 14px 16px;
+            background: #1a1a2e !important;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: #ffffff !important;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        
+        /* 下拉框选项样式 */
+        .form-group select option {
+            background: #1a1a2e !important;
+            color: #ffffff !important;
+            padding: 12px;
+        }
+        
+        /* 下拉框箭头图标 */
+        .form-group select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 40px;
+        }
+        
+        .form-group select:focus,
+        .form-group input[type="date"]:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: #1f1f3e !important;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        
+        .stock-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .stock-selector input {
+            flex: 1;
+            padding: 12px 16px;
+            background: #1a1a2e !important;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: #ffffff !important;
+            font-size: 14px;
+        }
+        
+        .stock-selector input::placeholder {
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+        
+        .stock-selector input:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: #1f1f3e !important;
+        }
+        
+        .selected-stocks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .stock-tag {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ffffff;
+            font-size: 13px;
+        }
+        
+        .stock-tag .remove {
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: bold;
+        }
+        
+        .stock-tag .remove:hover {
+            color: #ffffff;
+        }
+        
+        .field-selector {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .field-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .field-item:hover {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+        
+        .field-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .field-item label {
+            flex: 1;
+            cursor: pointer;
+            margin: 0;
+            font-weight: normal;
+        }
+        
+        .field-item .field-name {
+            color: #6366f1;
+            font-weight: 600;
+        }
+        
+        .field-item .field-type {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+        }
+        
+        .btn {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+            width: 100%;
+            margin-top: 8px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5);
+        }
+        
+        .btn:disabled {
+            background: rgba(255, 255, 255, 0.1);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .results-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+        
+        .results-panel.active {
+            display: block;
+            animation: fadeInUp 0.5s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .results-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .results-header h3 {
+            color: #ffffff;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .results-header .summary {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: #ffffff !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 100%;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .data-table th {
+            background: rgba(99, 102, 241, 0.2) !important;
+            color: #ffffff !important;
+            font-weight: 600;
+            font-size: 14px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .data-table td {
+            color: #1a1a2e !important;
+            font-size: 14px;
+            background: #ffffff !important;
+        }
+        
+        .data-table tbody tr {
+            background: #ffffff !important;
+        }
+        
+        .data-table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.1) !important;
+        }
+        
+        .data-table tbody tr:hover td {
+            color: #1a1a2e !important;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%);
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            color: #ffffff;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            font-weight: 500;
+        }
+        
+        .search-results {
+            margin-top: 8px;
+            max-height: 280px;
+            overflow-y: auto;
+            border: 2px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            background: #1a1a2e !important;
+            display: none;
+            position: absolute;
+            width: 100%;
+            z-index: 1000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        .search-results.active {
+            display: block;
+        }
+        
+        .search-result-item {
+            padding: 12px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s ease;
+            background: #1a1a2e;
+            color: #ffffff !important;
+        }
+        
+        .search-result-item:hover {
+            background: rgba(99, 102, 241, 0.3) !important;
+            color: #ffffff !important;
+        }
+        
+        .search-result-item .stock-code {
+            font-weight: 700;
+            color: #6366f1 !important;
+        }
+        
+        .search-result-item span {
+            color: #ffffff !important;
+        }
+        
+        .form-group {
+            position: relative;
+        }
+        
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 20px;
+            padding: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 图表配置卡片 */
+        .chart-config-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .chart-config-title {
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .chart-fields-config {
+            margin-top: 16px;
+        }
+        
+        .field-config-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .field-config-item label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .field-config-item label:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        .field-config-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        
+        .field-config-item select,
+        .field-config-item input {
+            padding: 8px 12px;
+            background: #1a1a2e !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff !important;
+            font-size: 14px;
+        }
+        
+        .chart-container {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chart-container canvas {
+            max-height: 400px;
+        }
+        
+        .chart-title {
+            color: #1a1a2e;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-button">
+        <span>←</span>
+        <span>返回主页</span>
+    </a>
+    <div class="query-container">
+        <h1>🔍 数据查询构建器</h1>
+        
+        <!-- Tab导航 -->
+        <div class="query-tabs" style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 2px solid rgba(255, 255, 255, 0.1);">
+            <button class="query-tab active" onclick="switchQueryMode('table')" id="tab-table" style="padding: 12px 24px; background: rgba(99, 102, 241, 0.3); border: none; border-bottom: 3px solid #6366f1; color: #ffffff; cursor: pointer; font-weight: 600; border-radius: 8px 8px 0 0;">
+                📊 表/字段查询
+            </button>
+            <button class="query-tab" onclick="switchQueryMode('template')" id="tab-template" style="padding: 12px 24px; background: rgba(255, 255, 255, 0.05); border: none; border-bottom: 3px solid transparent; color: rgba(255, 255, 255, 0.7); cursor: pointer; font-weight: 600; border-radius: 8px 8px 0 0;">
+                📝 SQL模板查询
+            </button>
+            <button class="query-tab" onclick="switchQueryMode('screening')" id="tab-screening" style="padding: 12px 24px; background: rgba(255, 255, 255, 0.05); border: none; border-bottom: 3px solid transparent; color: rgba(255, 255, 255, 0.7); cursor: pointer; font-weight: 600; border-radius: 8px 8px 0 0;">
+                📋 筛选任务结果
+            </button>
+        </div>
+        
+        <!-- 表/字段查询面板 -->
+        <div id="table-query-panel" class="query-panel">
+            <form id="query-form" onsubmit="executeQuery(event)">
+                <div class="form-group">
+                    <label>查询维度选择 *</label>
+                    <div class="dimension-selector">
+                        <div class="dimension-tab" data-dimension="stock">
+                            <input type="checkbox" id="dimension-stock" checked onchange="updateDimensionSections()">
+                            <label for="dimension-stock">
+                                <span class="dimension-icon">📈</span>
+                                <span class="dimension-label">个股</span>
+                            </label>
+                        </div>
+                        <div class="dimension-tab" data-dimension="concept">
+                            <input type="checkbox" id="dimension-concept" onchange="updateDimensionSections()">
+                            <label for="dimension-concept">
+                                <span class="dimension-icon">💡</span>
+                                <span class="dimension-label">概念</span>
+                            </label>
+                        </div>
+                        <div class="dimension-tab" data-dimension="industry">
+                            <input type="checkbox" id="dimension-industry" onchange="updateDimensionSections()">
+                            <label for="dimension-industry">
+                                <span class="dimension-icon">🏭</span>
+                                <span class="dimension-label">行业</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 个股选择 -->
+                    <div id="stock-dimension-section" class="dimension-section">
+                        <label class="section-label">个股选择</label>
+                        <div class="stock-selector">
+                            <input type="text" id="stock-search" placeholder="输入股票代码或名称搜索..." 
+                                   autocomplete="off" oninput="handleStockSearch(this.value)">
+                            <div id="stock-results" class="search-results"></div>
+                        </div>
+                        <div id="selected-stocks" class="selected-stocks"></div>
+                    </div>
+                    
+                    <!-- 概念股选择 -->
+                    <div id="concept-dimension-section" class="dimension-section" style="display: none;">
+                        <label class="section-label">概念股选择</label>
+                        <div class="concept-selector-wrapper">
+                            <select id="concept-select" multiple class="beautiful-select" onchange="updateSelectedConcepts()">
+                                <option value="">加载中...</option>
+                            </select>
+                            <div class="select-hint">💡 按住 Ctrl/Cmd 键可多选</div>
+                        </div>
+                        <div id="selected-concepts" class="selected-items">
+                            <div class="selected-items-header">
+                                <span class="selected-count">已选择: <strong id="concept-count">0</strong> 个概念</span>
+                            </div>
+                            <div id="selected-concepts-list" class="selected-items-list"></div>
+                        </div>
+                        <!-- 概念对应的股票预览 -->
+                        <div id="concept-stocks-preview" class="stocks-preview" style="display: none;">
+                            <div class="preview-header">
+                                <span class="preview-title">📊 将查询以下股票（来自所选概念）:</span>
+                                <span class="preview-count">共 <strong id="concept-stocks-count">0</strong> 只</span>
+                            </div>
+                            <div id="concept-stocks-list" class="preview-stocks-list"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 行业选择 -->
+                    <div id="industry-dimension-section" class="dimension-section" style="display: none;">
+                        <label class="section-label">行业选择（三级行业）</label>
+                        <div class="industry-selector-wrapper">
+                            <div class="industry-level">
+                                <label class="level-label">一级行业</label>
+                                <select id="first-industry-select" class="beautiful-select" onchange="updateIndustrySelection()">
+                                    <option value="">请选择一级行业</option>
+                                </select>
+                            </div>
+                            <div class="industry-arrow">→</div>
+                            <div class="industry-level">
+                                <label class="level-label">二级行业</label>
+                                <select id="second-industry-select" class="beautiful-select" onchange="updateIndustrySelection()">
+                                    <option value="">请先选择一级行业</option>
+                                </select>
+                            </div>
+                            <div class="industry-arrow">→</div>
+                            <div class="industry-level">
+                                <label class="level-label">三级行业（可多选）</label>
+                                <select id="third-industry-select" multiple class="beautiful-select" onchange="updateSelectedIndustries()">
+                                    <option value="">请先选择二级行业</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="select-hint">💡 依次选择一级、二级、三级行业，三级行业可多选（按住 Ctrl/Cmd 键）</div>
+                        <div id="selected-industries" class="selected-items">
+                            <div class="selected-items-header">
+                                <span class="selected-count">已选择: <strong id="industry-count">0</strong> 个行业</span>
+                            </div>
+                            <div id="selected-industries-list" class="selected-items-list"></div>
+                        </div>
+                        <!-- 行业对应的股票预览 -->
+                        <div id="industry-stocks-preview" class="stocks-preview" style="display: none;">
+                            <div class="preview-header">
+                                <span class="preview-title">📊 将查询以下股票（来自所选行业）:</span>
+                                <span class="preview-count">共 <strong id="industry-stocks-count">0</strong> 只</span>
+                            </div>
+                            <div id="industry-stocks-list" class="preview-stocks-list"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>配置数据表 *</label>
+                    <div id="tables-config-container">
+                        <!-- 表配置将在这里动态添加 -->
+                    </div>
+                    <button type="button" onclick="addTableConfig()" style="background: rgba(99, 102, 241, 0.3); border: 1px solid rgba(99, 102, 241, 0.5); color: #ffffff; padding: 12px 24px; border-radius: 8px; cursor: pointer; margin-top: 12px; font-weight: 600;">+ 添加数据表</button>
+                </div>
+                
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div>
+                        <label>开始日期（可选）</label>
+                        <input type="date" id="start-date">
+                    </div>
+                    <div>
+                        <label>结束日期（可选）</label>
+                        <input type="date" id="end-date">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn" id="query-btn">执行查询</button>
+            </form>
+        </div>
+        
+        <!-- SQL模板查询面板 -->
+        <div id="template-query-panel" class="query-panel" style="display: none;">
+            <div class="template-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 style="color: #ffffff; margin: 0; font-size: 20px;">SQL模板管理</h3>
+                <button type="button" onclick="openTemplateModal()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">+ 新建模板</button>
+            </div>
+            
+            <div id="templates-list" style="margin-bottom: 24px;">
+                <!-- 模板列表将在这里动态加载 -->
+            </div>
+            
+            <form id="template-query-form" onsubmit="executeTemplateQuery(event)">
+                <div class="form-group">
+                    <label>选择SQL模板 *</label>
+                    <select id="template-select" class="beautiful-select" style="width: 100%; padding: 12px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-size: 15px;" onchange="loadTemplatePreview()">
+                        <option value="">请选择SQL模板...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="template-preview-group" style="display: none;">
+                    <label>SQL预览</label>
+                    <textarea id="template-sql-preview" readonly style="width: 100%; min-height: 150px; padding: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical;"></textarea>
+                    <div style="margin-top: 8px; font-size: 13px; color: rgba(255, 255, 255, 0.6);">
+                        <span id="template-description"></span>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn" id="template-query-btn" style="width: 100%; padding: 14px; font-size: 16px; font-weight: 600;">执行模板查询</button>
+            </form>
+        </div>
+        
+        <!-- 筛选任务结果面板 -->
+        <div id="screening-query-panel" class="query-panel" style="display: none;">
+            <div style="margin-bottom: 16px; color: rgba(255,255,255,0.8); font-size: 14px;">从筛选任务页点击「查看」可自动加载；或选择执行记录并加载。</div>
+            <div class="form-group" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 280px;">
+                    <label>选择执行记录</label>
+                    <select id="screening-execution-select" style="width: 100%; padding: 12px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-size: 15px;">
+                        <option value="">请选择...（可先加载历史）</option>
+                    </select>
+                </div>
+                <button type="button" onclick="loadScreeningHistory()" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); color: #ffffff; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">加载历史</button>
+                <button type="button" onclick="loadScreeningResult()" class="btn" id="screening-load-btn">加载结果</button>
+            </div>
+        </div>
+        
+        <div id="results-panel" class="results-panel">
+            <div id="results-content"></div>
+        </div>
+    </div>
+    
+    <!-- SQL模板管理模态框 -->
+    <div id="template-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 20px; padding: 32px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid rgba(255,255,255,0.1);">
+                <h3 style="color: #ffffff; margin: 0; font-size: 24px;" id="template-modal-title">📝 新建SQL模板</h3>
+                <button class="close-btn" onclick="closeTemplateModal()" style="background: none; border: none; color: #ffffff; font-size: 28px; cursor: pointer; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">&times;</button>
+            </div>
+            
+            <form id="template-form" onsubmit="saveTemplate(event)">
+                <input type="hidden" id="template-id">
+                
+                <div class="form-group">
+                    <label style="color: #ffffff; margin-bottom: 8px; display: block; font-weight: 600;">模板名称 *</label>
+                    <input type="text" id="template-name" required style="width: 100%; padding: 12px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-size: 15px;" placeholder="例如：查询最新财务数据">
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <label style="color: #ffffff; margin-bottom: 8px; display: block; font-weight: 600;">SQL模板 *</label>
+                    <textarea id="template-sql" required style="width: 100%; min-height: 300px; padding: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical;" placeholder="请输入SQL查询语句..."></textarea>
+                    <div style="margin-top: 8px; font-size: 13px; color: rgba(255, 255, 255, 0.6);">
+                        💡 提示：SQL模板将直接执行，请确保SQL语句的正确性
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <label style="color: #ffffff; margin-bottom: 8px; display: block; font-weight: 600;">描述（可选）</label>
+                    <textarea id="template-description-input" style="width: 100%; min-height: 80px; padding: 12px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-size: 14px; resize: vertical;" placeholder="模板用途说明..."></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 24px; border-top: 2px solid rgba(255,255,255,0.1);">
+                    <button type="button" class="btn btn-secondary" onclick="closeTemplateModal()" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff; padding: 12px 24px; border-radius: 8px; cursor: pointer;">取消</button>
+                    <button type="submit" class="btn" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #ffffff; padding: 12px 24px; border-radius: 8px; cursor: pointer; border: none; font-weight: 600;">保存模板</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 图表配置模态框 -->
+    <div id="chart-config-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 20px; padding: 32px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid rgba(255,255,255,0.1);">
+                <h3 style="color: #ffffff; margin: 0; font-size: 24px;">📊 配置图表</h3>
+                <button class="close-btn" onclick="closeChartConfigModal()" style="background: none; border: none; color: #ffffff; font-size: 28px; cursor: pointer; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">&times;</button>
+            </div>
+            
+            <div id="charts-config-container">
+                <!-- 图表配置将在这里动态添加 -->
+            </div>
+            
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 24px; border-top: 2px solid rgba(255,255,255,0.1);">
+                <button type="button" class="btn btn-secondary" onclick="addChartConfig()" style="background: rgba(99, 102, 241, 0.3); border: 1px solid rgba(99, 102, 241, 0.5); color: #ffffff; padding: 12px 24px; border-radius: 8px; cursor: pointer;">+ 添加图表</button>
+                <button type="button" class="btn btn-secondary" onclick="closeChartConfigModal()" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff; padding: 12px 24px; border-radius: 8px; cursor: pointer;">取消</button>
+                <button type="button" class="btn" onclick="generateCharts()" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #ffffff; padding: 12px 24px; border-radius: 8px; cursor: pointer; border: none;">生成图表</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let selectedStocks = [];
+        let searchTimeout = null;
+        let selectedFields = [];
+        let tableConfigs = []; // 存储表配置
+        let allTables = []; // 存储所有可用的表
+        let allStocksCache = null; // 所有股票列表缓存（每天更新）
+        
+        // 添加表配置卡片
+        function addTableConfig() {
+            console.log('addTableConfig 被调用');
+            const configId = Date.now();
+            const config = {
+                id: configId,
+                tableId: null,
+                fields: []
+            };
+            tableConfigs.push(config);
+            console.log('当前表配置数量:', tableConfigs.length);
+            console.log('allTables 长度:', allTables ? allTables.length : 0);
+            renderTableConfigs();
+        }
+        
+        // 确保 addTableConfig 在全局作用域也可访问（用于 onclick）
+        window.addTableConfig = addTableConfig;
+        
+        // 加载数据表列表
+        async function loadTables() {
+            try {
+                console.log('开始加载数据表列表...');
+                const response = await fetch('/api/data_query/tables');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allTables = data.tables || []; // 保存所有表数据
+                    console.log('数据表列表加载成功，共', allTables.length, '个表');
+                    
+                    // 初始化时添加一个表配置卡片
+                    if (tableConfigs.length === 0) {
+                        addTableConfig();
+                    } else {
+                        // 如果已有配置，重新渲染以确保下拉框有选项
+                        renderTableConfigs();
+                    }
+                    
+                    // 预加载所有表的字段数据（后台加载，不阻塞界面）
+                    preloadAllFields(data.tables);
+                } else {
+                    console.error('加载数据表列表失败:', data.error);
+                    allTables = [];
+                }
+            } catch (error) {
+                console.error('加载数据表列表失败:', error);
+                allTables = [];
+            }
+        }
+        
+        // 预加载所有表的字段数据
+        async function preloadAllFields(tables) {
+            // 并发加载所有表的字段，但不阻塞界面
+            const loadPromises = tables.map(async (table) => {
+                try {
+                    // 如果已经在加载或已缓存，跳过
+                    if (fieldsTableCache[table.id] || fieldsLoadingPromises[table.id]) {
+                        return;
+                    }
+                    
+                    // 创建加载Promise
+                    const loadPromise = fetch(`/api/data_query/tables/${table.id}/fields`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success && data.fields) {
+                                fieldsTableCache[table.id] = data.fields;
+                            }
+                            delete fieldsLoadingPromises[table.id];
+                        })
+                        .catch(err => {
+                            console.error(`预加载表 ${table.table_name} 的字段失败:`, err);
+                            delete fieldsLoadingPromises[table.id];
+                        });
+                    
+                    fieldsLoadingPromises[table.id] = loadPromise;
+                } catch (error) {
+                    console.error(`预加载表 ${table.table_name} 的字段失败:`, error);
+                }
+            });
+            
+            // 后台加载，不等待完成
+            Promise.all(loadPromises).catch(err => {
+                console.error('预加载字段时出错:', err);
+            });
+        }
+        
+        // 获取字段数据（优先使用缓存）
+        async function getFieldsForTable(tableId) {
+            // 如果已缓存，直接返回
+            if (fieldsTableCache[tableId]) {
+                return fieldsTableCache[tableId];
+            }
+            
+            // 如果正在加载，等待加载完成
+            if (fieldsLoadingPromises[tableId]) {
+                await fieldsLoadingPromises[tableId];
+                return fieldsTableCache[tableId] || [];
+            }
+            
+            // 否则立即加载
+            try {
+                const response = await fetch(`/api/data_query/tables/${tableId}/fields`);
+                const data = await response.json();
+                
+                if (data.success && data.fields) {
+                    fieldsTableCache[tableId] = data.fields;
+                    return data.fields;
+                }
+            } catch (error) {
+                console.error('加载字段失败:', error);
+            }
+            
+            return [];
+        }
+        
+        // 删除表配置卡片
+        function removeTableConfig(configId) {
+            tableConfigs = tableConfigs.filter(c => c.id !== configId);
+            renderTableConfigs();
+        }
+        
+        // 渲染表配置卡片
+        function renderTableConfigs() {
+            const container = document.getElementById('tables-config-container');
+            if (!container) {
+                console.error('tables-config-container 元素未找到');
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            // 确保 allTables 已初始化
+            if (!allTables || allTables.length === 0) {
+                console.warn('数据表列表尚未加载，请稍候...');
+                // 如果表列表还没加载，先显示一个提示
+                if (tableConfigs.length > 0) {
+                    container.innerHTML = '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">正在加载数据表列表...</div>';
+                }
+                return;
+            }
+            
+            tableConfigs.forEach(config => {
+                const card = document.createElement('div');
+                card.className = 'table-config-card';
+                card.style.cssText = 'background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 16px;';
+                
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 600;">数据表 ${tableConfigs.indexOf(config) + 1}</h4>
+                        ${tableConfigs.length > 1 ? `<button type="button" onclick="removeTableConfig(${config.id})" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #ffffff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">删除</button>` : ''}
+                    </div>
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label style="color: rgba(255, 255, 255, 0.9); font-size: 14px; margin-bottom: 8px; display: block;">选择数据表 *</label>
+                        <select id="table-select-${config.id}" onchange="loadFieldsForTableConfig(${config.id}, this.value)" 
+                                style="width: 100%; padding: 12px 16px; background: #1a1a2e !important; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 12px; color: #ffffff !important; font-size: 14px; appearance: none; cursor: pointer;">
+                            <option value="">请选择数据表...</option>
+                            ${allTables.map(table => `
+                                <option value="${table.id}" ${config.tableId == table.id ? 'selected' : ''}>
+                                    ${table.table_display_name} (${table.table_name})
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div id="fields-container-${config.id}" style="min-height: 60px;">
+                        ${config.tableId ? '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">请先选择数据表</div>' : '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">请先选择数据表</div>'}
+                    </div>
+                    <div id="fields-actions-${config.id}" style="display: none; margin-top: 12px;">
+                        <!-- 字段操作按钮将在这里动态添加 -->
+                    </div>
+                `;
+                
+                container.appendChild(card);
+                
+                // 如果已选择表，加载字段
+                if (config.tableId) {
+                    loadFieldsForTableConfig(config.id, config.tableId);
+                }
+            });
+        }
+        
+        // 存储字段数据（用于搜索和预加载）
+        let fieldsDataCache = {}; // {configId: [fields]} - 按配置ID缓存
+        let fieldsTableCache = {}; // {tableId: [fields]} - 按表ID缓存（预加载）
+        let fieldsLoadingPromises = {}; // {tableId: Promise} - 正在加载的Promise
+        
+        // 为表配置加载字段（使用缓存优化）
+        async function loadFieldsForTableConfig(configId, tableId) {
+            const config = tableConfigs.find(c => c.id === configId);
+            if (!config) return;
+            
+            config.tableId = tableId ? parseInt(tableId) : null;
+            // 不清空已选字段，保留用户选择
+            // config.fields = []; 
+            
+            const container = document.getElementById(`fields-container-${configId}`);
+            const actionsContainer = document.getElementById(`fields-actions-${configId}`);
+            
+            if (!tableId) {
+                container.innerHTML = '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">请先选择数据表</div>';
+                actionsContainer.style.display = 'none';
+                return;
+            }
+            
+            // 检查缓存，如果已缓存则立即显示，否则显示加载状态
+            const cachedFields = fieldsTableCache[parseInt(tableId)];
+            if (!cachedFields) {
+                container.innerHTML = '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">正在加载字段...</div>';
+            }
+            
+            try {
+                // 使用缓存获取字段数据（优先使用预加载的缓存）
+                const fields = await getFieldsForTable(parseInt(tableId));
+                
+                // 将字段数据缓存到configId（用于搜索和筛选）
+                fieldsDataCache[configId] = fields;
+                
+                container.innerHTML = '';
+                
+                if (fields.length === 0) {
+                    container.innerHTML = '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">该数据表暂无字段配置，请先在配置页面添加字段</div>';
+                    actionsContainer.style.display = 'none';
+                    return;
+                }
+                
+                // 创建搜索框和操作栏
+                const searchAndActions = document.createElement('div');
+                searchAndActions.style.cssText = 'margin-bottom: 12px;';
+                searchAndActions.innerHTML = `
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                        <input type="text" id="field-search-${configId}" 
+                               placeholder="🔍 搜索字段（名称、类型）..." 
+                               oninput="filterFields(${configId}, this.value)"
+                               style="flex: 1; padding: 10px 14px; background: #1a1a2e !important; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff !important; font-size: 14px;">
+                        <select id="field-type-filter-${configId}" onchange="filterFieldsByType(${configId}, this.value)"
+                                style="width: 150px; padding: 10px 14px; background: #1a1a2e !important; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff !important; font-size: 14px; appearance: none; cursor: pointer;">
+                            <option value="">所有类型</option>
+                            <option value="INTEGER">整数</option>
+                            <option value="REAL">浮点数</option>
+                            <option value="DECIMAL">小数</option>
+                            <option value="TEXT">文本</option>
+                            <option value="DATE">日期</option>
+                            <option value="DATETIME">日期时间</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <button type="button" onclick="selectAllFieldsForConfig(${configId})" 
+                                style="background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); color: #ffffff; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                            ✓ 全选
+                        </button>
+                        <button type="button" onclick="deselectAllFieldsForConfig(${configId})" 
+                                style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                            ✗ 全不选
+                        </button>
+                        <button type="button" onclick="selectNumericFieldsForConfig(${configId})" 
+                                style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #10b981; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                            🔢 仅数值字段
+                        </button>
+                        <span id="selected-count-${configId}" style="color: rgba(255, 255, 255, 0.7); font-size: 13px; margin-left: auto;">
+                            已选: <strong style="color: #6366f1;">0</strong> / ${fields.length}
+                        </span>
+                    </div>
+                `;
+                container.appendChild(searchAndActions);
+                
+                // 创建字段选择区域
+                const fieldSelector = document.createElement('div');
+                fieldSelector.id = `field-list-${configId}`;
+                fieldSelector.className = 'field-selector';
+                fieldSelector.style.cssText = 'max-height: 350px; overflow-y: auto; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; background: rgba(255, 255, 255, 0.02);';
+                container.appendChild(fieldSelector);
+                
+                // 渲染字段列表
+                renderFieldsList(configId, fields);
+                
+                actionsContainer.style.display = 'block';
+                updateSelectedCount(configId);
+            } catch (error) {
+                console.error('加载字段列表失败:', error);
+                container.innerHTML = '<div style="color: #ef4444; text-align: center; padding: 20px;">加载字段列表失败: ' + error.message + '</div>';
+                actionsContainer.style.display = 'none';
+            }
+        }
+        
+        // 渲染字段列表
+        function renderFieldsList(configId, fields) {
+            const config = tableConfigs.find(c => c.id === configId);
+            if (!config) return;
+            
+            const fieldSelector = document.getElementById(`field-list-${configId}`);
+            if (!fieldSelector) return;
+            
+            fieldSelector.innerHTML = '';
+            
+            if (fields.length === 0) {
+                fieldSelector.innerHTML = '<div style="color: rgba(255,255,255,0.5); text-align: center; padding: 20px;">没有匹配的字段</div>';
+                return;
+            }
+            
+            fields.forEach(field => {
+                const item = document.createElement('div');
+                item.className = 'field-item';
+                item.dataset.fieldId = field.id;
+                item.dataset.fieldName = field.field_name.toLowerCase();
+                item.dataset.fieldDisplayName = field.field_display_name.toLowerCase();
+                item.dataset.fieldType = field.field_type.toLowerCase();
+                item.innerHTML = `
+                    <input type="checkbox" id="field-${configId}-${field.id}" value="${field.id}" 
+                           ${config.fields.includes(field.id) ? 'checked' : ''}
+                           onchange="updateSelectedFields(${configId}, ${field.id}, this.checked)">
+                    <label for="field-${configId}-${field.id}" style="flex: 1; cursor: pointer; margin: 0; font-weight: normal; display: flex; align-items: center; gap: 8px;">
+                        <span class="field-name" style="color: #6366f1; font-weight: 600;">${field.field_display_name}</span>
+                        <span class="field-type" style="color: rgba(255, 255, 255, 0.5); font-size: 12px;">${field.field_name}</span>
+                        <span style="color: rgba(255, 255, 255, 0.3); font-size: 11px; background: rgba(255, 255, 255, 0.1); padding: 2px 6px; border-radius: 4px; margin-left: auto;">${field.field_type}</span>
+                    </label>
+                `;
+                fieldSelector.appendChild(item);
+            });
+        }
+        
+        // 筛选字段（优化性能，使用防抖）
+        let filterTimeout = null;
+        function filterFields(configId, searchText) {
+            clearTimeout(filterTimeout);
+            
+            // 立即显示加载状态（如果搜索文本较长）
+            if (searchText && searchText.length > 2) {
+                const fieldSelector = document.getElementById(`field-list-${configId}`);
+                if (fieldSelector) {
+                    // 不显示加载状态，直接筛选（数据已在内存中，很快）
+                }
+            }
+            
+            // 防抖：延迟200ms执行，避免频繁筛选
+            filterTimeout = setTimeout(() => {
+                const fields = fieldsDataCache[configId] || [];
+                if (!searchText || searchText.trim() === '') {
+                    renderFieldsList(configId, fields);
+                    return;
+                }
+                
+                const searchLower = searchText.toLowerCase().trim();
+                const filtered = fields.filter(field => 
+                    field.field_name.toLowerCase().includes(searchLower) ||
+                    field.field_display_name.toLowerCase().includes(searchLower) ||
+                    field.field_type.toLowerCase().includes(searchLower)
+                );
+                
+                renderFieldsList(configId, filtered);
+            }, 150);
+        }
+        
+        // 按类型筛选字段（优化性能）
+        function filterFieldsByType(configId, typeFilter) {
+            const searchInput = document.getElementById(`field-search-${configId}`);
+            const searchText = searchInput ? searchInput.value : '';
+            
+            const fields = fieldsDataCache[configId] || [];
+            let filtered = fields;
+            
+            // 先按搜索文本筛选
+            if (searchText && searchText.trim() !== '') {
+                const searchLower = searchText.toLowerCase().trim();
+                filtered = filtered.filter(field => 
+                    field.field_name.toLowerCase().includes(searchLower) ||
+                    field.field_display_name.toLowerCase().includes(searchLower) ||
+                    field.field_type.toLowerCase().includes(searchLower)
+                );
+            }
+            
+            // 再按类型筛选
+            if (typeFilter && typeFilter !== '') {
+                filtered = filtered.filter(field => field.field_type === typeFilter);
+            }
+            
+            renderFieldsList(configId, filtered);
+        }
+        
+        // 全选字段
+        function selectAllFieldsForConfig(configId) {
+            const config = tableConfigs.find(c => c.id === configId);
+            if (!config) return;
+            
+            const fields = fieldsDataCache[configId] || [];
+            const fieldSelector = document.getElementById(`field-list-${configId}`);
+            if (!fieldSelector) return;
+            
+            // 获取当前可见的字段（考虑筛选）
+            const visibleCheckboxes = fieldSelector.querySelectorAll('input[type="checkbox"]');
+            visibleCheckboxes.forEach(checkbox => {
+                const fieldId = parseInt(checkbox.value);
+                if (!config.fields.includes(fieldId)) {
+                    config.fields.push(fieldId);
+                    checkbox.checked = true;
+                }
+            });
+            
+            updateSelectedCount(configId);
+        }
+        
+        // 全不选字段
+        function deselectAllFieldsForConfig(configId) {
+            const config = tableConfigs.find(c => c.id === configId);
+            if (!config) return;
+            
+            const fieldSelector = document.getElementById(`field-list-${configId}`);
+            if (!fieldSelector) return;
+            
+            // 获取当前可见的字段（考虑筛选）
+            const visibleCheckboxes = fieldSelector.querySelectorAll('input[type="checkbox"]');
+            visibleCheckboxes.forEach(checkbox => {
+                const fieldId = parseInt(checkbox.value);
+                config.fields = config.fields.filter(id => id !== fieldId);
+                checkbox.checked = false;
+            });
+            
+            updateSelectedCount(configId);
+        }
+        
+        // 仅选择数值字段
+        function selectNumericFieldsForConfig(configId) {
+            const config = tableConfigs.find(c => c.id === configId);
+            if (!config) return;
+            
+            const fields = fieldsDataCache[configId] || [];
+            const numericTypes = ['INTEGER', 'REAL', 'DECIMAL', 'NUMERIC', 'FLOAT', 'DOUBLE', 'BIGINT', 'INT', 'SMALLINT', 'TINYINT'];
+            
+            fields.forEach(field => {
+                if (numericTypes.includes(field.field_type.toUpperCase())) {
+                    if (!config.fields.includes(field.id)) {
+                        config.fields.push(field.id);
+                    }
+                }
+            });
+            
+            // 重新渲染以更新复选框状态
+            const searchInput = document.getElementById(`field-search-${configId}`);
+            const typeFilter = document.getElementById(`field-type-filter-${configId}`);
+            if (searchInput && typeFilter) {
+                filterFieldsByType(configId, typeFilter.value);
+            } else {
+                renderFieldsList(configId, fields);
+            }
+            
+            updateSelectedCount(configId);
+        }
+        
+        // 更新已选字段数量
+        function updateSelectedCount(configId) {
+            const config = tableConfigs.find(c => c.id === configId);
+            if (!config) return;
+            
+            const countElement = document.getElementById(`selected-count-${configId}`);
+            if (!countElement) return;
+            
+            const fields = fieldsDataCache[configId] || [];
+            const selectedCount = config.fields.length;
+            const totalCount = fields.length;
+            
+            countElement.innerHTML = `已选: <strong style="color: #6366f1;">${selectedCount}</strong> / ${totalCount}`;
+        }
+        
+        // 更新选中字段
+        function updateSelectedFields(configId, fieldId, checked) {
+            const config = tableConfigs.find(c => c.id === configId);
+            if (!config) return;
+            
+            if (checked) {
+                if (!config.fields.includes(fieldId)) {
+                    config.fields.push(fieldId);
+                }
+            } else {
+                config.fields = config.fields.filter(id => id !== fieldId);
+            }
+            
+            updateSelectedCount(configId);
+        }
+        
+        
+        // 股票搜索缓存
+        let stockSearchCache = new Map(); // 缓存搜索结果
+        const MAX_CACHE_SIZE = 100; // 最大缓存数量
+        
+        // 股票列表缓存管理（localStorage，每天更新）
+        const STOCKS_CACHE_KEY = 'data_query_all_stocks';
+        const STOCKS_CACHE_DATE_KEY = 'data_query_all_stocks_date';
+        
+        // 获取今天的日期字符串（YYYY-MM-DD）
+        function getTodayDateString() {
+            const today = new Date();
+            return today.toISOString().split('T')[0];
+        }
+        
+        // 从localStorage加载股票缓存
+        function loadStocksFromCache() {
+            try {
+                const cacheDate = localStorage.getItem(STOCKS_CACHE_DATE_KEY);
+                const today = getTodayDateString();
+                
+                // 检查缓存日期是否是今天
+                if (cacheDate === today) {
+                    const cachedData = localStorage.getItem(STOCKS_CACHE_KEY);
+                    if (cachedData) {
+                        allStocksCache = JSON.parse(cachedData);
+                        console.log(`从缓存加载股票列表，共 ${allStocksCache.length} 只（日期: ${cacheDate}）`);
+                        return true;
+                    }
+                } else {
+                    // 缓存过期，清除旧缓存
+                    console.log(`缓存已过期（${cacheDate}），需要重新加载`);
+                    localStorage.removeItem(STOCKS_CACHE_KEY);
+                    localStorage.removeItem(STOCKS_CACHE_DATE_KEY);
+                }
+            } catch (e) {
+                console.error('加载股票缓存失败:', e);
+            }
+            return false;
+        }
+        
+        // 保存股票列表到localStorage
+        function saveStocksToCache(stocks) {
+            try {
+                const today = getTodayDateString();
+                localStorage.setItem(STOCKS_CACHE_KEY, JSON.stringify(stocks));
+                localStorage.setItem(STOCKS_CACHE_DATE_KEY, today);
+                allStocksCache = stocks;
+                console.log(`股票列表已缓存，共 ${stocks.length} 只（日期: ${today}）`);
+            } catch (e) {
+                console.error('保存股票缓存失败:', e);
+                // localStorage可能已满，尝试清理一些空间
+                if (e.name === 'QuotaExceededError') {
+                    console.warn('localStorage空间不足，尝试清理旧缓存');
+                    localStorage.removeItem(STOCKS_CACHE_KEY);
+                    localStorage.removeItem(STOCKS_CACHE_DATE_KEY);
+                }
+            }
+        }
+        
+        // 加载所有股票列表（每天第一次访问时调用）
+        async function loadAllStocks() {
+            // 先尝试从缓存加载
+            if (loadStocksFromCache()) {
+                return; // 缓存有效，直接返回
+            }
+            
+            // 缓存无效或不存在，从服务器加载
+            console.log('开始从服务器加载所有股票列表...');
+            try {
+                const response = await fetch('/api/data_query/all_stocks');
+                
+                // 如果接口不存在（404），静默失败，不影响其他功能
+                if (response.status === 404) {
+                    console.warn('股票列表接口不存在（可能服务器未重启），跳过缓存加载');
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.stocks && Array.isArray(data.stocks)) {
+                    saveStocksToCache(data.stocks);
+                    console.log(`成功加载 ${data.stocks.length} 只股票并已缓存`);
+                } else {
+                    console.warn('加载股票列表失败:', data.error || '未知错误');
+                }
+            } catch (e) {
+                // 静默处理错误，不影响其他功能
+                if (e.message && e.message.includes('Unexpected token')) {
+                    console.warn('股票列表接口返回格式错误（可能接口不存在），跳过缓存加载');
+                } else {
+                    console.warn('加载股票列表异常（不影响使用）:', e.message || e);
+                }
+            }
+        }
+        
+        // 股票搜索（优化性能，添加缓存）
+        window.handleStockSearch = function(query) {
+            if (!query) {
+                query = '';
+            }
+            
+            clearTimeout(searchTimeout);
+            const queryTrimmed = query.trim();
+            
+            const resultsDiv = document.getElementById('stock-results');
+            if (!resultsDiv) {
+                console.error('stock-results 元素未找到');
+                return;
+            }
+            
+            if (!queryTrimmed || queryTrimmed.length < 1) {
+                resultsDiv.classList.remove('active');
+                return;
+            }
+            
+            // 先尝试从内存缓存（搜索缓存）获取
+            const cacheKey = queryTrimmed.toLowerCase();
+            if (stockSearchCache.has(cacheKey)) {
+                const cachedResults = stockSearchCache.get(cacheKey);
+                displayStockResults(cachedResults);
+                return;
+            }
+            
+            // 如果所有股票列表已缓存，先从缓存中搜索（本地过滤）
+            if (allStocksCache && allStocksCache.length > 0) {
+                const queryLower = queryTrimmed.toLowerCase();
+                const filteredStocks = allStocksCache.filter(stock => {
+                    const code = (stock.code || '').toLowerCase();
+                    const name = (stock.name || '').toLowerCase();
+                    return code.includes(queryLower) || name.includes(queryLower);
+                }).slice(0, 50); // 限制最多返回50条
+                
+                if (filteredStocks.length > 0) {
+                    // 缓存搜索结果
+                    if (stockSearchCache.size >= MAX_CACHE_SIZE) {
+                        const firstKey = stockSearchCache.keys().next().value;
+                        stockSearchCache.delete(firstKey);
+                    }
+                    stockSearchCache.set(cacheKey, filteredStocks);
+                    displayStockResults(filteredStocks);
+                    return;
+                }
+            }
+            
+            // 如果缓存中没有结果，或者缓存未加载，调用API搜索
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch('/api/data_query/search_stock', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ query: queryTrimmed })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success && data.stocks && data.stocks.length > 0) {
+                        // 缓存结果
+                        if (stockSearchCache.size >= MAX_CACHE_SIZE) {
+                            // 删除最旧的缓存（FIFO）
+                            const firstKey = stockSearchCache.keys().next().value;
+                            stockSearchCache.delete(firstKey);
+                        }
+                        stockSearchCache.set(cacheKey, data.stocks);
+                        
+                        displayStockResults(data.stocks);
+                    } else {
+                        // 没有结果时也显示提示
+                        const resultsDiv = document.getElementById('stock-results');
+                        if (resultsDiv) {
+                            resultsDiv.innerHTML = '<div class="search-result-item" style="color: rgba(255,255,255,0.6); text-align: center; padding: 12px;">未找到匹配的股票</div>';
+                            resultsDiv.classList.add('active');
+                        }
+                    }
+                } catch (error) {
+                    console.error('搜索股票失败:', error);
+                    const resultsDiv = document.getElementById('stock-results');
+                    if (resultsDiv) {
+                        resultsDiv.innerHTML = '<div class="search-result-item" style="color: #ef4444; text-align: center; padding: 12px;">搜索失败，请重试</div>';
+                        resultsDiv.classList.add('active');
+                    }
+                }
+            }, 150);
+        };
+        
+        // 显示股票搜索结果
+        function displayStockResults(stocks) {
+            const resultsDiv = document.getElementById('stock-results');
+            if (!resultsDiv) {
+                console.error('stock-results 元素未找到');
+                return;
+            }
+            
+            if (!stocks || stocks.length === 0) {
+                resultsDiv.innerHTML = '<div class="search-result-item" style="color: rgba(255,255,255,0.6); text-align: center; padding: 12px;">未找到匹配的股票</div>';
+                resultsDiv.classList.add('active');
+                return;
+            }
+            
+            resultsDiv.innerHTML = '';
+            
+            stocks.forEach(stock => {
+                const item = document.createElement('div');
+                item.className = 'search-result-item';
+                item.innerHTML = `
+                    <div>
+                        <span class="stock-code">${escapeHtml(stock.code || '')}</span>
+                        <span style="color: rgba(255,255,255,0.8); margin-left: 10px;">${escapeHtml(stock.name || '')}</span>
+                    </div>
+                    ${stock.third_industry ? `<div style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 4px;">${escapeHtml(stock.third_industry)}</div>` : ''}
+                `;
+                item.onclick = () => {
+                    addStock(stock);
+                    const searchInput = document.getElementById('stock-search');
+                    if (searchInput) {
+                        searchInput.value = '';
+                    }
+                    resultsDiv.classList.remove('active');
+                };
+                resultsDiv.appendChild(item);
+            });
+            
+            resultsDiv.classList.add('active');
+        }
+        
+        // 添加股票
+        function addStock(stock) {
+            if (selectedStocks.find(s => s.code === stock.code)) {
+                return;
+            }
+            
+            selectedStocks.push(stock);
+            updateSelectedStocks();
+        }
+        
+        // 移除股票
+        function removeStock(code) {
+            selectedStocks = selectedStocks.filter(s => s.code !== code);
+            updateSelectedStocks();
+        }
+        
+        // 更新已选股票显示
+        function updateSelectedStocks() {
+            const container = document.getElementById('selected-stocks');
+            container.innerHTML = '';
+            
+            selectedStocks.forEach(stock => {
+                const tag = document.createElement('div');
+                tag.className = 'stock-tag';
+                tag.innerHTML = `
+                    <span>${stock.code} ${stock.name}</span>
+                    <span class="remove" onclick="removeStock('${stock.code}')">&times;</span>
+                `;
+                container.appendChild(tag);
+            });
+        }
+        
+        // 执行查询
+        async function executeQuery(event) {
+            event.preventDefault();
+            
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            // 验证表配置
+            const validConfigs = tableConfigs.filter(c => c.tableId && c.fields.length > 0);
+            if (validConfigs.length === 0) {
+                alert('请至少配置一个数据表并选择至少一个字段');
+                return;
+            }
+            
+            const btn = document.getElementById('query-btn');
+            btn.disabled = true;
+            btn.textContent = '查询中...';
+            
+            const resultsPanel = document.getElementById('results-panel');
+            const resultsContent = document.getElementById('results-content');
+            resultsContent.innerHTML = '<div class="loading">正在查询，请稍候...</div>';
+            resultsPanel.classList.add('active');
+            
+            try {
+                // 检测当前查询使用的维度
+                const stockChecked = document.getElementById('dimension-stock')?.checked || false;
+                const conceptChecked = document.getElementById('dimension-concept')?.checked || false;
+                const industryChecked = document.getElementById('dimension-industry')?.checked || false;
+                
+                // 确定查询维度（优先级：行业 > 概念 > 个股）
+                if (industryChecked) {
+                    currentQueryDimension = 'industry';
+                } else if (conceptChecked) {
+                    currentQueryDimension = 'concept';
+                } else if (stockChecked) {
+                    currentQueryDimension = 'stock';
+                } else {
+                    currentQueryDimension = null;
+                }
+                
+                // 获取所有选中的股票代码（从多个维度）
+                const allStockCodes = await getAllSelectedStockCodes();
+                
+                if (allStockCodes.length === 0) {
+                    alert('未选择任何股票，请至少选择一个维度并选择股票/概念/行业');
+                    btn.disabled = false;
+                    btn.textContent = '执行查询';
+                    return;
+                }
+                
+                // 构建多表查询数据
+                const queryData = {
+                    table_configs: validConfigs.map(config => ({
+                        table_id: config.tableId,
+                        field_ids: config.fields
+                    })),
+                    stock_codes: allStockCodes,
+                    date_range: {}
+                };
+                
+                if (startDate) {
+                    queryData.date_range.start = startDate;
+                }
+                if (endDate) {
+                    queryData.date_range.end = endDate;
+                }
+                
+                const response = await fetch('/api/data_query/execute_multi', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(queryData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    resultsContent.innerHTML = `<div class="error">查询失败: ${result.error}</div>`;
+                }
+            } catch (error) {
+                resultsContent.innerHTML = `<div class="error">查询失败: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '执行查询';
+            }
+        }
+        
+        // 存储查询结果数据
+        let currentQueryResult = null;
+        let currentQueryDimension = null; // 记录当前查询使用的维度: 'stock', 'industry', 'concept', null
+        // 分页与表格共用（表/字段、SQL模板、筛选任务结果）
+        let currentResultData = [];
+        let currentResultColumns = [];
+        let currentResultCount = 0;
+        let currentPageSize = 50;
+        let currentPage = 1;
+        // 筛选任务多 sheet
+        let currentScreeningResultData = {};
+        let currentScreeningResultMeta = null;
+        let currentScreeningSheet = '';
+        
+        function normColumns(cols) {
+            return (cols || []).map(c => typeof c === 'string' ? { field: c, display: c } : c);
+        }
+        
+        function buildTableWithPaginationHtml(data, columns, count, pageSize, page) {
+            if (!data || count === 0) return '<div style="color: rgba(255,255,255,0.6); text-align: center; padding: 40px;">未查询到数据</div>';
+            const totalPages = Math.max(1, Math.ceil(count / pageSize));
+            const start = (page - 1) * pageSize;
+            const slice = data.slice(start, start + pageSize);
+            let html = '<div class="table-wrapper" style="margin-top: 16px;"><table class="data-table"><thead><tr>';
+            columns.forEach(col => { html += `<th>${((col && col.display) || (col && col.field) || col || '').toString()}</th>`; });
+            html += '</tr></thead><tbody>';
+            slice.forEach(row => {
+                html += '<tr>';
+                columns.forEach(col => {
+                    const f = (col && col.field) || col;
+                    let v = row[f];
+                    if (v === null || v === undefined) v = '-';
+                    else if (typeof v === 'number') v = v.toLocaleString();
+                    else if (typeof v === 'object' && !(v instanceof Date)) { try { v = JSON.stringify(v); } catch(e){} if (v.length > 100) v = v.substring(0, 100) + '...'; }
+                    else if (typeof v === 'string' && v.length > 100) v = v.substring(0, 100) + '...';
+                    html += `<td>${v}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            html += '<div class="pagination-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding: 12px 0;">';
+            html += `<span style="color: rgba(255,255,255,0.7);">第 ${page} / 共 ${totalPages} 页</span>`;
+            html += '<div style="display: flex; gap: 8px;">';
+            html += `<button type="button" onclick="changePage(${page - 1})" ${page <= 1 ? 'disabled' : ''} style="padding: 8px 16px; background: rgba(99, 102, 241, 0.3); border: 1px solid rgba(99, 102, 241, 0.5); color: #fff; border-radius: 8px; cursor: pointer;">上一页</button>`;
+            html += `<button type="button" onclick="changePage(${page + 1})" ${page >= totalPages ? 'disabled' : ''} style="padding: 8px 16px; background: rgba(99, 102, 241, 0.3); border: 1px solid rgba(99, 102, 241, 0.5); color: #fff; border-radius: 8px; cursor: pointer;">下一页</button>`;
+            html += '</div></div></div>';
+            return html;
+        }
+        
+        function updateResultsTableContainer() {
+            const el = document.getElementById('results-table-container');
+            if (!el) return;
+            el.innerHTML = buildTableWithPaginationHtml(currentResultData, currentResultColumns, currentResultCount, currentPageSize, currentPage);
+        }
+        
+        function changePage(p) {
+            const total = Math.max(1, Math.ceil(currentResultCount / currentPageSize));
+            if (p < 1 || p > total) return;
+            currentPage = p;
+            updateResultsTableContainer();
+        }
+        
+        function changePageSize(s) {
+            currentPageSize = s;
+            currentPage = 1;
+            const sel = document.getElementById('results-page-size');
+            if (sel) sel.value = String(s);
+            updateResultsTableContainer();
+        }
+        window.changePage = changePage;
+        window.changePageSize = changePageSize;
+        
+        // 显示查询结果（表/字段、SQL模板）
+        function displayResults(result) {
+            const cols = normColumns(result.columns);
+            const data = result.data || [];
+            const count = result.count || data.length;
+            currentResultData = data;
+            currentResultColumns = cols;
+            currentResultCount = count;
+            currentPage = 1;
+            currentQueryResult = { data: data, columns: cols, count: count };
+            if (result.sql) currentQueryResult.sql = result.sql;
+            
+            const resultsContent = document.getElementById('results-content');
+            let html = '<div class="results-header">';
+            html += `<h3>查询结果</h3>`;
+            html += `<div class="summary">共 <strong>${count}</strong> 条`;
+            html += ` &nbsp; 每页 <select id="results-page-size" onchange="changePageSize(parseInt(this.value))" style="padding: 6px 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; margin: 0 4px;">`;
+            [20, 50, 100, 200].forEach(n => { html += `<option value="${n}" ${currentPageSize === n ? 'selected' : ''}>${n}</option>`; });
+            html += '</select> 条</div>';
+            html += '<div style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap;">';
+            html += '<button type="button" class="btn" onclick="openChartConfigModal()" style="width: auto; padding: 12px 24px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #ffffff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">📊 配置图表</button>';
+            if (result.sql) html += '<button type="button" onclick="toggleSQLView()" id="sql-toggle-btn" style="width: auto; padding: 12px 24px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #10b981; border-radius: 8px; cursor: pointer; font-weight: 600;">🔍 查看SQL</button>';
+            html += '</div></div>';
+            if (result.sql) {
+                html += `<div id="sql-view-container" style="display: none; margin-top: 24px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px;">`;
+                html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><h4 style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 600;">执行的SQL语句</h4>';
+                html += '<button type="button" onclick="copySQL()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: #ffffff; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">📋 复制SQL</button></div>';
+                html += `<pre id="sql-content" style="background: #1a1a2e; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 16px; color: #10b981; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.6; overflow-x: auto; margin: 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.sql)}</pre></div>`;
+            }
+            html += '<div id="charts-container" style="margin-top: 32px;"></div>';
+            html += '<div id="results-table-container">' + buildTableWithPaginationHtml(data, cols, count, currentPageSize, currentPage) + '</div>';
+            resultsContent.innerHTML = html;
+        }
+        
+        // ---------- 筛选任务结果：历史、加载、多 sheet、分页、图表 ----------
+        // 检查日期是否是今天
+        function isToday(dateStr) {
+            if (!dateStr) return false;
+            try {
+                const date = new Date(dateStr);
+                const today = new Date();
+                return date.toDateString() === today.toDateString();
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        // 格式化日期显示
+        function formatDateShort(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const date = new Date(dateStr);
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                if (date.toDateString() === today.toDateString()) {
+                    return '今天';
+                } else if (date.toDateString() === yesterday.toDateString()) {
+                    return '昨天';
+                } else {
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${month}-${day}`;
+                }
+            } catch (e) {
+                return '';
+            }
+        }
+        
+        async function loadScreeningHistory() {
+            console.log('loadScreeningHistory 被调用');
+            const sel = document.getElementById('screening-execution-select');
+            if (!sel) {
+                console.error('找不到选择框: screening-execution-select');
+                return;
+            }
+            
+            try {
+                sel.disabled = true;
+                const r = await fetch('/api/screening_tasks/history?limit=80');
+                
+                if (!r.ok) {
+                    throw new Error(`HTTP错误: ${r.status} ${r.statusText}`);
+                }
+                
+                const d = await r.json();
+                console.log('加载历史响应:', d);
+                
+                sel.innerHTML = '<option value="">请选择...</option>';
+                
+                if (d.success && d.history && Array.isArray(d.history)) {
+                    const successHistory = d.history.filter(h => h.status === 'success');
+                    console.log(`找到 ${successHistory.length} 条成功的执行记录`);
+                    
+                    if (successHistory.length === 0) {
+                        sel.innerHTML = '<option value="">暂无成功记录</option>';
+                    } else {
+                        let firstId = null; // 保存第一个（最新的）记录ID
+                        
+                        successHistory.forEach((h, index) => {
+                            const opt = document.createElement('option');
+                            opt.value = h.id;
+                            
+                            // 检查是否是今天的数据
+                            const isTodayData = isToday(h.created_at) || isToday(h.end_time);
+                            const dateIndicator = isTodayData ? 
+                                '<span style="color: #10b981; font-weight: bold; margin-left: 6px;">●</span>' : 
+                                '<span style="color: #ef4444; font-weight: bold; margin-left: 6px;">●</span>';
+                            
+                            // 格式化日期
+                            const dateStr = formatDateShort(h.created_at || h.end_time);
+                            const dateDisplay = dateStr ? ` [${dateStr}]` : '';
+                            
+                            opt.innerHTML = `#${h.id} ${h.task_name || ''} ${h.result_summary || ''}${dateDisplay} ${dateIndicator}`;
+                            sel.appendChild(opt);
+                            
+                            // 保存第一个记录的ID（最新的）
+                            if (index === 0) {
+                                firstId = h.id;
+                            }
+                        });
+                        
+                        console.log(`已添加 ${successHistory.length} 个选项`);
+                        
+                        // 自动选择最新的记录（第一个）
+                        if (firstId) {
+                            sel.value = firstId;
+                            console.log(`自动选择最新记录: #${firstId}`);
+                        }
+                    }
+                } else {
+                    console.warn('历史数据格式异常:', d);
+                    sel.innerHTML = '<option value="">加载失败</option>';
+                }
+            } catch (e) {
+                console.error('加载筛选历史失败', e);
+                sel.innerHTML = '<option value="">加载失败，请重试</option>';
+                alert('加载历史记录失败: ' + (e.message || '未知错误'));
+            } finally {
+                sel.disabled = false;
+            }
+        }
+        
+        async function loadScreeningResult(executionId) {
+            console.log('loadScreeningResult 被调用', { executionId });
+            
+            // 获取执行ID
+            let id = null;
+            if (executionId != null && executionId !== undefined) {
+                id = parseInt(executionId, 10);
+            } else {
+                const select = document.getElementById('screening-execution-select');
+                if (!select) {
+                    console.error('找不到选择框: screening-execution-select');
+                    alert('找不到执行记录选择框，请刷新页面重试');
+                    return;
+                }
+                const value = select.value;
+                console.log('选择框的值:', value);
+                if (value && value.trim() !== '') {
+                    id = parseInt(value, 10);
+                }
+            }
+            
+            // 验证ID是否有效
+            if (!id || isNaN(id) || id <= 0) {
+                console.error('无效的执行ID:', id);
+                alert('请先选择一个有效的执行记录');
+                return;
+            }
+            
+            console.log('开始加载执行ID:', id);
+            
+            const btn = document.getElementById('screening-load-btn');
+            const resultsContent = document.getElementById('results-content');
+            const resultsPanel = document.getElementById('results-panel');
+            
+            if (!resultsContent) {
+                console.error('找不到结果容器: results-content');
+                alert('找不到结果容器，请刷新页面重试');
+                return;
+            }
+            
+            if (btn) { 
+                btn.disabled = true; 
+                btn.textContent = '加载中...'; 
+            }
+            
+            resultsContent.innerHTML = '<div class="loading" style="padding: 40px; text-align: center; color: rgba(255,255,255,0.7);">加载中...</div>';
+            
+            try {
+                console.log('发送请求:', `/api/screening_tasks/result/${id}`);
+                const r = await fetch(`/api/screening_tasks/result/${id}`);
+                
+                if (!r.ok) {
+                    throw new Error(`HTTP错误: ${r.status} ${r.statusText}`);
+                }
+                
+                const d = await r.json();
+                console.log('收到响应:', d);
+                
+                if (d.success && d.result) {
+                    console.log('加载成功，显示结果');
+                    displayScreeningResults(d.result);
+                    if (resultsPanel) {
+                        resultsPanel.classList.add('active');
+                    }
+                } else {
+                    const errorMsg = d.error || '未知错误';
+                    console.error('加载失败:', errorMsg);
+                    resultsContent.innerHTML = `<div class="error" style="padding: 24px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; color: #ef4444;">
+                        <h3 style="margin-top: 0; color: #ef4444;">加载失败</h3>
+                        <p>${errorMsg}</p>
+                    </div>`;
+                }
+            } catch (e) {
+                console.error('加载异常:', e);
+                resultsContent.innerHTML = `<div class="error" style="padding: 24px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; color: #ef4444;">
+                    <h3 style="margin-top: 0; color: #ef4444;">加载失败</h3>
+                    <p>${e.message || '网络错误或服务器错误'}</p>
+                    <p style="font-size: 12px; color: rgba(239, 68, 68, 0.7); margin-top: 8px;">请检查网络连接或稍后重试</p>
+                </div>`;
+            } finally {
+                if (btn) { 
+                    btn.disabled = false; 
+                    btn.textContent = '加载结果'; 
+                }
+            }
+        }
+        
+        // 确保函数在全局作用域可访问
+        window.loadScreeningResult = loadScreeningResult;
+        
+        // 确保 loadScreeningHistory 也在全局作用域
+        window.loadScreeningHistory = loadScreeningHistory;
+        
+        function switchScreeningSheet(sheetName) {
+            currentScreeningSheet = sheetName;
+            currentPage = 1;
+            renderScreeningResultsSheet();
+        }
+        function switchScreeningSheetByIndex(i) {
+            const names = Object.keys(currentScreeningResultData);
+            if (names[i]) switchScreeningSheet(names[i]);
+        }
+        window.switchScreeningSheet = switchScreeningSheet;
+        window.switchScreeningSheetByIndex = switchScreeningSheetByIndex;
+        
+        function renderScreeningResultsSheet() {
+            const rd = currentScreeningResultData[currentScreeningSheet];
+            const arr = (rd && Array.isArray(rd)) ? rd : [];
+            const cols = arr.length && arr[0] ? Object.keys(arr[0]).map(k => ({ field: k, display: k })) : [];
+            currentResultData = arr;
+            currentResultColumns = cols;
+            currentResultCount = arr.length;
+            currentQueryResult = { data: arr, columns: cols, count: arr.length };
+            const meta = currentScreeningResultMeta || {};
+            const resultsContent = document.getElementById('results-content');
+            let html = '<div class="results-header">';
+            html += `<h3>${meta.task_name || '筛选结果'} — ${currentScreeningSheet}</h3>`;
+            
+            // 显示文件信息（如果有）
+            if (meta.file_mtime) {
+                html += `<div style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 4px;">文件修改时间: ${meta.file_mtime}</div>`;
+            }
+            if (meta.total_rows !== undefined) {
+                html += `<div style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 4px;">总数据量: ${meta.total_rows} 条</div>`;
+            }
+            
+            html += `<div class="summary" style="margin-top: 12px;">共 <strong>${arr.length}</strong> 条 &nbsp; 每页 <select id="results-page-size" onchange="changePageSize(parseInt(this.value))" style="padding: 6px 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; margin: 0 4px;">`;
+            [20, 50, 100, 200, 500].forEach(n => { html += `<option value="${n}" ${currentPageSize === n ? 'selected' : ''}>${n}</option>`; });
+            html += '</select> 条</div>';
+            html += '<div style="margin-top: 12px;">';
+            const sheetNames = Object.keys(currentScreeningResultData);
+            sheetNames.forEach((s, i) => {
+                const sheetData = currentScreeningResultData[s];
+                const sheetCount = (sheetData && Array.isArray(sheetData)) ? sheetData.length : 0;
+                html += `<button type="button" onclick="switchScreeningSheetByIndex(${i})" style="padding: 8px 16px; margin-right: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: ${s === currentScreeningSheet ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255,255,255,0.05)'}; color: #fff; cursor: pointer;">${s} (${sheetCount})</button>`;
+            });
+            html += '</div>';
+            html += '<div style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">';
+            html += '<button type="button" class="btn" onclick="openChartConfigModal()" style="width: auto; padding: 12px 24px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">📊 配置图表</button>';
+            if (currentScreeningResultMeta && currentScreeningResultMeta.id) {
+                html += `<a href="/api/screening_tasks/download/${currentScreeningResultMeta.id}" target="_blank" style="padding: 10px 18px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.5); color: #10b981; border-radius: 8px; text-decoration: none; font-weight: 600;">📥 下载 Excel</a>`;
+            }
+            html += '</div></div>';
+            html += '<div id="charts-container" style="margin-top: 24px;"></div>';
+            html += '<div id="results-table-container">' + buildTableWithPaginationHtml(arr, cols, arr.length, currentPageSize, currentPage) + '</div>';
+            resultsContent.innerHTML = html;
+        }
+        
+        function displayScreeningResults(res) {
+            // 检查是否有错误
+            if (res.error) {
+                const resultsContent = document.getElementById('results-content');
+                resultsContent.innerHTML = `<div class="error" style="padding: 24px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; color: #ef4444;">
+                    <h3 style="margin-top: 0; color: #ef4444;">加载失败</h3>
+                    <p>${res.error}</p>
+                    ${res.output_file_path ? `<p style="font-size: 12px; color: rgba(239, 68, 68, 0.7); margin-top: 8px;">文件路径: ${res.output_file_path}</p>` : ''}
+                </div>`;
+                return;
+            }
+            
+            const rd = res.result_data || {};
+            currentScreeningResultData = rd;
+            currentScreeningResultMeta = res;
+            const names = Object.keys(rd);
+            currentScreeningSheet = names[0] || '';
+            currentPage = 1;
+            
+            if (names.length === 0) {
+                document.getElementById('results-content').innerHTML = '<div class="results-header"><h3>' + (res.task_name || '筛选结果') + '</h3></div><div style="color: rgba(255,255,255,0.6); text-align: center; padding: 40px;">暂无结果数据</div>';
+                return;
+            }
+            
+            // 验证数据有效性
+            let hasValidData = false;
+            for (const sheetName of names) {
+                if (rd[sheetName] && Array.isArray(rd[sheetName]) && rd[sheetName].length > 0) {
+                    hasValidData = true;
+                    break;
+                }
+            }
+            
+            if (!hasValidData) {
+                document.getElementById('results-content').innerHTML = '<div class="results-header"><h3>' + (res.task_name || '筛选结果') + '</h3></div><div style="color: rgba(255,255,255,0.6); text-align: center; padding: 40px;">所有Sheet都没有数据</div>';
+                return;
+            }
+            
+            renderScreeningResultsSheet();
+        }
+        
+        // 打开图表配置模态框
+        function openChartConfigModal() {
+            if (!currentQueryResult || !currentQueryResult.data || currentQueryResult.data.length === 0) {
+                alert('请先执行查询并获取数据');
+                return;
+            }
+            
+            const modal = document.getElementById('chart-config-modal');
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            
+            // 初始化图表配置（默认一个图表）
+            initChartConfig();
+        }
+        
+        // 关闭图表配置模态框
+        function closeChartConfigModal() {
+            const modal = document.getElementById('chart-config-modal');
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+        
+        // 图表配置数组
+        let chartConfigs = [];
+        
+        // 检测可用的汇总维度（基于查询时选择的维度）
+        function detectAvailableGroupDimensions() {
+            const dimensions = [];
+            
+            // 检测当前选择了哪些维度（从页面元素检测）
+            const stockChecked = document.getElementById('dimension-stock')?.checked || false;
+            const conceptChecked = document.getElementById('dimension-concept')?.checked || false;
+            const industryChecked = document.getElementById('dimension-industry')?.checked || false;
+            
+            // 如果有明确的查询维度，使用它；否则从页面元素检测
+            const queryDimension = currentQueryDimension || 
+                (industryChecked ? 'industry' : conceptChecked ? 'concept' : stockChecked ? 'stock' : null);
+            
+            console.log('查询维度检测:', {
+                currentQueryDimension,
+                stockChecked,
+                conceptChecked,
+                industryChecked,
+                finalDimension: queryDimension
+            });
+            
+            // 查找实际存在的字段（用于汇总时确定字段名）
+            const findField = (patterns) => {
+                if (!currentQueryResult || !currentQueryResult.columns) return null;
+                for (const pattern of patterns) {
+                    const field = currentQueryResult.columns.find(col => {
+                        const fieldName = col.field || '';
+                        const fieldLower = fieldName.toLowerCase();
+                        return pattern.some(p => {
+                            const pLower = p.toLowerCase();
+                            return fieldLower === pLower || fieldLower.includes(pLower);
+                        });
+                    });
+                    if (field) return field;
+                }
+                return null;
+            };
+            
+            // 根据查询维度显示汇总选项（即使字段不存在也显示，用户可以确保字段存在）
+            // 1. 如果选择了行业维度，显示行业汇总选项
+            if (industryChecked || queryDimension === 'industry') {
+                // 查找行业字段，如果存在则使用，否则使用默认字段名
+                const thirdIndustryField = findField([
+                    ['thirdindustryname', 'ThirdIndustryName'],
+                    ['thirdindustry', 'ThirdIndustry'],
+                    ['三级行业']
+                ]);
+                dimensions.push({ 
+                    value: 'third_industry', 
+                    label: '按三级行业汇总', 
+                    field: thirdIndustryField ? thirdIndustryField.field : 'ThirdIndustryName' 
+                });
+                
+                const secondIndustryField = findField([
+                    ['secondindustryname', 'SecondIndustryName'],
+                    ['secondindustry', 'SecondIndustry'],
+                    ['二级行业']
+                ]);
+                dimensions.push({ 
+                    value: 'second_industry', 
+                    label: '按二级行业汇总', 
+                    field: secondIndustryField ? secondIndustryField.field : 'SecondIndustryName' 
+                });
+                
+                const firstIndustryField = findField([
+                    ['firstindustryname', 'FirstIndustryName'],
+                    ['firstindustry', 'FirstIndustry'],
+                    ['一级行业']
+                ]);
+                dimensions.push({ 
+                    value: 'first_industry', 
+                    label: '按一级行业汇总', 
+                    field: firstIndustryField ? firstIndustryField.field : 'FirstIndustryName' 
+                });
+            }
+            
+            // 2. 如果选择了概念股维度，显示概念股汇总选项（或总是显示，让用户可以选择）
+            if (conceptChecked || queryDimension === 'concept' || queryDimension === null) {
+                const conceptField = findField([
+                    ['conceptname', 'ConceptName'],
+                    ['concept', 'Concept'],
+                    ['概念名称', '概念股']
+                ]);
+                dimensions.push({ 
+                    value: 'concept', 
+                    label: '按概念股汇总', 
+                    field: conceptField ? conceptField.field : 'ConceptName' 
+                });
+            }
+            
+            // 3. 如果选择了个股维度，显示个股汇总选项
+            if (stockChecked || queryDimension === 'stock' || (!industryChecked && !conceptChecked)) {
+                const stockCodeField = findField([
+                    ['stockcode', 'StockCode', 'SecuCode'],
+                    ['securities', 'Securities'],
+                    ['股票代码', '证券代码']
+                ]);
+                dimensions.push({ 
+                    value: 'stock', 
+                    label: '按个股汇总', 
+                    field: stockCodeField ? stockCodeField.field : 'StockCode' 
+                });
+            }
+            
+            // 4. 检测日期字段（用于按日期汇总，通用选项）
+            if (currentQueryResult && currentQueryResult.columns) {
+                const dateField = findField([
+                    ['date', 'Date', 'TradingDay', 'EndDate'],
+                    ['day', 'Day'],
+                    ['time', 'Time'],
+                    ['日期', '交易日期', '报告期']
+                ]);
+                if (dateField) {
+                    dimensions.push({ 
+                        value: 'date', 
+                        label: '按日期汇总', 
+                        field: dateField.field 
+                    });
+                }
+            }
+            
+            console.log('检测到的汇总维度:', dimensions);
+            return dimensions;
+        }
+        
+        // 初始化图表配置
+        function initChartConfig() {
+            // 自动检测默认X轴字段（日期字段优先）
+            let defaultXAxisField = null;
+            if (currentQueryResult && currentQueryResult.columns) {
+                const dateFields = currentQueryResult.columns.filter(col => 
+                    col.field.toLowerCase().includes('date') || 
+                    col.field.toLowerCase().includes('day') ||
+                    col.field.toLowerCase().includes('time')
+                );
+                if (dateFields.length > 0) {
+                    defaultXAxisField = dateFields[0].field;
+                } else if (currentQueryResult.columns.length > 0) {
+                    defaultXAxisField = currentQueryResult.columns[0].field;
+                }
+            }
+            
+            chartConfigs = [{
+                id: Date.now(),
+                title: '图表 1',
+                xAxisField: defaultXAxisField,
+                yAxisFields: [],
+                chartType: 'line'
+            }];
+            renderChartConfigs();
+        }
+        
+        // 添加图表配置
+        function addChartConfig() {
+            // 自动检测X轴字段（日期字段优先）
+            let defaultXAxisField = null;
+            if (currentQueryResult && currentQueryResult.columns) {
+                const dateFields = currentQueryResult.columns.filter(col => 
+                    col.field.toLowerCase().includes('date') || 
+                    col.field.toLowerCase().includes('day') ||
+                    col.field.toLowerCase().includes('time')
+                );
+                if (dateFields.length > 0) {
+                    defaultXAxisField = dateFields[0].field;
+                } else if (currentQueryResult.columns.length > 0) {
+                    defaultXAxisField = currentQueryResult.columns[0].field;
+                }
+            }
+            
+            chartConfigs.push({
+                id: Date.now(),
+                title: `图表 ${chartConfigs.length + 1}`,
+                xAxisField: defaultXAxisField,
+                yAxisFields: [],
+                chartType: 'line'
+            });
+            renderChartConfigs();
+        }
+        
+        // 切换Y轴字段选择
+        function toggleYAxisField(chartId, fieldName, checked) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (!chart) {
+                console.error(`找不到图表配置: ${chartId}`);
+                return;
+            }
+            
+            if (!chart.yAxisFields) {
+                chart.yAxisFields = [];
+            }
+            
+            if (checked) {
+                if (!chart.yAxisFields.includes(fieldName)) {
+                    chart.yAxisFields.push(fieldName);
+                    console.log(`图表 ${chartId} Y轴字段已添加: ${fieldName}, 当前Y轴字段:`, chart.yAxisFields);
+                }
+            } else {
+                chart.yAxisFields = chart.yAxisFields.filter(f => f !== fieldName);
+                console.log(`图表 ${chartId} Y轴字段已移除: ${fieldName}, 当前Y轴字段:`, chart.yAxisFields);
+            }
+        }
+        window.toggleYAxisField = toggleYAxisField;
+        
+        // 更新图表类型
+        function updateChartType(chartId, chartType) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (chart) {
+                chart.chartType = chartType;
+            }
+        }
+        window.updateChartType = updateChartType;
+        
+        // 更新图表汇总维度
+        function updateChartGroupBy(chartId, groupBy) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (chart) {
+                chart.groupBy = groupBy;
+            }
+        }
+        window.updateChartGroupBy = updateChartGroupBy;
+        
+        // 更新图表X轴字段
+        function updateChartXAxis(chartId, xAxisField) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (chart) {
+                chart.xAxisField = xAxisField;
+                console.log(`图表 ${chartId} X轴字段已更新为: ${xAxisField}`);
+            }
+        }
+        window.updateChartXAxis = updateChartXAxis;
+        
+        // 删除图表配置
+        function removeChartConfig(chartId) {
+            chartConfigs = chartConfigs.filter(c => c.id !== chartId);
+            renderChartConfigs();
+        }
+        
+        // 添加字段到图表
+        function addFieldToChart(chartId) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (!chart) return;
+            
+            chart.fields.push({
+                field: '',
+                chartType: 'line',
+                color: getRandomColor()
+            });
+            renderChartConfigs();
+        }
+        
+        // 删除字段
+        function removeFieldFromChart(chartId, fieldIndex) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (!chart) return;
+            
+            chart.fields.splice(fieldIndex, 1);
+            renderChartConfigs();
+        }
+        
+        // 渲染图表配置界面
+        function renderChartConfigs() {
+            const container = document.getElementById('charts-config-container');
+            container.innerHTML = '';
+            
+            chartConfigs.forEach((chart, chartIndex) => {
+                const card = document.createElement('div');
+                card.className = 'chart-config-card';
+                card.style.cssText = 'background: rgba(26, 26, 46, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 20px;';
+                
+                // 生成X轴字段选项（优先显示日期字段）
+                let xAxisOptions = '';
+                if (currentQueryResult && currentQueryResult.columns) {
+                    // 分离日期字段和其他字段
+                    const dateFields = currentQueryResult.columns.filter(col => 
+                        col.field.toLowerCase().includes('date') || 
+                        col.field.toLowerCase().includes('day') ||
+                        col.field.toLowerCase().includes('time')
+                    );
+                    const otherFields = currentQueryResult.columns.filter(col => 
+                        !col.field.toLowerCase().includes('date') && 
+                        !col.field.toLowerCase().includes('day') &&
+                        !col.field.toLowerCase().includes('time')
+                    );
+                    
+                    // 如果没有默认X轴字段，自动选择第一个日期字段
+                    if (!chart.xAxisField && dateFields.length > 0) {
+                        chart.xAxisField = dateFields[0].field;
+                        console.log(`自动设置X轴字段为: ${chart.xAxisField}`);
+                    } else if (!chart.xAxisField && otherFields.length > 0) {
+                        chart.xAxisField = otherFields[0].field;
+                        console.log(`自动设置X轴字段为: ${chart.xAxisField}`);
+                    }
+                    
+                    if (dateFields.length > 0) {
+                        xAxisOptions += '<optgroup label="📅 日期字段">';
+                        dateFields.forEach(col => {
+                            const isSelected = chart.xAxisField === col.field;
+                            xAxisOptions += `<option value="${col.field}" ${isSelected ? 'selected' : ''}>${col.display || col.field}</option>`;
+                        });
+                        xAxisOptions += '</optgroup>';
+                    }
+                    
+                    if (otherFields.length > 0) {
+                        xAxisOptions += '<optgroup label="📊 其他字段">';
+                        otherFields.forEach(col => {
+                            const isSelected = chart.xAxisField === col.field;
+                            xAxisOptions += `<option value="${col.field}" ${isSelected ? 'selected' : ''}>${col.display || col.field}</option>`;
+                        });
+                        xAxisOptions += '</optgroup>';
+                    }
+                } else {
+                    xAxisOptions = '<option value="">无可用字段</option>';
+                }
+                
+                // 生成Y轴字段选项（只显示数值字段）
+                const numericFields = currentQueryResult && currentQueryResult.columns ? 
+                    currentQueryResult.columns.filter(col => {
+                        const fieldLower = col.field.toLowerCase();
+                        return !fieldLower.match(/(code|name|id|date|day|time|type|status|flag)$/);
+                    }) : [];
+                
+                const yAxisFieldsHtml = numericFields.length > 0 ? 
+                    numericFields.map(col => {
+                        const isSelected = chart.yAxisFields && chart.yAxisFields.includes(col.field);
+                        return `
+                            <label style="display: flex; align-items: center; padding: 10px 12px; cursor: pointer; color: #ffffff; font-size: 14px; border-radius: 6px; margin-bottom: 6px; transition: all 0.2s; ${isSelected ? 'background: rgba(236, 72, 153, 0.3); border: 1px solid rgba(236, 72, 153, 0.5);' : 'background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);'}" 
+                                   onmouseover="if(!this.style.background.includes('0.3')) this.style.background='rgba(255,255,255,0.1)'" 
+                                   onmouseout="if(!this.style.background.includes('0.3')) this.style.background='${isSelected ? 'rgba(236, 72, 153, 0.3)' : 'rgba(255,255,255,0.05)'}'">
+                                <input type="checkbox" value="${col.field}" data-chart-id="${chart.id}" ${isSelected ? 'checked' : ''} 
+                                       onchange="toggleYAxisField(${chart.id}, '${col.field}', this.checked); console.log('Y轴字段切换:', '${col.field}', this.checked);"
+                                       style="margin-right: 12px; cursor: pointer; width: 18px; height: 18px; accent-color: #ec4899;">
+                                <span style="flex: 1;">${col.display || col.field}</span>
+                                ${isSelected ? '<span style="color: #ec4899; font-size: 12px;">✓</span>' : ''}
+                            </label>
+                        `;
+                    }).join('') : 
+                    '<div style="color: rgba(255,255,255,0.5); padding: 20px; text-align: center;">暂无数值字段可选</div>';
+                
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <input type="text" value="${chart.title}" onchange="updateChartTitle(${chart.id}, this.value)" 
+                               placeholder="图表标题"
+                               style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 10px 16px; color: #ffffff; font-size: 18px; font-weight: 600; flex: 1; max-width: 300px;">
+                        <div style="display: flex; gap: 8px;">
+                            ${chartConfigs.length > 1 ? `<button type="button" onclick="removeChartConfig(${chart.id})" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #ffffff; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px;">🗑️ 删除</button>` : ''}
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                        <div style="padding: 16px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
+                            <label style="display: block; color: #ffffff; font-weight: 600; margin-bottom: 10px; font-size: 14px;">📈 横坐标（X轴）</label>
+                            <select id="x-axis-${chart.id}" onchange="updateChartXAxis(${chart.id}, this.value)" 
+                                    style="width: 100%; padding: 10px 12px; background: #1a1a2e; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #ffffff; font-size: 14px; cursor: pointer;">
+                                ${xAxisOptions}
+                            </select>
+                            <div style="color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 6px; line-height: 1.4;">
+                                💡 图表将按此字段自动分组
+                            </div>
+                        </div>
+                        
+                        <div style="padding: 16px; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px;">
+                            <label style="display: block; color: #ffffff; font-weight: 600; margin-bottom: 10px; font-size: 14px;">📊 图表类型</label>
+                            <select id="chart-type-${chart.id}" onchange="updateChartType(${chart.id}, this.value)" 
+                                    style="width: 100%; padding: 10px 12px; background: #1a1a2e; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #ffffff; font-size: 14px; cursor: pointer;">
+                                <option value="line" ${chart.chartType === 'line' ? 'selected' : ''}>📈 折线图</option>
+                                <option value="bar" ${chart.chartType === 'bar' ? 'selected' : ''}>📊 柱状图</option>
+                                <option value="scatter" ${chart.chartType === 'scatter' ? 'selected' : ''}>🔵 散点图</option>
+                            </select>
+                            <div style="color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 6px; line-height: 1.4;">
+                                💡 选择图表展示样式
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 16px; background: rgba(236, 72, 153, 0.1); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <label style="display: block; color: #ffffff; font-weight: 600; font-size: 14px;">📊 纵坐标（Y轴）- 可多选</label>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" onclick="selectAllYFields(${chart.id})" style="background: rgba(236, 72, 153, 0.2); border: 1px solid rgba(236, 72, 153, 0.4); color: #ffffff; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">全选</button>
+                                <button type="button" onclick="deselectAllYFields(${chart.id})" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">全不选</button>
+                            </div>
+                        </div>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px; background: rgba(0,0,0,0.2);">
+                            ${yAxisFieldsHtml}
+                        </div>
+                        <div style="color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 8px; line-height: 1.4;">
+                            💡 选择要显示的数值字段，系统会按X轴分组后自动求和
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+        
+        // Y轴字段全选/全不选
+        function selectAllYFields(chartId) {
+            if (!currentQueryResult || !currentQueryResult.columns) return;
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (!chart) return;
+            
+            const numericFields = currentQueryResult.columns.filter(col => {
+                const fieldLower = col.field.toLowerCase();
+                return !fieldLower.match(/(code|name|id|date|day|time|type|status|flag)$/);
+            });
+            
+            chart.yAxisFields = numericFields.map(col => col.field);
+            renderChartConfigs();
+        }
+        window.selectAllYFields = selectAllYFields;
+        
+        function deselectAllYFields(chartId) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (chart) {
+                chart.yAxisFields = [];
+                renderChartConfigs();
+            }
+        }
+        window.deselectAllYFields = deselectAllYFields;
+        
+        // 切换批量字段选择
+        function toggleBatchField(chartId, fieldName, checked) {
+            // 仅用于更新复选框状态，实际添加在applyBatchFields中处理
+        }
+        
+        // 应用批量选择的字段
+        function applyBatchFields(chartId) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (!chart) return;
+            
+            const chartType = document.getElementById(`batch-chart-type-${chartId}`).value;
+            // 使用data属性选择器
+            const batchContainer = document.querySelector(`[data-chart-id="${chartId}"]`);
+            if (!batchContainer) return;
+            
+            const checkboxes = batchContainer.querySelectorAll(`input[type="checkbox"][data-chart-id="${chartId}"]`);
+            
+            let addedCount = 0;
+            let updatedCount = 0;
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const fieldName = checkbox.value;
+                    // 如果字段已存在，更新类型；否则添加新字段
+                    const existingField = chart.fields.find(f => f.field === fieldName);
+                    if (existingField) {
+                        existingField.chartType = chartType;
+                        updatedCount++;
+                    } else {
+                        chart.fields.push({
+                            field: fieldName,
+                            chartType: chartType,
+                            color: getRandomColor()
+                        });
+                        addedCount++;
+                    }
+                }
+            });
+            
+            // 显示提示
+            const btn = event?.target || batchContainer.querySelector(`button[onclick*="applyBatchFields(${chartId})"]`);
+            if (btn && (addedCount > 0 || updatedCount > 0)) {
+                const originalText = btn.textContent;
+                if (addedCount > 0) {
+                    btn.textContent = `✓ 已添加 ${addedCount} 个字段`;
+                } else if (updatedCount > 0) {
+                    btn.textContent = `✓ 已更新 ${updatedCount} 个字段`;
+                }
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 1500);
+            }
+            
+            renderChartConfigs();
+        }
+        
+        // 全选字段
+        function selectAllFields(chartId) {
+            const batchContainer = document.querySelector(`[data-chart-id="${chartId}"]`);
+            if (!batchContainer) return;
+            
+            const checkboxes = batchContainer.querySelectorAll(`input[type="checkbox"][data-chart-id="${chartId}"]`);
+            checkboxes.forEach(cb => cb.checked = true);
+        }
+        
+        // 全不选字段
+        function deselectAllFields(chartId) {
+            const batchContainer = document.querySelector(`[data-chart-id="${chartId}"]`);
+            if (!batchContainer) return;
+            
+            const checkboxes = batchContainer.querySelectorAll(`input[type="checkbox"][data-chart-id="${chartId}"]`);
+            checkboxes.forEach(cb => cb.checked = false);
+        }
+        
+        // 仅选择数值字段
+        function selectNumericFields(chartId) {
+            const batchContainer = document.querySelector(`[data-chart-id="${chartId}"]`);
+            if (!batchContainer) return;
+            
+            const checkboxes = batchContainer.querySelectorAll(`input[type="checkbox"][data-chart-id="${chartId}"]`);
+            checkboxes.forEach(cb => {
+                const fieldName = cb.value;
+                // 简单判断：排除明显不是数值的字段（如包含code, name, id等）
+                const isNumeric = !fieldName.toLowerCase().match(/(code|name|id|date|day|time|type|status|flag)$/);
+                cb.checked = isNumeric;
+            });
+        }
+        
+        // 更新图表标题
+        function updateChartTitle(chartId, title) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (chart) {
+                chart.title = title;
+            }
+        }
+        
+        // 更新字段配置
+        function updateFieldConfig(chartId, fieldIndex, key, value) {
+            const chart = chartConfigs.find(c => c.id === chartId);
+            if (chart && chart.fields[fieldIndex]) {
+                chart.fields[fieldIndex][key] = value;
+            }
+        }
+        
+        // 获取随机颜色
+        function getRandomColor() {
+            const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+        
+        // 存储图表实例
+        let chartInstances = [];
+        
+        // 根据汇总维度聚合数据
+        function aggregateDataByDimension(data, groupBy, xAxisField, valueFields) {
+            if (!groupBy || groupBy === 'none') {
+                // 不汇总，返回原始数据
+                return {
+                    labels: data.map(row => {
+                        const value = row[xAxisField];
+                        if (value && typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}/)) {
+                            return value.substring(0, 10);
+                        }
+                        return value || '';
+                    }),
+                    aggregatedData: data
+                };
+            }
+            
+            const availableDimensions = detectAvailableGroupDimensions();
+            const dimension = availableDimensions.find(d => d.value === groupBy);
+            if (!dimension) {
+                // 维度不存在，返回原始数据
+                return {
+                    labels: data.map(row => row[xAxisField] || ''),
+                    aggregatedData: data
+                };
+            }
+            
+            // 查找分组字段
+            let groupField = dimension.field;
+            if (groupBy === 'date') {
+                // 日期汇总需要找到实际的日期字段
+                groupField = xAxisField;
+            } else {
+                // 查找实际的字段名（可能需要匹配不同的命名方式）
+                const possibleFields = currentQueryResult.columns.map(col => col.field);
+                if (!groupField || !possibleFields.includes(groupField)) {
+                    // 尝试模糊匹配
+                    const matchedField = possibleFields.find(f => 
+                        f.toLowerCase().includes(groupField.toLowerCase()) ||
+                        f.toLowerCase().includes(dimension.value.replace('_', ''))
+                    );
+                    if (matchedField) {
+                        groupField = matchedField;
+                    } else {
+                        console.warn(`无法找到分组字段: ${dimension.field}，使用原始数据`);
+                        return {
+                            labels: data.map(row => row[xAxisField] || ''),
+                            aggregatedData: data
+                        };
+                    }
+                }
+            }
+            
+            // 按分组字段和X轴字段分组
+            const grouped = {};
+            data.forEach(row => {
+                const groupKey = groupBy === 'date' 
+                    ? (row[xAxisField] ? String(row[xAxisField]).substring(0, 10) : '') 
+                    : String(row[groupField] || '未知');
+                const xKey = row[xAxisField] ? String(row[xAxisField]).substring(0, 10) : '';
+                const combinedKey = `${groupKey}|${xKey}`;
+                
+                if (!grouped[combinedKey]) {
+                    grouped[combinedKey] = {
+                        group: groupKey,
+                        xValue: xKey,
+                        rows: [],
+                        sums: {}
+                    };
+                }
+                
+                grouped[combinedKey].rows.push(row);
+                
+                // 累加数值字段
+                valueFields.forEach(field => {
+                    const value = parseFloat(row[field]);
+                    if (!isNaN(value)) {
+                        grouped[combinedKey].sums[field] = (grouped[combinedKey].sums[field] || 0) + value;
+                    }
+                });
+            });
+            
+            // 转换为数组并按X轴值排序
+            const aggregatedData = Object.values(grouped).sort((a, b) => {
+                return a.xValue.localeCompare(b.xValue);
+            });
+            
+            // 提取唯一的X轴标签（按日期排序）
+            const uniqueXValues = [...new Set(aggregatedData.map(item => item.xValue))].sort();
+            
+            return {
+                labels: uniqueXValues,
+                aggregatedData: aggregatedData,
+                groups: [...new Set(aggregatedData.map(item => item.group))].sort()
+            };
+        }
+        
+        // 生成图表
+        function generateCharts() {
+            // 验证配置
+            const invalidCharts = [];
+            for (let i = 0; i < chartConfigs.length; i++) {
+                const chart = chartConfigs[i];
+                const issues = [];
+                
+                if (!chart.xAxisField) {
+                    issues.push('未选择X轴字段');
+                }
+                if (!chart.yAxisFields || chart.yAxisFields.length === 0) {
+                    issues.push('未选择Y轴字段');
+                }
+                
+                if (issues.length > 0) {
+                    invalidCharts.push(`图表 ${i + 1} (${chart.title || '未命名'}): ${issues.join(', ')}`);
+                }
+            }
+            
+            if (invalidCharts.length > 0) {
+                alert('请完善以下图表的配置：\n\n' + invalidCharts.join('\n'));
+                return;
+            }
+            
+            // 调试信息
+            console.log('开始生成图表，配置:', chartConfigs.map(c => ({
+                title: c.title,
+                xAxis: c.xAxisField,
+                yAxis: c.yAxisFields,
+                type: c.chartType
+            })));
+            
+            // 清除之前的图表
+            chartInstances.forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            chartInstances = [];
+            
+            // 生成每个图表
+            const chartsContainer = document.getElementById('charts-container');
+            chartsContainer.innerHTML = '';
+            
+            chartConfigs.forEach((chartConfig, chartIndex) => {
+                // 验证配置
+                if (!chartConfig.xAxisField) {
+                    console.warn(`图表 ${chartConfig.title} 未设置X轴字段`);
+                    return;
+                }
+                
+                if (!chartConfig.yAxisFields || chartConfig.yAxisFields.length === 0) {
+                    console.warn(`图表 ${chartConfig.title} 未设置Y轴字段`);
+                    return;
+                }
+                
+                const xAxisField = chartConfig.xAxisField;
+                const yAxisFields = chartConfig.yAxisFields;
+                
+                // 检测Y轴字段是否是季度数据（通过字段名判断）
+                const isQuarterlyData = yAxisFields.some(field => {
+                    const fieldLower = field.toLowerCase();
+                    return fieldLower.includes('balance') || 
+                           fieldLower.includes('资产负债表') ||
+                           fieldLower.includes('income') ||
+                           fieldLower.includes('利润表') ||
+                           fieldLower.includes('cashflow') ||
+                           fieldLower.includes('现金流量表') ||
+                           fieldLower.includes('financial') ||
+                           fieldLower.includes('财务');
+                });
+                
+                // 按X轴字段分组，对Y轴字段求和
+                const grouped = {};
+                currentQueryResult.data.forEach(row => {
+                    // 格式化X轴值
+                    let xKey = '';
+                    if (row[xAxisField]) {
+                        const xValue = String(row[xAxisField]);
+                        if (xValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+                            xKey = xValue.substring(0, 10);
+                        } else if (xValue.match(/^\d{8}/)) {
+                            xKey = xValue.substring(0, 4) + '-' + xValue.substring(4, 6) + '-' + xValue.substring(6, 8);
+                        } else {
+                            xKey = xValue;
+                        }
+                    }
+                    
+                    // 检查该行是否有有效的Y轴数据
+                    let hasValidData = false;
+                    const rowSums = {};
+                    
+                    yAxisFields.forEach(field => {
+                        const value = parseFloat(row[field]);
+                        if (!isNaN(value) && value !== null && value !== undefined) {
+                            rowSums[field] = value;
+                            hasValidData = true;
+                        }
+                    });
+                    
+                    // 如果是季度数据，只处理有有效数据的行
+                    // 如果是日度数据，也处理有有效数据的行（但允许累加）
+                    if (hasValidData) {
+                        if (!grouped[xKey]) {
+                            grouped[xKey] = {
+                                xValue: xKey,
+                                sums: {},
+                                hasData: false
+                            };
+                        }
+                        
+                        // 累加Y轴字段
+                        yAxisFields.forEach(field => {
+                            if (rowSums[field] !== undefined) {
+                                grouped[xKey].sums[field] = (grouped[xKey].sums[field] || 0) + rowSums[field];
+                                grouped[xKey].hasData = true;
+                            }
+                        });
+                    }
+                });
+                
+                // 转换为数组并按X轴值排序
+                // 对于季度数据，只保留有实际数据的日期点
+                let aggregatedData = Object.values(grouped);
+                
+                if (isQuarterlyData) {
+                    // 过滤掉没有数据的日期点
+                    aggregatedData = aggregatedData.filter(item => item.hasData);
+                }
+                
+                aggregatedData = aggregatedData.sort((a, b) => {
+                    if (a.xValue.match(/^\d{4}-\d{2}-\d{2}/) && b.xValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+                        return a.xValue.localeCompare(b.xValue);
+                    }
+                    return a.xValue.localeCompare(b.xValue);
+                });
+                
+                // 提取X轴标签（只包含有数据的日期点）
+                const labels = aggregatedData.map(item => item.xValue);
+                
+                // 创建图表容器
+                const chartDiv = document.createElement('div');
+                chartDiv.className = 'chart-container';
+                chartDiv.innerHTML = `<div class="chart-title">${chartConfig.title}</div><canvas id="chart-${chartConfig.id}"></canvas>`;
+                chartsContainer.appendChild(chartDiv);
+                
+                // 准备数据集：每个Y轴字段一条线
+                const datasets = [];
+                const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16'];
+                const chartType = chartConfig.chartType || 'line';
+                
+                // 对于季度数据，需要构建只包含有效数据点的标签和数据
+                // 收集所有有数据的日期点（所有字段的并集）
+                const validDatesSet = new Set();
+                const finalDataMap = {}; // 存储每个字段的有效数据点
+                
+                yAxisFields.forEach((field, fieldIndex) => {
+                    const column = currentQueryResult.columns.find(col => col.field === field);
+                    if (!column) return;
+                    
+                    // 从汇总数据中提取该字段的值
+                    const fieldData = [];
+                    const fieldLabels = [];
+                    
+                    aggregatedData.forEach(item => {
+                        const value = item.sums[field];
+                        // 只包含有效数据（非null、非undefined、非NaN）
+                        if (value !== undefined && value !== null && !isNaN(value)) {
+                            // 对于季度数据，过滤掉0值（如果所有字段都是0，可能是无效数据）
+                            if (isQuarterlyData && value === 0) {
+                                const allZero = yAxisFields.every(f => !item.sums[f] || item.sums[f] === 0);
+                                if (allZero) {
+                                    return; // 跳过这个数据点
+                                }
+                            }
+                            fieldData.push(value);
+                            fieldLabels.push(item.xValue);
+                            validDatesSet.add(item.xValue); // 记录有数据的日期
+                        }
+                    });
+                    
+                    // 如果这个字段没有有效数据，跳过
+                    if (fieldData.length === 0) {
+                        console.warn(`字段 ${field} 没有有效数据，跳过`);
+                        return;
+                    }
+                    
+                    // 存储这个字段的数据和标签
+                    finalDataMap[field] = {
+                        data: fieldData,
+                        labels: fieldLabels
+                    };
+                });
+                
+                // 构建最终标签：对于季度数据，只包含有数据的日期；对于日度数据，使用所有标签
+                let finalLabels;
+                if (isQuarterlyData) {
+                    // 季度数据：只显示有数据的日期点
+                    finalLabels = Array.from(validDatesSet).sort((a, b) => {
+                        if (a.match(/^\d{4}-\d{2}-\d{2}/) && b.match(/^\d{4}-\d{2}-\d{2}/)) {
+                            return a.localeCompare(b);
+                        }
+                        return a.localeCompare(b);
+                    });
+                } else {
+                    // 日度数据：使用所有标签
+                    finalLabels = labels;
+                }
+                
+                // 为每个字段创建数据集
+                yAxisFields.forEach((field, fieldIndex) => {
+                    if (!finalDataMap[field]) return;
+                    
+                    const column = currentQueryResult.columns.find(col => col.field === field);
+                    if (!column) return;
+                    
+                    const fieldInfo = finalDataMap[field];
+                    const color = colors[fieldIndex % colors.length];
+                    
+                    // 构建数据数组，与finalLabels对齐（缺失值用null表示）
+                    const data = finalLabels.map(label => {
+                        const labelIndex = fieldInfo.labels.indexOf(label);
+                        if (labelIndex >= 0) {
+                            return fieldInfo.data[labelIndex];
+                        }
+                        return null; // 这个标签在这个字段中没有数据
+                    });
+                    
+                    const dataset = {
+                        label: column.display || field,
+                        data: data,
+                        borderColor: color,
+                        backgroundColor: chartType === 'bar' ? color + '80' : color + '20',
+                        borderWidth: 2,
+                        fill: chartType === 'line',
+                        tension: chartType === 'line' ? 0.4 : 0,
+                        spanGaps: false, // 不连接缺失的数据点
+                        pointRadius: isQuarterlyData ? 4 : 3, // 季度数据点更大更明显
+                        pointHoverRadius: isQuarterlyData ? 6 : 5
+                    };
+                    
+                    if (chartType === 'bar') {
+                        dataset.type = 'bar';
+                    } else if (chartType === 'scatter') {
+                        dataset.type = 'scatter';
+                    }
+                    
+                    datasets.push(dataset);
+                });
+                
+                if (datasets.length === 0) {
+                    console.warn(`图表 ${chartConfig.title} 没有有效数据，跳过生成`);
+                    return;
+                }
+                
+                // 创建图表
+                const ctx = document.getElementById(`chart-${chartConfig.id}`);
+                if (ctx) {
+                    const chart = new Chart(ctx, {
+                        type: chartConfig.chartType || 'line', // 图表类型
+                        data: {
+                            labels: finalLabels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        color: '#1a1a2e',
+                                        font: {
+                                            size: 12
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    titleColor: '#ffffff',
+                                    bodyColor: '#ffffff',
+                                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                                    borderWidth: 1,
+                                    padding: 12,
+                                    cornerRadius: 8
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    ticks: {
+                                        color: '#1a1a2e',
+                                        maxRotation: 45,
+                                        minRotation: 0
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.1)'
+                                    }
+                                },
+                                y: {
+                                    ticks: {
+                                        color: '#1a1a2e'
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.1)'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    
+                    chartInstances.push(chart);
+                }
+            });
+            
+            // 关闭配置模态框
+            closeChartConfigModal();
+            
+            // 滚动到图表区域
+            document.getElementById('charts-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // 切换SQL显示/隐藏
+        function toggleSQLView() {
+            const container = document.getElementById('sql-view-container');
+            const btn = document.getElementById('sql-toggle-btn');
+            
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                btn.textContent = '🔒 隐藏SQL';
+                btn.style.background = 'rgba(239, 68, 68, 0.2)';
+                btn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                btn.style.color = '#ef4444';
+            } else {
+                container.style.display = 'none';
+                btn.textContent = '🔍 查看SQL';
+                btn.style.background = 'rgba(16, 185, 129, 0.2)';
+                btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                btn.style.color = '#10b981';
+            }
+        }
+        
+        // 复制SQL到剪贴板
+        function copySQL() {
+            const sqlContent = document.getElementById('sql-content');
+            if (!sqlContent) return;
+            
+            const sqlText = sqlContent.textContent || sqlContent.innerText;
+            
+            // 使用现代 Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(sqlText).then(() => {
+                    showCopySuccess();
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                    fallbackCopyTextToClipboard(sqlText);
+                });
+            } else {
+                // 降级方案
+                fallbackCopyTextToClipboard(sqlText);
+            }
+        }
+        
+        // 降级复制方案
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showCopySuccess();
+                } else {
+                    alert('复制失败，请手动选择并复制SQL语句');
+                }
+            } catch (err) {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动选择并复制SQL语句');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        // 显示复制成功提示
+        function showCopySuccess() {
+            const btn = document.querySelector('button[onclick="copySQL()"]');
+            if (!btn) return;
+            
+            const originalText = btn.textContent;
+            btn.textContent = '✓ 已复制';
+            btn.style.background = 'rgba(16, 185, 129, 0.3)';
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+            }, 2000);
+        }
+        
+        // HTML转义函数
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ==================== SQL模板管理功能 ====================
+        let currentQueryMode = 'table'; // 'table' 或 'template'
+        let allTemplates = []; // 存储所有模板
+        
+        // 切换查询模式（skipLoad 用于 URL 带 execution_id 时由外部自行加载历史并带参）
+        function switchQueryMode(mode, skipScreeningLoad) {
+            currentQueryMode = mode;
+            
+            const tableTab = document.getElementById('tab-table');
+            const templateTab = document.getElementById('tab-template');
+            const screeningTab = document.getElementById('tab-screening');
+            const tablePanel = document.getElementById('table-query-panel');
+            const templatePanel = document.getElementById('template-query-panel');
+            const screeningPanel = document.getElementById('screening-query-panel');
+            
+            const setActive = (tab, panel) => {
+                [tableTab, templateTab, screeningTab].forEach(t => {
+                    t.style.background = 'rgba(255, 255, 255, 0.05)';
+                    t.style.borderBottomColor = 'transparent';
+                    t.style.color = 'rgba(255, 255, 255, 0.7)';
+                });
+                tab.style.background = 'rgba(99, 102, 241, 0.3)';
+                tab.style.borderBottomColor = '#6366f1';
+                tab.style.color = '#ffffff';
+                tablePanel.style.display = (panel === tablePanel) ? 'block' : 'none';
+                templatePanel.style.display = (panel === templatePanel) ? 'block' : 'none';
+                screeningPanel.style.display = (panel === screeningPanel) ? 'block' : 'none';
+            };
+            
+            if (mode === 'table') {
+                setActive(tableTab, tablePanel);
+            } else if (mode === 'template') {
+                setActive(templateTab, templatePanel);
+                loadTemplates();
+            } else if (mode === 'screening') {
+                setActive(screeningTab, screeningPanel);
+                if (!skipScreeningLoad) loadScreeningHistory();
+            }
+        }
+        
+        // 确保 switchQueryMode 在全局作用域可访问
+        window.switchQueryMode = switchQueryMode;
+        
+        // 加载模板列表
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/api/data_query/templates');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allTemplates = data.templates;
+                    renderTemplatesList();
+                    renderTemplateSelect();
+                } else {
+                    alert('加载模板失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('加载模板失败:', error);
+                alert('加载模板失败: ' + error.message);
+            }
+        }
+        
+        // 渲染模板列表
+        function renderTemplatesList() {
+            const container = document.getElementById('templates-list');
+            if (!container) return;
+            
+            if (allTemplates.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.6);">暂无SQL模板，点击"新建模板"创建</div>';
+                return;
+            }
+            
+            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">';
+            allTemplates.forEach(template => {
+                html += `
+                    <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                            <h4 style="color: #ffffff; margin: 0; font-size: 16px; font-weight: 600;">${escapeHtml(template.template_name)}</h4>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="editTemplate(${template.id})" style="background: rgba(99, 102, 241, 0.3); border: 1px solid rgba(99, 102, 241, 0.5); color: #ffffff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">编辑</button>
+                                <button onclick="deleteTemplate(${template.id})" style="background: rgba(239, 68, 68, 0.3); border: 1px solid rgba(239, 68, 68, 0.5); color: #ffffff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">删除</button>
+                            </div>
+                        </div>
+                        ${template.description ? `<p style="color: rgba(255, 255, 255, 0.7); font-size: 13px; margin: 0 0 8px 0;">${escapeHtml(template.description)}</p>` : ''}
+                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 12px; font-family: monospace; background: rgba(0, 0, 0, 0.3); padding: 8px; border-radius: 6px; max-height: 80px; overflow: hidden; text-overflow: ellipsis;">
+                            ${escapeHtml(template.sql_template.substring(0, 100))}${template.sql_template.length > 100 ? '...' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // 渲染模板选择下拉框
+        function renderTemplateSelect() {
+            const select = document.getElementById('template-select');
+            if (!select) return;
+            
+            select.innerHTML = '<option value="">请选择SQL模板...</option>';
+            allTemplates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = template.template_name;
+                select.appendChild(option);
+            });
+        }
+        
+        // 打开模板编辑模态框
+        function openTemplateModal(templateId = null) {
+            const modal = document.getElementById('template-modal');
+            const title = document.getElementById('template-modal-title');
+            const form = document.getElementById('template-form');
+            const idInput = document.getElementById('template-id');
+            const nameInput = document.getElementById('template-name');
+            const sqlInput = document.getElementById('template-sql');
+            const descInput = document.getElementById('template-description-input');
+            
+            if (templateId) {
+                // 编辑模式
+                const template = allTemplates.find(t => t.id === templateId);
+                if (template) {
+                    title.textContent = '📝 编辑SQL模板';
+                    idInput.value = template.id;
+                    nameInput.value = template.template_name;
+                    sqlInput.value = template.sql_template;
+                    descInput.value = template.description || '';
+                }
+            } else {
+                // 新建模式
+                title.textContent = '📝 新建SQL模板';
+                idInput.value = '';
+                nameInput.value = '';
+                sqlInput.value = '';
+                descInput.value = '';
+            }
+            
+            modal.style.display = 'flex';
+        }
+        
+        // 关闭模板编辑模态框
+        function closeTemplateModal() {
+            const modal = document.getElementById('template-modal');
+            modal.style.display = 'none';
+        }
+        
+        // 确保这些函数在全局作用域可访问
+        window.openTemplateModal = openTemplateModal;
+        window.closeTemplateModal = closeTemplateModal;
+        
+        // 编辑模板
+        function editTemplate(templateId) {
+            openTemplateModal(templateId);
+        }
+        
+        window.editTemplate = editTemplate;
+        
+        // 删除模板
+        async function deleteTemplate(templateId) {
+            if (!confirm('确定要删除这个模板吗？')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/data_query/templates/${templateId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('删除成功');
+                    loadTemplates();
+                } else {
+                    alert('删除失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('删除模板失败:', error);
+                alert('删除模板失败: ' + error.message);
+            }
+        }
+        
+        window.deleteTemplate = deleteTemplate;
+        
+        // 保存模板
+        async function saveTemplate(event) {
+            event.preventDefault();
+            
+            const id = document.getElementById('template-id').value;
+            const name = document.getElementById('template-name').value.trim();
+            const sql = document.getElementById('template-sql').value.trim();
+            const description = document.getElementById('template-description-input').value.trim();
+            
+            if (!name || !sql) {
+                alert('模板名称和SQL内容不能为空');
+                return;
+            }
+            
+            try {
+                const payload = {
+                    id: id || undefined,
+                    template_name: name,
+                    sql_template: sql,
+                    description: description
+                };
+                
+                const response = await fetch('/api/data_query/templates', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('保存成功');
+                    closeTemplateModal();
+                    loadTemplates();
+                } else {
+                    alert('保存失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('保存模板失败:', error);
+                alert('保存模板失败: ' + error.message);
+            }
+        }
+        
+        window.saveTemplate = saveTemplate;
+        
+        // 加载模板预览
+        function loadTemplatePreview() {
+            const select = document.getElementById('template-select');
+            const previewGroup = document.getElementById('template-preview-group');
+            const previewTextarea = document.getElementById('template-sql-preview');
+            const descriptionSpan = document.getElementById('template-description');
+            
+            const templateId = select.value;
+            if (!templateId) {
+                previewGroup.style.display = 'none';
+                return;
+            }
+            
+            const template = allTemplates.find(t => t.id == templateId);
+            if (template) {
+                previewTextarea.value = template.sql_template;
+                descriptionSpan.textContent = template.description || '无描述';
+                previewGroup.style.display = 'block';
+            }
+        }
+        
+        window.loadTemplatePreview = loadTemplatePreview;
+        
+        // 执行模板查询
+        async function executeTemplateQuery(event) {
+            event.preventDefault();
+            
+            const templateId = document.getElementById('template-select').value;
+            if (!templateId) {
+                alert('请选择SQL模板');
+                return;
+            }
+            
+            const btn = document.getElementById('template-query-btn');
+            btn.disabled = true;
+            btn.textContent = '查询中...';
+            
+            const resultsPanel = document.getElementById('results-panel');
+            const resultsContent = document.getElementById('results-content');
+            resultsContent.innerHTML = '<div class="loading">正在查询，请稍候...</div>';
+            resultsPanel.classList.add('active');
+            
+            try {
+                const queryData = {
+                    template_id: parseInt(templateId),
+                    stock_codes: [], // 模板查询暂不支持股票代码过滤
+                    date_range: {} // 模板查询暂不支持日期过滤
+                };
+                
+                const response = await fetch('/api/data_query/execute_template', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(queryData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    resultsContent.innerHTML = `<div class="error">查询失败: ${result.error}</div>`;
+                }
+            } catch (error) {
+                resultsContent.innerHTML = `<div class="error">查询失败: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '执行模板查询';
+            }
+        }
+        
+        window.executeTemplateQuery = executeTemplateQuery;
+        
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            loadTables();
+            
+            // 加载股票列表缓存（每天第一次访问时从服务器加载）
+            loadAllStocks().catch(e => {
+                console.error('加载股票列表失败:', e);
+            });
+            
+            const params = new URLSearchParams(location.search);
+            const eid = params.get('execution_id');
+            if (eid) {
+                switchQueryMode('screening', true);
+                loadScreeningHistory().then(() => {
+                    const sel = document.getElementById('screening-execution-select');
+                    if (sel) sel.value = eid;
+                    loadScreeningResult(parseInt(eid, 10));
+                });
+            }
+        });
+        
+        // 表配置卡片样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .table-config-card {
+                transition: all 0.3s ease;
+            }
+            .table-config-card:hover {
+                border-color: rgba(99, 102, 241, 0.3) !important;
+                box-shadow: 0 4px 16px rgba(99, 102, 241, 0.2);
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 点击外部关闭搜索结果
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#stock-search') && !e.target.closest('#stock-results')) {
+                document.getElementById('stock-results').classList.remove('active');
+            }
+        });
+        
+        // 获取所有选中的股票代码（从多个维度）
+        async function getAllSelectedStockCodes() {
+            const stockCodes = [];
+            
+            // 1. 个股维度
+            if (document.getElementById('dimension-stock') && document.getElementById('dimension-stock').checked) {
+                stockCodes.push(...selectedStocks.map(s => s.code));
+            }
+            
+            // 2. 概念股维度
+            if (document.getElementById('dimension-concept') && document.getElementById('dimension-concept').checked) {
+                const conceptSelect = document.getElementById('concept-select');
+                if (conceptSelect) {
+                    const selectedConceptIds = Array.from(conceptSelect.selectedOptions).map(opt => opt.value).filter(v => v);
+                    
+                    if (selectedConceptIds.length === 0) {
+                        console.warn('概念维度已选择，但未选择任何概念');
+                    }
+                    
+                    for (const conceptId of selectedConceptIds) {
+                        try {
+                            const response = await fetch(`/api/concept_stocks/${conceptId}/stocks`);
+                            const data = await response.json();
+                            if (data.success && data.stocks && Array.isArray(data.stocks)) {
+                                data.stocks.forEach(stock => {
+                                    // 兼容不同的数据格式
+                                    const code = stock.code || stock.stock_code || '';
+                                    if (code && !stockCodes.includes(code)) {
+                                        stockCodes.push(code);
+                                    }
+                                });
+                            } else if (data.success && (!data.stocks || data.stocks.length === 0)) {
+                                console.warn(`概念 ${conceptId} 下没有股票`);
+                            }
+                        } catch (error) {
+                            console.error(`获取概念股 ${conceptId} 的股票列表失败:`, error);
+                        }
+                    }
+                }
+            }
+            
+            // 3. 行业维度
+            if (document.getElementById('dimension-industry') && document.getElementById('dimension-industry').checked) {
+                const thirdIndustrySelect = document.getElementById('third-industry-select');
+                if (thirdIndustrySelect) {
+                    const selectedIndustries = Array.from(thirdIndustrySelect.selectedOptions).map(opt => opt.value).filter(v => v);
+                    
+                    if (selectedIndustries.length > 0) {
+                        try {
+                            const response = await fetch('/api/industries/get_stocks', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({industry_names: selectedIndustries})
+                            });
+                            const data = await response.json();
+                            if (data.success && data.stocks) {
+                                data.stocks.forEach(stock => {
+                                    if (!stockCodes.includes(stock.code)) {
+                                        stockCodes.push(stock.code);
+                                    }
+                                });
+                            }
+                        } catch (error) {
+                            console.error('获取行业股票列表失败:', error);
+                        }
+                    }
+                }
+            }
+            
+            return stockCodes;
+        }
+        
+        // 维度选择切换
+        function updateDimensionSections() {
+            const stockChecked = document.getElementById('dimension-stock')?.checked || false;
+            const conceptChecked = document.getElementById('dimension-concept')?.checked || false;
+            const industryChecked = document.getElementById('dimension-industry')?.checked || false;
+            
+            const stockSection = document.getElementById('stock-dimension-section');
+            const conceptSection = document.getElementById('concept-dimension-section');
+            const industrySection = document.getElementById('industry-dimension-section');
+            
+            if (stockSection) stockSection.style.display = stockChecked ? 'block' : 'none';
+            if (conceptSection) conceptSection.style.display = conceptChecked ? 'block' : 'none';
+            if (industrySection) industrySection.style.display = industryChecked ? 'block' : 'none';
+            
+            // 加载概念股列表
+            if (conceptChecked) {
+                loadConceptStocks();
+            }
+            
+            // 加载行业层级
+            if (industryChecked) {
+                loadIndustryHierarchy();
+            }
+        }
+        
+        // 存储已选择的概念和行业
+        let selectedConcepts = []; // {id, name}
+        let selectedIndustries = []; // {name, fullPath}
+        
+        // 更新已选择的概念显示
+        async function updateSelectedConcepts() {
+            const select = document.getElementById('concept-select');
+            if (!select) return;
+            
+            const selectedOptions = Array.from(select.selectedOptions).filter(opt => opt.value);
+            const conceptCount = document.getElementById('concept-count');
+            const conceptsList = document.getElementById('selected-concepts-list');
+            
+            if (!conceptCount || !conceptsList) return;
+            
+            // 更新计数
+            conceptCount.textContent = selectedOptions.length;
+            
+            // 更新列表显示
+            conceptsList.innerHTML = '';
+            
+            if (selectedOptions.length === 0) {
+                conceptsList.innerHTML = '<div class="empty-selection">暂未选择概念股</div>';
+                // 隐藏股票预览
+                const preview = document.getElementById('concept-stocks-preview');
+                if (preview) preview.style.display = 'none';
+                return;
+            }
+            
+            selectedOptions.forEach(option => {
+                const tag = document.createElement('div');
+                tag.className = 'selected-item-tag';
+                tag.innerHTML = `
+                    <span class="item-icon">💡</span>
+                    <span class="item-name">${escapeHtml(option.textContent)}</span>
+                    <span class="remove-btn" onclick="removeConcept(${option.value})" title="移除">×</span>
+                `;
+                conceptsList.appendChild(tag);
+            });
+            
+            // 加载并显示概念对应的股票预览
+            await loadConceptStocksPreview(selectedOptions.map(opt => opt.value));
+        }
+        
+        // 加载概念对应的股票预览
+        async function loadConceptStocksPreview(conceptIds) {
+            const preview = document.getElementById('concept-stocks-preview');
+            const stocksList = document.getElementById('concept-stocks-list');
+            const stocksCount = document.getElementById('concept-stocks-count');
+            
+            if (!preview || !stocksList || !stocksCount) return;
+            
+            // 显示预览区域
+            preview.style.display = 'block';
+            stocksList.innerHTML = '<div class="empty-selection">正在加载股票列表...</div>';
+            
+            const allStocks = [];
+            const stockCodeSet = new Set(); // 用于去重
+            
+            // 遍历所有选中的概念，获取股票列表
+            for (const conceptId of conceptIds) {
+                try {
+                    const response = await fetch(`/api/concept_stocks/${conceptId}/stocks`);
+                    const data = await response.json();
+                    if (data.success && data.stocks) {
+                        data.stocks.forEach(stock => {
+                            // 确保stock有code和name字段
+                            const code = stock.code || stock.stock_code || '';
+                            const name = stock.name || stock.stock_name || '';
+                            
+                            if (code && !stockCodeSet.has(code)) {
+                                stockCodeSet.add(code);
+                                allStocks.push({ code, name });
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error(`获取概念股 ${conceptId} 的股票列表失败:`, error);
+                }
+            }
+            
+            // 更新显示
+            stocksCount.textContent = allStocks.length;
+            
+            if (allStocks.length === 0) {
+                stocksList.innerHTML = '<div class="empty-selection">所选概念下暂无股票</div>';
+                return;
+            }
+            
+            // 显示股票列表
+            stocksList.innerHTML = '';
+            allStocks.forEach(stock => {
+                const tag = document.createElement('div');
+                tag.className = 'preview-stock-tag';
+                tag.innerHTML = `
+                    <span class="stock-code">${escapeHtml(stock.code)}</span>
+                    <span class="stock-name">${escapeHtml(stock.name)}</span>
+                `;
+                stocksList.appendChild(tag);
+            });
+        }
+        
+        // 移除概念
+        async function removeConcept(conceptId) {
+            const select = document.getElementById('concept-select');
+            if (select) {
+                const option = select.querySelector(`option[value="${conceptId}"]`);
+                if (option) {
+                    option.selected = false;
+                    await updateSelectedConcepts();
+                }
+            }
+        }
+        
+        // 更新已选择的行业显示
+        async function updateSelectedIndustries() {
+            const select = document.getElementById('third-industry-select');
+            if (!select) return;
+            
+            const selectedOptions = Array.from(select.selectedOptions).filter(opt => opt.value);
+            const industryCount = document.getElementById('industry-count');
+            const industriesList = document.getElementById('selected-industries-list');
+            
+            if (!industryCount || !industriesList) return;
+            
+            // 获取一级和二级行业名称
+            const firstSelect = document.getElementById('first-industry-select');
+            const secondSelect = document.getElementById('second-industry-select');
+            const firstName = firstSelect ? firstSelect.options[firstSelect.selectedIndex]?.textContent : '';
+            const secondName = secondSelect ? secondSelect.options[secondSelect.selectedIndex]?.textContent : '';
+            
+            // 更新计数
+            industryCount.textContent = selectedOptions.length;
+            
+            // 更新列表显示
+            industriesList.innerHTML = '';
+            
+            if (selectedOptions.length === 0) {
+                industriesList.innerHTML = '<div class="empty-selection">暂未选择行业</div>';
+                // 隐藏股票预览
+                const preview = document.getElementById('industry-stocks-preview');
+                if (preview) preview.style.display = 'none';
+                return;
+            }
+            
+            selectedOptions.forEach(option => {
+                const fullPath = `${firstName} > ${secondName} > ${option.textContent}`;
+                const tag = document.createElement('div');
+                tag.className = 'selected-item-tag';
+                tag.innerHTML = `
+                    <span class="item-icon">🏭</span>
+                    <span class="item-name">${escapeHtml(fullPath)}</span>
+                    <span class="remove-btn" onclick="removeIndustry('${escapeHtml(option.value)}')" title="移除">×</span>
+                `;
+                industriesList.appendChild(tag);
+            });
+            
+            // 加载并显示行业对应的股票预览
+            await loadIndustryStocksPreview(selectedOptions.map(opt => opt.value));
+        }
+        
+        // 加载行业对应的股票预览
+        async function loadIndustryStocksPreview(industryNames) {
+            const preview = document.getElementById('industry-stocks-preview');
+            const stocksList = document.getElementById('industry-stocks-list');
+            const stocksCount = document.getElementById('industry-stocks-count');
+            
+            if (!preview || !stocksList || !stocksCount) return;
+            
+            if (industryNames.length === 0) {
+                preview.style.display = 'none';
+                return;
+            }
+            
+            // 显示预览区域
+            preview.style.display = 'block';
+            stocksList.innerHTML = '<div class="empty-selection">正在加载股票列表...</div>';
+            
+            try {
+                const response = await fetch('/api/industries/get_stocks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({industry_names: industryNames})
+                });
+                const data = await response.json();
+                
+                if (data.success && data.stocks && Array.isArray(data.stocks)) {
+                    const stockCodeSet = new Set();
+                    const allStocks = [];
+                    
+                    data.stocks.forEach(stock => {
+                        const code = stock.code || stock.stock_code || '';
+                        const name = stock.name || stock.stock_name || '';
+                        
+                        if (code && !stockCodeSet.has(code)) {
+                            stockCodeSet.add(code);
+                            allStocks.push({ code, name });
+                        }
+                    });
+                    
+                    // 更新显示
+                    stocksCount.textContent = allStocks.length;
+                    
+                    if (allStocks.length === 0) {
+                        stocksList.innerHTML = '<div class="empty-selection">所选行业下暂无股票</div>';
+                        return;
+                    }
+                    
+                    // 显示股票列表
+                    stocksList.innerHTML = '';
+                    allStocks.forEach(stock => {
+                        const tag = document.createElement('div');
+                        tag.className = 'preview-stock-tag';
+                        tag.innerHTML = `
+                            <span class="stock-code">${escapeHtml(stock.code)}</span>
+                            <span class="stock-name">${escapeHtml(stock.name)}</span>
+                        `;
+                        stocksList.appendChild(tag);
+                    });
+                } else {
+                    stocksList.innerHTML = '<div class="empty-selection">加载失败</div>';
+                }
+            } catch (error) {
+                console.error('获取行业股票列表失败:', error);
+                stocksList.innerHTML = '<div class="empty-selection">加载失败</div>';
+            }
+        }
+        
+        // 移除行业
+        function removeIndustry(industryName) {
+            const select = document.getElementById('third-industry-select');
+            if (select) {
+                const option = Array.from(select.options).find(opt => opt.value === industryName);
+                if (option) {
+                    option.selected = false;
+                    updateSelectedIndustries();
+                }
+            }
+        }
+        
+        // 更新行业选择（当一级或二级变化时）
+        function updateIndustrySelection() {
+            const firstSelect = document.getElementById('first-industry-select');
+            const secondSelect = document.getElementById('second-industry-select');
+            const thirdSelect = document.getElementById('third-industry-select');
+            
+            if (!firstSelect || !secondSelect || !thirdSelect) return;
+            
+            // 如果一级或二级变化，清空三级选择并更新显示
+            if (thirdSelect.selectedOptions.length > 0) {
+                Array.from(thirdSelect.selectedOptions).forEach(opt => {
+                    opt.selected = false;
+                });
+                updateSelectedIndustries();
+            }
+        }
+        
+        // 加载概念股列表
+        async function loadConceptStocks() {
+            try {
+                const response = await fetch('/api/concept_stocks/list');
+                const data = await response.json();
+                const select = document.getElementById('concept-select');
+                
+                if (select && data.success) {
+                    select.innerHTML = '<option value="">请选择概念股</option>';
+                    data.concepts.forEach(concept => {
+                        const option = document.createElement('option');
+                        option.value = concept.id;
+                        option.textContent = concept.name;
+                        select.appendChild(option);
+                    });
+                    // 初始化显示
+                    updateSelectedConcepts();
+                } else if (select) {
+                    select.innerHTML = '<option value="">加载失败</option>';
+                }
+            } catch (error) {
+                console.error('加载概念股列表失败:', error);
+            }
+        }
+        
+        // 加载行业层级结构
+        let industryHierarchy = {};
+        async function loadIndustryHierarchy() {
+            try {
+                const response = await fetch('/api/industries/hierarchy');
+                const data = await response.json();
+                
+                if (data.success) {
+                    industryHierarchy = data.hierarchy;
+                    const firstSelect = document.getElementById('first-industry-select');
+                    if (firstSelect) {
+                        firstSelect.innerHTML = '<option value="">请选择一级行业</option>';
+                        
+                        Object.keys(industryHierarchy).sort().forEach(first => {
+                            const option = document.createElement('option');
+                            option.value = first;
+                            option.textContent = first;
+                            firstSelect.appendChild(option);
+                        });
+                        
+                    // 一级行业变化时更新二级行业
+                    firstSelect.onchange = function() {
+                        const secondSelect = document.getElementById('second-industry-select');
+                        const thirdSelect = document.getElementById('third-industry-select');
+                        
+                        if (secondSelect) {
+                            secondSelect.innerHTML = '<option value="">请选择二级行业</option>';
+                        }
+                        if (thirdSelect) {
+                            thirdSelect.innerHTML = '<option value="">请先选择二级行业</option>';
+                            // 清空已选择的行业显示
+                            updateSelectedIndustries();
+                        }
+                        
+                        if (this.value && industryHierarchy[this.value] && secondSelect) {
+                            Object.keys(industryHierarchy[this.value]).sort().forEach(second => {
+                                const option = document.createElement('option');
+                                option.value = second;
+                                option.textContent = second;
+                                secondSelect.appendChild(option);
+                            });
+                        }
+                        
+                        updateIndustrySelection();
+                    };
+                    }
+                    
+                    // 二级行业变化时更新三级行业
+                    const secondSelect = document.getElementById('second-industry-select');
+                    if (secondSelect) {
+                        secondSelect.onchange = function() {
+                            const firstValue = document.getElementById('first-industry-select')?.value;
+                            const thirdSelect = document.getElementById('third-industry-select');
+                            
+                            if (thirdSelect) {
+                                thirdSelect.innerHTML = '<option value="">请选择三级行业</option>';
+                                // 清空已选择的行业显示
+                                updateSelectedIndustries();
+                                
+                                if (firstValue && this.value && industryHierarchy[firstValue] && industryHierarchy[firstValue][this.value]) {
+                                    industryHierarchy[firstValue][this.value].sort().forEach(third => {
+                                        const option = document.createElement('option');
+                                        option.value = third;
+                                        option.textContent = third;
+                                        thirdSelect.appendChild(option);
+                                    });
+                                }
+                            }
+                            
+                            updateIndustrySelection();
+                        };
+                    }
+                }
+            } catch (error) {
+                console.error('加载行业层级失败:', error);
+            }
+        }
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTables();
+            updateDimensionSections();
+        });
+    </script>
+</body>
+</html>

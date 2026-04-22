@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ '编辑计划' if plan else '新建计划' }}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-glass: rgba(255, 255, 255, 0.08);
+            --bg-glass-hover: rgba(255, 255, 255, 0.12);
+            
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.5);
+            
+            --border: rgba(255, 255, 255, 0.1);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.1) 0px, transparent 50%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .back-btn {
+            padding: 0.625rem 1.25rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+            transform: translateX(-4px);
+        }
+
+        .form-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .form-group {
+            margin-bottom: 2rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9375rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            transition: var(--transition);
+            background: var(--bg-glass);
+            background-color: rgba(17, 17, 17, 0.9);
+            color: var(--text-primary);
+            backdrop-filter: blur(10px);
+            font-family: inherit;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-glass-hover);
+            background-color: rgba(17, 17, 17, 0.95);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-group select option {
+            background: #ffffff;
+            background-color: #ffffff;
+            color: #000000;
+            padding: 0.75rem;
+        }
+
+        .form-group textarea {
+            min-height: 200px;
+            resize: vertical;
+            line-height: 1.8;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .color-picker {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-top: 0.75rem;
+        }
+
+        .color-option {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: var(--transition);
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+
+        .color-option.selected {
+            border-color: var(--text-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .color-option::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            font-size: 1.25rem;
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .color-option.selected::after {
+            opacity: 1;
+        }
+
+        .status-tabs {
+            display: flex;
+            gap: 0.75rem;
+            background: var(--bg-glass);
+            padding: 0.5rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+
+        .status-tab {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .status-tab.active {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+
+        .progress-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--bg-glass);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .progress-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+
+        .progress-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+
+        .progress-value {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .status-badge {
+            margin-left: 1rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+        }
+
+        .progress-hint {
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .quick-btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-glass);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .quick-btn:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .quick-btn.success {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .quick-btn.success:hover {
+            background: rgba(16, 185, 129, 0.3);
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn {
+            padding: 0.875rem 2rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            border-color: var(--accent);
+            color: white;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-glass);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .hint {
+            margin-top: 1.5rem;
+            padding: 1rem 1.25rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            backdrop-filter: blur(10px);
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ '📋 编辑计划' if plan else '📋 新建计划' }}</h1>
+            <a href="{{ url_for('plans') }}" class="back-btn">← 返回计划</a>
+        </div>
+
+        <form method="post" class="form-card" onsubmit="return checkBeforeSubmit(event)">
+            {% if plan %}
+            <input type="hidden" name="id" value="{{ plan.id }}">
+            {% endif %}
+
+            <div class="form-group">
+                <label for="title">计划标题 *</label>
+                <input type="text" name="title" id="title" 
+                       value="{{ plan.title if plan else '' }}" 
+                       placeholder="例如：投资某公司股票" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">计划描述</label>
+                <textarea name="description" id="description" 
+                          placeholder="详细描述这个投资计划...">{{ plan.description if plan else '' }}</textarea>
+            </div>
+
+            <!-- 状态由系统根据进度自动判断 -->
+            <input type="hidden" name="status" id="status" value="{{ plan.status if plan else 'todo' }}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="priority">优先级</label>
+                    <select name="priority" id="priority">
+                        <option value="low" {{ 'selected' if plan and plan.priority == 'low' else '' }}>🟢 低</option>
+                        <option value="medium" {{ 'selected' if (not plan) or plan.priority == 'medium' else '' }}>🟡 中</option>
+                        <option value="high" {{ 'selected' if plan and plan.priority == 'high' else '' }}>🔴 高</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="target_date">目标日期</label>
+                    <input type="date" name="target_date" id="target_date" 
+                           value="{{ plan.target_date if plan else '' }}">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="category">分类</label>
+                    <input type="text" name="category" id="category" 
+                           value="{{ plan.category if plan else '' }}" 
+                           placeholder="例如：股票投资、基金定投">
+                </div>
+                <div class="form-group">
+                    <label for="tags">标签</label>
+                    <input type="text" name="tags" id="tags" 
+                           value="{{ plan.tags if plan else '' }}" 
+                           placeholder="多个标签用逗号分隔">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="progress">
+                    进度: <span id="progress-value">{{ plan.progress if plan else 0 }}%</span>
+                    <span id="status-display" class="status-badge">{{ '⏳ 待开始' if (not plan) or plan.status == 'todo' else ('🚀 进行中' if plan.status == 'in_progress' else ('✅ 已完成' if plan.status == 'done' else '❌ 已取消')) }}</span>
+                </label>
+                <input type="range" name="progress" id="progress" min="0" max="100" 
+                       value="{{ plan.progress if plan else 0 }}" 
+                       class="progress-slider"
+                       oninput="updateProgress(this.value)">
+                <div class="progress-hint">
+                    💡 拖动进度条：0% = 待开始，1-99% = 进行中，100% = 已完成
+                </div>
+            </div>
+
+            {% if plan %}
+            <div class="form-group">
+                <label>快捷操作</label>
+                <div class="quick-actions">
+                    <button type="button" class="quick-btn" onclick="markAsCancelled()">❌ 标记为取消</button>
+                    <button type="button" class="quick-btn success" onclick="markAsComplete()">✅ 标记为完成</button>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label>颜色标签</label>
+                <div class="color-picker" id="color-picker">
+                    <div class="color-option selected" data-color="#f59e0b" style="background: #f59e0b;"></div>
+                    <div class="color-option" data-color="#6366f1" style="background: #6366f1;"></div>
+                    <div class="color-option" data-color="#10b981" style="background: #10b981;"></div>
+                    <div class="color-option" data-color="#ef4444" style="background: #ef4444;"></div>
+                    <div class="color-option" data-color="#8b5cf6" style="background: #8b5cf6;"></div>
+                    <div class="color-option" data-color="#ec4899" style="background: #ec4899;"></div>
+                    <div class="color-option" data-color="#06b6d4" style="background: #06b6d4;"></div>
+                    <div class="color-option" data-color="#84cc16" style="background: #84cc16;"></div>
+                </div>
+                <input type="hidden" name="color" id="color" value="{{ plan.color if plan else '#f59e0b' }}">
+            </div>
+            
+            {% if plan %}
+            <input type="hidden" name="is_profitable" id="is_profitable" value="{{ plan.is_profitable if plan.is_profitable is not none else '' }}">
+            {% else %}
+            <input type="hidden" name="is_profitable" id="is_profitable" value="">
+            {% endif %}
+
+            <div class="actions">
+                {% if plan %}
+                <a href="{{ url_for('delete_plan', id=plan.id) }}" class="btn btn-danger" 
+                   onclick="return confirm('确定要删除这个计划吗？')">🗑️ 删除</a>
+                {% endif %}
+                <a href="{{ url_for('plans') }}" class="btn btn-secondary">取消</a>
+                <button type="submit" class="btn btn-primary">💾 {{ '更新' if plan else '创建' }}</button>
+            </div>
+
+            <div class="hint">
+                💡 提示：投资计划可以帮助你系统地管理和跟踪投资目标。使用看板视图可以清晰地看到每个计划的进度和状态。
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // 根据进度自动更新状态
+        function updateProgress(value) {
+            const progress = parseInt(value);
+            document.getElementById('progress-value').textContent = progress + '%';
+            
+            let status, statusText;
+            if (progress === 0) {
+                status = 'todo';
+                statusText = '⏳ 待开始';
+            } else if (progress === 100) {
+                status = 'done';
+                statusText = '✅ 已完成';
+                // 如果进度变为100%，弹出盈利选择对话框
+                showProfitabilityDialog();
+            } else {
+                status = 'in_progress';
+                statusText = '🚀 进行中';
+            }
+            
+            document.getElementById('status').value = status;
+            document.getElementById('status-display').textContent = statusText;
+        }
+
+        // 标记为取消
+        function markAsCancelled() {
+            if (confirm('确定要将此计划标记为已取消吗？')) {
+                document.getElementById('status').value = 'cancelled';
+                document.getElementById('status-display').textContent = '❌ 已取消';
+                // 提交表单
+                document.querySelector('form').submit();
+            }
+        }
+
+        // 标记为完成
+        function markAsComplete() {
+            document.getElementById('progress').value = 100;
+            document.getElementById('progress-value').textContent = '100%';
+            document.getElementById('status').value = 'done';
+            document.getElementById('status-display').textContent = '✅ 已完成';
+            // 弹出盈利选择对话框
+            showProfitabilityDialog();
+        }
+        
+        // 显示盈利选择对话框（支持回调）
+        function showProfitabilityDialog(callback) {
+            // 检查是否已经设置过盈利状态
+            const currentProfitable = document.getElementById('is_profitable') ? 
+                document.getElementById('is_profitable').value : null;
+            
+            // 如果已经设置过，不再弹出
+            if (currentProfitable !== null && currentProfitable !== '') {
+                if (callback) callback();
+                return;
+            }
+            
+            // 创建对话框
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                backdrop-filter: blur(10px);
+            `;
+            
+            const dialogContent = document.createElement('div');
+            dialogContent.style.cssText = `
+                background: var(--bg-card);
+                backdrop-filter: blur(20px);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                padding: 2rem;
+                max-width: 400px;
+                width: 90%;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            `;
+            
+            dialogContent.innerHTML = `
+                <h2 style="margin-bottom: 1.5rem; color: var(--text-primary); font-size: 1.25rem;">
+                    💰 投资结果
+                </h2>
+                <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">
+                    请选择此次投资是否盈利：
+                </p>
+                <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                    <button id="profit-yes" style="
+                        flex: 1;
+                        padding: 1rem;
+                        background: rgba(16, 185, 129, 0.2);
+                        border: 2px solid #10b981;
+                        border-radius: var(--radius-md);
+                        color: #10b981;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: var(--transition);
+                    " onmouseover="this.style.background='rgba(16, 185, 129, 0.3)'" 
+                       onmouseout="this.style.background='rgba(16, 185, 129, 0.2)'">
+                        ✅ 盈利
+                    </button>
+                    <button id="profit-no" style="
+                        flex: 1;
+                        padding: 1rem;
+                        background: rgba(239, 68, 68, 0.2);
+                        border: 2px solid #ef4444;
+                        border-radius: var(--radius-md);
+                        color: #ef4444;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: var(--transition);
+                    " onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'" 
+                       onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'">
+                        ❌ 亏损
+                    </button>
+                </div>
+                <button id="profit-skip" style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    background: var(--bg-glass);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-md);
+                    color: var(--text-secondary);
+                    cursor: pointer;
+                    transition: var(--transition);
+                " onmouseover="this.style.background='var(--bg-glass-hover)'" 
+                   onmouseout="this.style.background='var(--bg-glass)'">
+                    稍后设置
+                </button>
+            `;
+            
+            dialog.appendChild(dialogContent);
+            document.body.appendChild(dialog);
+            
+            // 添加事件监听
+            document.getElementById('profit-yes').addEventListener('click', function() {
+                setProfitability(1);
+                document.body.removeChild(dialog);
+                if (callback) callback();
+            });
+            
+            document.getElementById('profit-no').addEventListener('click', function() {
+                setProfitability(0);
+                document.body.removeChild(dialog);
+                if (callback) callback();
+            });
+            
+            document.getElementById('profit-skip').addEventListener('click', function() {
+                document.body.removeChild(dialog);
+                if (callback) callback();
+            });
+        }
+        
+        // 设置盈利状态
+        function setProfitability(value) {
+            // 确保隐藏字段存在
+            let hiddenInput = document.getElementById('is_profitable');
+            if (!hiddenInput) {
+                hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'is_profitable';
+                hiddenInput.id = 'is_profitable';
+                document.querySelector('form').appendChild(hiddenInput);
+            }
+            hiddenInput.value = value;
+        }
+
+        // 颜色选择器
+        const colorOptions = document.querySelectorAll('.color-option');
+        const colorInput = document.getElementById('color');
+        const selectedColor = '{{ plan.color if plan else "#f59e0b" }}';
+
+        colorOptions.forEach(option => {
+            if (option.dataset.color === selectedColor) {
+                option.classList.add('selected');
+            }
+            option.addEventListener('click', function() {
+                colorOptions.forEach(opt => opt.classList.remove('selected'));
+                this.classList.add('selected');
+                colorInput.value = this.dataset.color;
+            });
+        });
+
+        // 表单提交前检查
+        function checkBeforeSubmit(event) {
+            const progress = parseInt(document.getElementById('progress').value);
+            const isProfitable = document.getElementById('is_profitable').value;
+            
+            // 如果进度是100%且没有设置盈利状态，阻止提交并弹出对话框
+            if (progress === 100 && (isProfitable === '' || isProfitable === null)) {
+                event.preventDefault();
+                showProfitabilityDialog(function() {
+                    // 对话框关闭后，如果已设置盈利状态，则提交表单
+                    const newProfitable = document.getElementById('is_profitable').value;
+                    if (newProfitable !== '' && newProfitable !== null) {
+                        document.querySelector('form').submit();
+                    }
+                });
+                return false;
+            }
+            return true;
+        }
+        
+        document.getElementById('title').focus();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ '修改指数走势' if existing_trend else '设置今日指数走势' }}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* 统一极简配色 - 与index.html一致 */
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --bg-hover: #1a1a1a;
+            
+            --text-primary: #ffffff;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            
+            --border: rgba(255, 255, 255, 0.15);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            
+            --accent: #6366f1;
+            --essay-color: #10b981;
+            --review-color: #8b5cf6;
+            
+            --radius: 4px;
+            --transition: all 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body * {
+            text-rendering: optimizeLegibility;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .step-container {
+            background: rgba(17, 17, 17, 0.35);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius);
+            padding: 3rem 2.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+
+        .step-container.active {
+            display: block;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .step-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .step-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .step-description {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .input-group {
+            margin-bottom: 2rem;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-family: inherit;
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.05);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .input-field::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .input-hint {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            line-height: 1.5;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 2px;
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
+            transition: width 0.3s ease;
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.875rem 2rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            border-color: var(--accent);
+            color: white;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 33.33%"></div>
+        </div>
+
+        <form id="trend-form" method="post" action="{{ url_for('save_index_trend') }}">
+            <input type="hidden" name="date" value="{{ date }}">
+
+            <!-- 步骤1: 沪指走势 -->
+            <div class="step-container active" data-step="1">
+                <div class="step-header">
+                    <div class="step-title">📈 沪指走势</div>
+                    <div class="step-description">请输入您对今日上证指数走势的判断</div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label" for="shanghai_trend">上证指数走势分析</label>
+                    <textarea 
+                        class="input-field" 
+                        name="shanghai_trend" 
+                        id="shanghai_trend" 
+                        placeholder="例如：今日上证指数高开低走，盘中一度跌破3000点支撑位，尾盘略有反弹，整体呈震荡下行态势..."
+                        oninput="checkInput(1)"
+                        required>{{ existing_trend.shanghai_trend if existing_trend else '' }}</textarea>
+                    <div class="input-hint">💡 提示：可以描述指数的开盘、盘中、收盘表现，关键点位突破或支撑情况等</div>
+                </div>
+                <div class="navigation">
+                    <div></div>
+                    <button type="button" class="btn btn-primary" onclick="nextStep()" id="btn-next-1">下一步 →</button>
+                </div>
+            </div>
+
+            <!-- 步骤2: 深成指走势 -->
+            <div class="step-container" data-step="2">
+                <div class="step-header">
+                    <div class="step-title">📈 深成指走势</div>
+                    <div class="step-description">请输入您对今日深证成指走势的判断</div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label" for="shenzhen_trend">深证成指走势分析</label>
+                    <textarea 
+                        class="input-field" 
+                        name="shenzhen_trend" 
+                        id="shenzhen_trend" 
+                        placeholder="例如：深成指今日表现强于沪指，科技股带动指数上涨，成交量较昨日放大..."
+                        oninput="checkInput(2)"
+                        required>{{ existing_trend.shenzhen_trend if existing_trend else '' }}</textarea>
+                    <div class="input-hint">💡 提示：可以对比沪指表现，分析深圳市场的特点和主导板块</div>
+                </div>
+                <div class="navigation">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep()">← 上一步</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep()" id="btn-next-2">下一步 →</button>
+                </div>
+            </div>
+
+            <!-- 步骤3: 创业板指走势 -->
+            <div class="step-container" data-step="3">
+                <div class="step-header">
+                    <div class="step-title">📈 创业板指走势</div>
+                    <div class="step-description">请输入您对今日创业板指走势的判断</div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label" for="chinext_trend">创业板指走势分析</label>
+                    <textarea 
+                        class="input-field" 
+                        name="chinext_trend" 
+                        id="chinext_trend" 
+                        placeholder="例如：创业板指今日冲高回落，新能源板块分化明显，整体风险偏好有所降低..."
+                        oninput="checkInput(3)"
+                        required>{{ existing_trend.chinext_trend if existing_trend else '' }}</textarea>
+                    <div class="input-hint">💡 提示：可以分析创业板的风险偏好变化、成长股表现、资金流向等</div>
+                </div>
+                <div class="navigation">
+                    <button type="button" class="btn btn-secondary" onclick="prevStep()">← 上一步</button>
+                    <button type="submit" class="btn btn-primary">✅ 完成设置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 3;
+
+        function checkInput(step) {
+            // 检查当前步骤的输入是否有内容
+            const inputs = {
+                1: 'shanghai_trend',
+                2: 'shenzhen_trend',
+                3: 'chinext_trend'
+            };
+            
+            const fieldId = inputs[step];
+            const field = document.getElementById(fieldId);
+            const nextBtn = document.getElementById(`btn-next-${step}`);
+            
+            // 如果有内容，启用下一步按钮（如果存在）
+            if (nextBtn && field.value.trim().length > 0) {
+                nextBtn.disabled = false;
+            } else if (nextBtn) {
+                nextBtn.disabled = true;
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                // 验证当前步骤是否已填写
+                const inputs = {
+                    1: 'shanghai_trend',
+                    2: 'shenzhen_trend'
+                };
+                
+                const fieldId = inputs[currentStep];
+                const field = document.getElementById(fieldId);
+                
+                if (!field.value.trim()) {
+                    alert('请输入内容后再继续');
+                    return;
+                }
+                
+                document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+                currentStep++;
+                document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                document.querySelector(`[data-step="${currentStep}"]`).classList.remove('active');
+                currentStep--;
+                document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function updateProgress() {
+            const progress = (currentStep / totalSteps) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+        }
+
+        // 初始化进度条和按钮状态
+        window.addEventListener('DOMContentLoaded', function() {
+            updateProgress();
+            
+            // 如果是编辑模式，检查每个步骤的输入
+            {% if existing_trend %}
+            checkInput(1);
+            checkInput(2);
+            checkInput(3);
+            {% endif %}
+        });
+
+        // 表单提交前验证
+        document.getElementById('trend-form').addEventListener('submit', function(e) {
+            const shanghai = document.getElementById('shanghai_trend').value.trim();
+            const shenzhen = document.getElementById('shenzhen_trend').value.trim();
+            const chinext = document.getElementById('chinext_trend').value.trim();
+            
+            if (!shanghai || !shenzhen || !chinext) {
+                e.preventDefault();
+                alert('请完成所有三个指数的走势分析');
+                return false;
+            }
+        });
+    </script>
+</body>
+</html>
+

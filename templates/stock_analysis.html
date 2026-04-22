@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票数据分析</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='analysis.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+
+<body>
+    <div class="filter-container">
+        <form id="analysisForm">
+            <label for="datePicker">选择日期:</label>
+            <input type="date" id="datePicker" name="date">
+
+            <label for="banType">选择板数类型:</label>
+            <select name="ban_type" id="banType">
+                <option value="二板">二板</option>
+                <option value="三板">三板</option>
+                <option value="四板">四板</option>
+                <option value="五板">五板</option>
+                <option value="六板">六板</option>
+                <option value="七板及以上">七板及以上</option>
+            </select>
+
+            <label for="industryFilter">选择行业:</label>
+            <input type="text" id="industryFilter" name="industry" placeholder="输入行业名称">
+
+            <button type="submit">查询</button>
+        </form>
+    </div>
+
+    <div class="chart-container">
+        <div id="lianbanChart"></div>
+        <div id="industryChart"></div>
+        <div id="conceptChart"></div>
+    </div>
+
+    <script>
+        document.getElementById('analysisForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            fetch('/stock_analysis', {
+                method: 'POST',
+                body: new FormData(this)
+            })
+           .then(response => response.json())
+           .then(figs => {
+                Plotly.react('lianbanChart', figs.lianban_chart.data, figs.lianban_chart.layout);
+                Plotly.react('industryChart', figs.industry_chart.data, figs.industry_chart.layout);
+                Plotly.react('conceptChart', figs.concept_chart.data, figs.concept_chart.layout);
+            });
+        });
+    </script>
+</body>
+
+</html>

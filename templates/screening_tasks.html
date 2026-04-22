@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>筛选任务管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+        }
+        
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 12px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-button:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.6);
+            transform: translateX(-4px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        .tasks-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .tasks-container > h1 {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 32px;
+            text-align: center;
+            letter-spacing: -0.5px;
+        }
+        
+        .task-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .task-form {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group select {
+            color-scheme: dark;
+        }
+        
+        .form-group select option {
+            background: #1e1e2e;
+            color: #e2e8f0;
+        }
+        
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: rgba(99, 102, 241, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .btn-execute {
+            padding: 12px 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .btn-execute:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+        
+        .btn-execute:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .history-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .history-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+        }
+        
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 6px;
+        }
+        
+        .tab-button {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button.active {
+            background: rgba(99, 102, 241, 0.3);
+            color: #ffffff;
+        }
+        
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .history-table th,
+        .history-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .history-table thead th {
+            background: rgba(99, 102, 241, 0.15);
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .history-table tbody tr {
+            background: rgba(255, 255, 255, 0.02);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .history-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .history-table tbody td {
+            background: transparent;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .status-running {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+        
+        .status-failed {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .status-pending {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+        }
+        
+        .btn-action {
+            padding: 6px 12px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 8px;
+        }
+        
+        .btn-action:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.6);
+        }
+        
+        .result-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            overflow-y: auto;
+        }
+        
+        .result-modal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+        
+        .result-content {
+            background: rgba(15, 15, 35, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 1400px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .result-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+        }
+        
+        .btn-close {
+            padding: 8px 16px;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 8px;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-close:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.6);
+        }
+        
+        .result-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .result-tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .result-tab.active {
+            color: #ffffff;
+            border-bottom-color: #6366f1;
+        }
+        
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .result-table th,
+        .result-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 13px;
+        }
+        
+        .result-table th {
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+            background: rgba(99, 102, 241, 0.15);
+            position: sticky;
+            top: 0;
+        }
+        
+        .result-table tbody tr {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .result-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-button">← 返回首页</a>
+    
+    <div class="tasks-container">
+        <h1>🔍 筛选任务管理</h1>
+        
+        <!-- 任务执行面板 -->
+        <div class="task-panel">
+            <h2 style="margin-top: 0; margin-bottom: 24px; font-size: 20px; color: #ffffff;">执行新任务</h2>
+            <form class="task-form" id="taskForm">
+                <div class="form-group">
+                    <label>任务类型</label>
+                    <select id="taskType" required>
+                        <option value="">请选择任务类型</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>股票数量限制（可选）</label>
+                    <input type="number" id="limit" placeholder="留空使用默认值" min="1">
+                </div>
+                <button type="submit" class="btn-execute" id="executeBtn">
+                    执行任务
+                </button>
+            </form>
+        </div>
+        
+        <!-- 执行历史面板 -->
+        <div class="history-panel">
+            <div class="history-header">
+                <h2>执行历史</h2>
+                <div class="filter-tabs">
+                    <button class="tab-button active" data-task-type="">全部</button>
+                    <button class="tab-button" data-task-type="function_12">功能12</button>
+                    <button class="tab-button" data-task-type="function_13">功能13</button>
+                    <button class="tab-button" data-task-type="function_14">功能14</button>
+                    <button class="tab-button" data-task-type="function_15">功能15</button>
+                </div>
+            </div>
+            <div id="historyContent">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentTaskType = '';
+        let refreshInterval = null;
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTaskTypes();
+            loadHistory();
+            setupEventListeners();
+            
+            // 每5秒刷新一次历史记录（检查任务状态）
+            refreshInterval = setInterval(loadHistory, 5000);
+        });
+        
+        // 清理定时器
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+        
+        // 加载任务类型
+        async function loadTaskTypes() {
+            try {
+                const response = await fetch('/api/screening_tasks/types');
+                const data = await response.json();
+                
+                if (data.success && data.task_types) {
+                    const select = document.getElementById('taskType');
+                    data.task_types.forEach(task => {
+                        const option = document.createElement('option');
+                        option.value = task.id;
+                        option.textContent = task.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('加载任务类型失败:', error);
+            }
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 任务执行表单
+            document.getElementById('taskForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                await executeTask();
+            });
+            
+            // 过滤标签
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentTaskType = this.dataset.taskType || '';
+                    loadHistory();
+                });
+            });
+        }
+        
+        // 执行任务
+        async function executeTask() {
+            const taskType = document.getElementById('taskType').value;
+            const limit = document.getElementById('limit').value;
+            
+            if (!taskType) {
+                alert('请选择任务类型');
+                return;
+            }
+            
+            const btn = document.getElementById('executeBtn');
+            btn.disabled = true;
+            btn.textContent = '执行中...';
+            
+            try {
+                const params = {};
+                if (limit) {
+                    params.limit = parseInt(limit);
+                }
+                
+                const response = await fetch('/api/screening_tasks/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        task_type: taskType,
+                        params: params
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('任务已提交，正在后台执行...');
+                    loadHistory(); // 刷新历史记录
+                } else {
+                    alert('提交任务失败: ' + (data.error || '未知错误'));
+                }
+            } catch (error) {
+                console.error('执行任务失败:', error);
+                alert('执行任务失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '执行任务';
+            }
+        }
+        
+        // 加载执行历史
+        async function loadHistory() {
+            try {
+                const url = `/api/screening_tasks/history?limit=50${currentTaskType ? '&task_type=' + currentTaskType : ''}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success && data.history) {
+                    renderHistory(data.history);
+                } else {
+                    const err = (data && data.error) ? data.error : '未知错误';
+                    document.getElementById('historyContent').innerHTML = '<div class="empty-state">加载失败: ' + err + '</div>';
+                }
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+                document.getElementById('historyContent').innerHTML = '<div class="empty-state">加载失败: ' + (error.message || String(error)) + '</div>';
+            }
+        }
+        
+        // 渲染执行历史
+        function renderHistory(history) {
+            const container = document.getElementById('historyContent');
+            
+            if (!history || history.length === 0) {
+                container.innerHTML = '<div class="empty-state">暂无执行记录</div>';
+                return;
+            }
+            
+            let html = '<table class="history-table"><thead><tr>';
+            html += '<th>ID</th>';
+            html += '<th>任务名称</th>';
+            html += '<th>状态</th>';
+            html += '<th>开始时间</th>';
+            html += '<th>结束时间</th>';
+            html += '<th>耗时</th>';
+            html += '<th>结果摘要</th>';
+            html += '<th>操作</th>';
+            html += '</tr></thead><tbody>';
+            
+            history.forEach(item => {
+                const statusClass = 'status-' + item.status;
+                const duration = item.duration_seconds ? formatDuration(item.duration_seconds) : '-';
+                const startTime = item.start_time ? new Date(item.start_time).toLocaleString('zh-CN') : '-';
+                const endTime = item.end_time ? new Date(item.end_time).toLocaleString('zh-CN') : '-';
+                const summary = item.result_summary || '-';
+                
+                html += '<tr>';
+                html += `<td>${item.id}</td>`;
+                html += `<td>${item.task_name}</td>`;
+                html += `<td><span class="status-badge ${statusClass}">${getStatusText(item.status)}</span></td>`;
+                html += `<td>${startTime}</td>`;
+                html += `<td>${endTime}</td>`;
+                html += `<td>${duration}</td>`;
+                html += `<td title="${summary}">${summary.length > 50 ? summary.substring(0, 50) + '...' : summary}</td>`;
+                html += '<td>';
+                if (item.status === 'success') {
+                    html += `<button class="btn-action" onclick="openInDataQueryBuilder(${item.id})">查看</button>`;
+                    html += `<button class="btn-action" onclick="downloadResult(${item.id})">下载</button>`;
+                }
+                if (item.status === 'failed' && item.error_message) {
+                    html += `<button class="btn-action" onclick="viewError(${item.id})">查看错误</button>`;
+                }
+                html += '</td>';
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '等待中',
+                'running': '执行中',
+                'success': '成功',
+                'failed': '失败'
+            };
+            return statusMap[status] || status;
+        }
+        
+        // 格式化时长
+        function formatDuration(seconds) {
+            if (seconds < 60) {
+                return seconds + '秒';
+            } else if (seconds < 3600) {
+                return Math.floor(seconds / 60) + '分' + (seconds % 60) + '秒';
+            } else {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                return hours + '小时' + minutes + '分';
+            }
+        }
+        
+        // 在数据查询构建器中查看结果（分页、图表、多 sheet）
+        function openInDataQueryBuilder(executionId) {
+            window.location.href = '/data_query_builder?execution_id=' + executionId;
+        }
+        
+        // 下载结果
+        function downloadResult(executionId) {
+            window.open(`/api/screening_tasks/download/${executionId}`, '_blank');
+        }
+        
+        // 查看错误（筛选任务页内弹窗）
+        async function viewError(executionId) {
+            try {
+                const response = await fetch(`/api/screening_tasks/result/${executionId}`);
+                const data = await response.json();
+                
+                if (data.success && data.result && data.result.error_message) {
+                    alert('错误信息:\n\n' + data.result.error_message);
+                } else {
+                    alert('未找到错误信息');
+                }
+            } catch (error) {
+                console.error('查看错误失败:', error);
+                alert('查看错误失败: ' + error.message);
+            }
+        }
+        
+    </script>
+</body>
+</html>

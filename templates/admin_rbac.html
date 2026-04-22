@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户与权限管理</title>
+    <style>
+        :root {
+            --bg: #0a0c12;
+            --card: #121826;
+            --border: #2a3142;
+            --text: #e8ecf4;
+            --muted: #8b95a8;
+            --accent: #6366f1;
+            --danger: #f87171;
+            --ok: #34d399;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: "Segoe UI", "PingFang SC", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+        .top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; }
+        h1 { font-size: 22px; margin: 0; }
+        a.back { color: var(--text); text-decoration: none; border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; font-size: 13px; }
+        a.back:hover { border-color: var(--accent); }
+        .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+        .tab {
+            padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border);
+            background: transparent; color: var(--muted); cursor: pointer; font-size: 14px;
+        }
+        .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; }
+        th { color: var(--muted); font-weight: 600; }
+        .btn {
+            border: 1px solid var(--border); background: #1c2230; color: var(--text);
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-right: 6px;
+        }
+        .btn:hover { border-color: var(--accent); }
+        .btn-danger { border-color: #7f1d1d; color: var(--danger); }
+        .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        input, select {
+            background: #0d1018; border: 1px solid var(--border); color: var(--text);
+            padding: 8px 10px; border-radius: 6px; font-size: 13px; margin: 4px 4px 4px 0;
+        }
+        .row-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 14px; }
+        .muted { color: var(--muted); font-size: 12px; }
+        .role-block { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+        .role-block--system { border-color: #4a3540; background: rgba(127, 29, 29, 0.08); }
+        .role-block h3 { margin: 0 0 10px; font-size: 15px; }
+        .rbac-sys-warn {
+            background: #3b1518;
+            border: 1px solid #7f1d1d;
+            color: #fecaca;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; max-height: 280px; overflow-y: auto; }
+        .perm-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #cbd5e1; }
+        .msg { padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; display: none; }
+        .msg.err { display: block; background: #3b1518; border: 1px solid #7f1d1d; color: #fecaca; }
+        .msg.ok { display: block; background: #0f2419; border: 1px solid #166534; color: #bbf7d0; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="top">
+        <h1>用户与权限管理（RBAC）</h1>
+        <a class="back" href="{{ url_for('index') }}">返回首页</a>
+    </div>
+    <p class="muted">角色继承权限；用户可拥有多个角色。持有 <code>rbac:admin</code> 的角色拥有全部操作能力。</p>
+    <div id="globalMsg" class="msg"></div>
+    <div class="tabs">
+        <button type="button" class="tab active" data-tab="users">用户管理</button>
+        <button type="button" class="tab" data-tab="roles">角色与权限分配</button>
+        <button type="button" class="tab" data-tab="me">当前账号</button>
+    </div>
+
+    <div id="tab-users" class="panel">
+        <h2 style="margin-top:0;font-size:16px;">新建用户</h2>
+        <div class="row-form">
+            <div><span class="muted">用户名</span><br><input id="nu_user" placeholder="登录名"></div>
+            <div><span class="muted">密码（≥8位）</span><br><input id="nu_pass" type="password"></div>
+            <div><span class="muted">角色（多选）</span><br><select id="nu_roles" multiple style="min-height:80px;width:180px;"></select></div>
+            <button type="button" class="btn btn-primary" id="nu_btn">创建</button>
+        </div>
+        <h2 style="font-size:16px;">用户列表</h2>
+        <div style="overflow-x:auto;">
+            <table><thead><tr><th>ID</th><th>用户名</th><th>状态</th><th>角色</th><th>操作</th></tr></thead><tbody id="userRows"></tbody></table>
+        </div>
+    </div>
+
+    <div id="tab-roles" class="panel hidden">
+        <div class="rbac-sys-warn">系统内置角色的权限<strong>不允许在此页面修改</strong>（接口会拒绝保存）。下方以只读方式展示当前数据库中的权限；自建角色可勾选并保存。</div>
+        <h2 style="margin-top:0;font-size:16px;">新建角色</h2>
+        <div class="row-form">
+            <div><span class="muted">显示名</span><br><input id="nr_name" placeholder="如：研究员"></div>
+            <div><span class="muted">slug（英文标识）</span><br><input id="nr_slug" placeholder="如：analyst"></div>
+            <div><span class="muted">说明</span><br><input id="nr_desc" placeholder="可选"></div>
+            <button type="button" class="btn btn-primary" id="nr_btn">创建角色</button>
+        </div>
+        <div id="rolesContainer"></div>
+    </div>
+
+    <div id="tab-me" class="panel hidden">
+        <h2 style="margin-top:0;font-size:16px;">当前登录</h2>
+        <pre id="meJson" style="background:#0d1018;padding:12px;border-radius:8px;overflow:auto;font-size:12px;"></pre>
+    </div>
+</div>
+<script>
+    let allPermissions = [];
+    let allRoles = [];
+    const RBAC_API_BASE = {{ (rbac_api_base or '/api/rbac') | tojson }};
+
+    function showMsg(text, ok) {
+        const el = document.getElementById('globalMsg');
+        el.className = 'msg ' + (ok ? 'ok' : 'err');
+        el.textContent = text;
+        setTimeout(() => { el.className = 'msg'; el.textContent = ''; }, 4000);
+    }
+
+    function rbacUrl(suffix) {
+        if (!suffix || suffix.startsWith('http')) return suffix;
+        const s = suffix.startsWith('/') ? suffix : ('/' + suffix);
+        return RBAC_API_BASE + s;
+    }
+
+    /** 防止列表/API 中的恶意字符串经 innerHTML 注入（存储型 XSS） */
+    function escapeHTML(s) {
+        if (s == null || s === undefined) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    async function api(path, opt) {
+        const url = rbacUrl(path);
+        const res = await fetch(url, Object.assign({
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+        }, opt || {}));
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) {
+            const hint = data.error
+                || (res.status === 404 ? ('请求 404: ' + url + '（请检查反代前缀或 APPLICATION_ROOT）') : null)
+                || res.statusText
+                || '请求失败';
+            console.error('[rbac][api]', url, res.status, data);
+            throw new Error(hint);
+        }
+        return data;
+    }
+
+    function switchTab(name) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+        document.getElementById('tab-users').classList.toggle('hidden', name !== 'users');
+        document.getElementById('tab-roles').classList.toggle('hidden', name !== 'roles');
+        document.getElementById('tab-me').classList.toggle('hidden', name !== 'me');
+        if (name === 'me') loadMe();
+    }
+
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+    async function loadPermsAndRoles() {
+        const [p, r] = await Promise.all([
+            api('/permissions'),
+            api('/roles'),
+        ]);
+        allPermissions = p.permissions || [];
+        allRoles = r.roles || [];
+        const sel = document.getElementById('nu_roles');
+        sel.innerHTML = '';
+        allRoles.forEach(ro => {
+            const o = document.createElement('option');
+            o.value = ro.slug;
+            o.textContent = (ro.name || '') + ' (' + (ro.slug || '') + ')';
+            sel.appendChild(o);
+        });
+        renderRoleEditors();
+    }
+
+    function renderRoleEditors() {
+        const box = document.getElementById('rolesContainer');
+        box.innerHTML = '';
+        allRoles.forEach(role => {
+            const rid = Number(role.id);
+            if (!Number.isFinite(rid)) {
+                console.error('[rbac] 角色缺少有效 id，已跳过', role);
+                return;
+            }
+            const div = document.createElement('div');
+            const isSys = !!role.is_system;
+            div.className = 'role-block' + (isSys ? ' role-block--system' : '');
+            const slugEsc = escapeHTML(role.slug || '');
+            let checks = '';
+            allPermissions.forEach(p => {
+                const on = (role.permissions || []).includes(p.code) ? 'checked' : '';
+                const codeEsc = escapeHTML(p.code || '');
+                const nameEsc = escapeHTML(p.name || '');
+                const dis = isSys ? 'disabled ' : '';
+                checks += `<label class="perm-item"><input type="checkbox" data-role="${rid}" value="${codeEsc}" ${dis}${on}/> <span>${codeEsc}</span> <span class="muted">${nameEsc}</span></label>`;
+            });
+            const saveBtn = isSys
+                ? ''
+                : `<button type="button" class="btn btn-primary" data-save-role="${rid}">保存该角色权限</button>`;
+            const sysHint = isSys
+                ? '<p class="muted" style="margin:0 0 10px;">此为只读展示；与数据库及迁移/同步结果一致。若需调整自建用户权限，请使用<strong>用户管理</strong>为其挂载自定义角色，或在库中谨慎修改。</p>'
+                : '';
+            div.innerHTML = `
+                <h3>${escapeHTML(role.name || '')} <span class="muted">(${slugEsc})</span> ${isSys ? '<span class="muted">[系统 · 只读]</span>' : ''}</h3>
+                <p class="muted">${escapeHTML(role.description || '')}</p>
+                ${sysHint}
+                <div class="perm-grid">${checks}</div>
+                <div style="margin-top:10px;">
+                    ${saveBtn}
+                    ${isSys ? '' : `<button type="button" class="btn btn-danger" data-del-role="${rid}" data-slug="${slugEsc}">删除角色</button>`}
+                </div>`;
+            box.appendChild(div);
+        });
+        box.querySelectorAll('[data-save-role]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const rid = parseInt(btn.getAttribute('data-save-role'), 10);
+                const codes = [];
+                box.querySelectorAll(`input[type=checkbox][data-role="${rid}"]:checked`).forEach(cb => codes.push(cb.value));
+                try {
+                    await api('/roles/' + rid + '/permissions', { method: 'PUT', body: JSON.stringify({ codes }) });
+                    showMsg('已保存角色权限', true);
+                    await loadPermsAndRoles();
+                } catch (e) { showMsg(e.message, false); }
+            });
+        });
+        box.querySelectorAll('[data-del-role]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('确定删除角色 ' + btn.getAttribute('data-slug') + ' ?')) return;
+                try {
+                    await api('/roles/' + btn.getAttribute('data-del-role'), { method: 'DELETE' });
+                    showMsg('已删除', true);
+                    await loadPermsAndRoles();
+                    await loadUsers();
+                } catch (e) { showMsg(e.message, false); }
+            });
+        });
+    }
+
+    async function loadUsers() {
+        const data = await api('/users');
+        const tb = document.getElementById('userRows');
+        tb.innerHTML = '';
+        (data.users || []).forEach(u => {
+            const uid = Number(u.id);
+            if (!Number.isFinite(uid)) {
+                console.error('[rbac] 用户行缺少有效 id，已跳过', u);
+                return;
+            }
+            const tr = document.createElement('tr');
+            const rolesStr = (u.roles || []).map(r => r.slug).join(', ');
+            tr.innerHTML = `
+                <td>${uid}</td>
+                <td>${escapeHTML(u.username)}</td>
+                <td>${u.is_active ? '<span style="color:var(--ok)">正常</span>' : '<span style="color:var(--danger)">禁用</span>'}</td>
+                <td>${rolesStr ? escapeHTML(rolesStr) : '-'}</td>
+                <td>
+                    <button type="button" class="btn" data-edit="${uid}">改角色</button>
+                    <button type="button" class="btn" data-pwd="${uid}">重置密码</button>
+                    <button type="button" class="btn" data-toggle="${uid}" data-active="${u.is_active}">${u.is_active ? '禁用' : '启用'}</button>
+                    <button type="button" class="btn btn-danger" data-del="${uid}">删除</button>
+                </td>`;
+            tb.appendChild(tr);
+        });
+        tb.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editUserRoles(parseInt(b.getAttribute('data-edit'), 10))));
+        tb.querySelectorAll('[data-pwd]').forEach(b => b.addEventListener('click', () => resetPwd(parseInt(b.getAttribute('data-pwd'), 10))));
+        tb.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', () => toggleUser(parseInt(b.getAttribute('data-toggle'), 10), b.getAttribute('data-active') === '1')));
+        tb.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => delUser(parseInt(b.getAttribute('data-del'), 10))));
+    }
+
+    async function editUserRoles(uid) {
+        const slugs = prompt('输入角色 slug，多个用英文逗号分隔，例如: member,admin', 'member');
+        if (slugs === null) return;
+        const role_slugs = slugs.split(',').map(s => s.trim()).filter(Boolean);
+        try {
+            await api('/users/' + uid, { method: 'PUT', body: JSON.stringify({ role_slugs }) });
+            showMsg('角色已更新', true);
+            await loadUsers();
+        } catch (e) { showMsg(e.message, false); }
+    }
+
+    async function resetPwd(uid) {
+        const p = prompt('新密码（至少 8 位）');
+        if (!p || p.length < 8) return;
+        try {
+            await api('/users/' + uid, { method: 'PUT', body: JSON.stringify({ password: p }) });
+            showMsg('密码已更新', true);
+        } catch (e) { showMsg(e.message, false); }
+    }
+
+    async function toggleUser(uid, currentlyActive) {
+        try {
+            await api('/users/' + uid, { method: 'PUT', body: JSON.stringify({ is_active: !currentlyActive }) });
+            showMsg('状态已更新', true);
+            await loadUsers();
+        } catch (e) { showMsg(e.message, false); }
+    }
+
+    async function delUser(uid) {
+        if (!confirm('确定删除该用户？不可恢复。')) return;
+        try {
+            await api('/users/' + uid, { method: 'DELETE' });
+            showMsg('已删除', true);
+            await loadUsers();
+        } catch (e) { showMsg(e.message, false); }
+    }
+
+    async function loadMe() {
+        const data = await api('/me');
+        document.getElementById('meJson').textContent = JSON.stringify(data, null, 2);
+    }
+
+    document.getElementById('nu_btn').addEventListener('click', async () => {
+        const username = (document.getElementById('nu_user').value || '').trim();
+        const password = document.getElementById('nu_pass').value || '';
+        const sel = document.getElementById('nu_roles');
+        const role_slugs = Array.from(sel.selectedOptions).map(o => o.value);
+        try {
+            await api('/users', { method: 'POST', body: JSON.stringify({ username, password, role_slugs: role_slugs.length ? role_slugs : ['member'] }) });
+            showMsg('用户已创建', true);
+            document.getElementById('nu_user').value = '';
+            document.getElementById('nu_pass').value = '';
+            await loadUsers();
+        } catch (e) { showMsg(e.message, false); }
+    });
+
+    document.getElementById('nr_btn').addEventListener('click', async () => {
+        const name = (document.getElementById('nr_name').value || '').trim();
+        const slug = (document.getElementById('nr_slug').value || '').trim();
+        const description = (document.getElementById('nr_desc').value || '').trim();
+        try {
+            await api('/roles', { method: 'POST', body: JSON.stringify({ name, slug, description }) });
+            showMsg('角色已创建', true);
+            document.getElementById('nr_name').value = '';
+            document.getElementById('nr_slug').value = '';
+            document.getElementById('nr_desc').value = '';
+            await loadPermsAndRoles();
+        } catch (e) { showMsg(e.message, false); }
+    });
+
+    (async () => {
+        try {
+            await loadPermsAndRoles();
+            await loadUsers();
+        } catch (e) {
+            showMsg(e.message || '加载失败', false);
+        }
+    })();
+</script>
+</body>
+</html>

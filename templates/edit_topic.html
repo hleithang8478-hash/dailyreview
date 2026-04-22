@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ topic.title }} - 行业分析编辑器</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <!-- jsPlumb CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@jsplumb/browser-ui@5.15.0/css/jsplumbtoolkit.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-glass: rgba(255, 255, 255, 0.08);
+            
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            
+            --border: rgba(255, 255, 255, 0.1);
+            --accent: #6366f1;
+            
+            --radius-md: 12px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .top-bar h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-glass);
+            color: var(--text-primary);
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .toolbar {
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .toolbar-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-glass);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .toolbar-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* 画布容器 */
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 120px);
+            background: var(--bg-primary);
+            background-image: 
+                radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
+            background-size: 40px 40px;
+            overflow: hidden;
+        }
+
+        .toolbar-left,
+        .toolbar-right {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .toolbar-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-glass);
+            background-color: #ffffff;
+            color: #000000;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        /* 卡片样式 */
+        .card-node {
+            position: absolute;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 3px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            min-width: 220px;
+            min-height: 160px;
+            cursor: move;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .card-node.selected {
+            border-width: 3px;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3);
+        }
+
+        /* 行业卡片样式 - 更大更醒目 */
+        .card-node.industry {
+            border-width: 4px;
+            min-width: 260px;
+            min-height: 180px;
+            background: rgba(99, 102, 241, 0.1);
+            border-color: #6366f1;
+        }
+
+        .card-node.industry:hover {
+            background: rgba(99, 102, 241, 0.15);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+
+        /* 公司卡片样式 */
+        .card-node.company {
+            background: rgba(16, 185, 129, 0.08);
+            border-color: #10b981;
+        }
+
+        .card-node.company:hover {
+            background: rgba(16, 185, 129, 0.12);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .card-type-badge {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+        }
+
+        .card-type-badge.industry {
+            background: rgba(99, 102, 241, 0.3);
+            color: #818cf8;
+            border: 1px solid #6366f1;
+        }
+
+        .card-type-badge.company {
+            background: rgba(16, 185, 129, 0.3);
+            color: #34d399;
+            border: 1px solid #10b981;
+        }
+
+        .card-title {
+            font-weight: 700;
+            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            line-height: 1.3;
+        }
+
+        .card-node.industry .card-title {
+            font-size: 1.25rem;
+        }
+
+        .card-content {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .card-actions {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: flex;
+            gap: 0.25rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .card-node:hover .card-actions {
+            opacity: 1;
+        }
+
+        .card-action-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+        }
+
+        /* jsPlumb 连接线样式 - 根据关系类型区分 */
+        .jtk-connector {
+            stroke-width: 3;
+        }
+
+        .jtk-connector.downstream {
+            stroke: #10b981;  /* 绿色 - 下游 */
+        }
+
+        .jtk-connector.upstream {
+            stroke: #3b82f6;  /* 蓝色 - 上游 */
+        }
+
+        .jtk-connector.belongs_to {
+            stroke: #f59e0b;  /* 橙色 - 属于 */
+        }
+
+        .jtk-endpoint {
+            fill: #999999;
+        }
+
+        .jtk-endpoint.downstream {
+            fill: #10b981;
+        }
+
+        .jtk-endpoint.upstream {
+            fill: #3b82f6;
+        }
+
+        .jtk-endpoint.belongs_to {
+            fill: #f59e0b;
+        }
+
+        .jtk-overlay {
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        /* 编辑对话框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-glass);
+            background-color: rgba(17, 17, 17, 0.9);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+
+        .color-picker {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .color-option {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .color-option.selected {
+            border-color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1>📊 {{ topic.title }}</h1>
+        <div class="top-actions">
+            <button class="btn" onclick="saveTopicInfo()">💾 保存标题</button>
+            <a href="{{ url_for('topics') }}" class="btn">← 返回列表</a>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <button class="toolbar-btn" onclick="addCard('industry')">🏢 添加行业</button>
+            <button class="toolbar-btn" onclick="addCard('company')">🏭 添加公司</button>
+        </div>
+        <div class="toolbar-right">
+            <button class="toolbar-btn" onclick="enableConnectionMode()" id="connection-btn">🔗 连线模式</button>
+            <select id="relation-type" class="toolbar-select" style="display: none;">
+                <option value="downstream">下游</option>
+                <option value="upstream">上游</option>
+                <option value="belongs_to">属于</option>
+            </select>
+            <button class="toolbar-btn" onclick="clearSelection()">🔄 清除选择</button>
+        </div>
+    </div>
+
+    <div class="canvas-container" id="canvas">
+        {% for card in cards %}
+        <div class="card-node {{ card.card_type or 'company' }}" id="card-{{ card.id }}" 
+             style="left: {{ card.x }}px; top: {{ card.y }}px; width: {{ card.width }}px; height: {{ card.height }}px;"
+             data-card-id="{{ card.id }}" data-card-type="{{ card.card_type or 'company' }}">
+            <div class="card-type-badge {{ card.card_type or 'company' }}">
+                {{ '🏢 行业' if (card.card_type or 'company') == 'industry' else '🏭 公司' }}
+            </div>
+            <div class="card-actions">
+                <button class="card-action-btn" onclick="editCard({{ card.id }})" title="编辑">✏️</button>
+                <button class="card-action-btn" onclick="deleteCard({{ card.id }})" title="删除">🗑️</button>
+            </div>
+            <div class="card-title">{{ card.title }}</div>
+            {% if card.content %}
+            <div class="card-content">{{ card.content }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 编辑卡片对话框 -->
+    <div class="modal" id="card-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">编辑卡片</h2>
+            </div>
+            <form id="card-form" onsubmit="saveCard(event)">
+                <input type="hidden" id="card-id" name="id">
+                <div class="form-group">
+                    <label>标题 *</label>
+                    <input type="text" id="card-title-input" required>
+                </div>
+                <div class="form-group">
+                    <label>内容</label>
+                    <textarea id="card-content-input"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>卡片类型 *</label>
+                    <select id="card-type-input" required style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: #ffffff; background-color: #ffffff; color: #000000; font-size: 0.875rem;">
+                        <option value="company">🏭 公司</option>
+                        <option value="industry">🏢 行业</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>颜色</label>
+                    <div class="color-picker" id="color-picker">
+                        <div class="color-option selected" data-color="#6366f1" style="background: #6366f1;"></div>
+                        <div class="color-option" data-color="#10b981" style="background: #10b981;"></div>
+                        <div class="color-option" data-color="#f59e0b" style="background: #f59e0b;"></div>
+                        <div class="color-option" data-color="#ef4444" style="background: #ef4444;"></div>
+                        <div class="color-option" data-color="#8b5cf6" style="background: #8b5cf6;"></div>
+                        <div class="color-option" data-color="#ec4899" style="background: #ec4899;"></div>
+                        <div class="color-option" data-color="#06b6d4" style="background: #06b6d4;"></div>
+                        <div class="color-option" data-color="#84cc16" style="background: #84cc16;"></div>
+                    </div>
+                    <input type="hidden" id="card-color" value="#6366f1">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick="closeCardModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- jsPlumb -->
+    <script src="https://cdn.jsdelivr.net/npm/@jsplumb/browser-ui@5.15.0/js/jsplumb.min.js"></script>
+    
+    <script>
+        const topicId = {{ topic.id }};
+        let jsPlumbInstance;
+        let connectionMode = false;
+        let sourceCard = null;
+        let selectedCardId = null;
+
+        // 初始化jsPlumb
+        jsPlumbInstance = jsPlumb.newInstance({
+            container: document.getElementById('canvas'),
+            paintStyle: { stroke: '#999999', strokeWidth: 2 },
+            endpointStyle: { fill: '#999999', radius: 5 },
+            connector: ['Bezier', { curviness: 50 }],
+            anchors: ['Right', 'Left', 'Top', 'Bottom'],
+            connectionsDetachable: false
+        });
+
+        // 使所有卡片可拖拽
+        const cardNodes = document.querySelectorAll('.card-node');
+        cardNodes.forEach(card => {
+            jsPlumbInstance.draggable(card);
+            
+            // 添加端点
+            jsPlumbInstance.addEndpoint(card, {
+                anchors: ['Right', 'Left', 'Top', 'Bottom']
+            });
+
+            // 点击选择
+            card.addEventListener('click', function(e) {
+                if (e.target.closest('.card-action-btn')) return;
+                
+                if (connectionMode) {
+                    handleConnectionClick(card);
+                } else {
+                    selectCard(card);
+                }
+            });
+        });
+
+        // 加载已有的连线
+        {% for conn in connections %}
+        const conn_{{ conn.id }} = jsPlumbInstance.connect({
+            source: 'card-{{ conn.from_card_id }}',
+            target: 'card-{{ conn.to_card_id }}',
+            paintStyle: { stroke: '{{ conn.color }}', strokeWidth: 3 },
+            endpointStyle: { fill: '{{ conn.color }}', radius: 6 },
+            connector: ['Bezier', { curviness: 50 }]
+        });
+        conn_{{ conn.id }}.addClass('{{ conn.relation_type }}');
+        {% endfor %}
+
+        // 选择卡片
+        function selectCard(card) {
+            document.querySelectorAll('.card-node').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            selectedCardId = card.dataset.cardId;
+        }
+
+        // 清除选择
+        function clearSelection() {
+            document.querySelectorAll('.card-node').forEach(c => c.classList.remove('selected'));
+            selectedCardId = null;
+            connectionMode = false;
+            document.getElementById('connection-btn').textContent = '🔗 连线模式';
+        }
+
+        // 启用连线模式
+        function enableConnectionMode() {
+            connectionMode = !connectionMode;
+            document.getElementById('connection-btn').textContent = connectionMode ? '❌ 取消连线' : '🔗 连线模式';
+            document.getElementById('relation-type').style.display = connectionMode ? 'block' : 'none';
+            sourceCard = null;
+            document.querySelectorAll('.card-node').forEach(c => c.classList.remove('selected'));
+        }
+
+        // 处理连线点击
+        function handleConnectionClick(card) {
+            if (!sourceCard) {
+                sourceCard = card;
+                card.classList.add('selected');
+                // 显示关系类型选择
+                document.getElementById('relation-type').style.display = 'block';
+            } else {
+                if (sourceCard === card) {
+                    // 取消选择
+                    card.classList.remove('selected');
+                    sourceCard = null;
+                    document.getElementById('relation-type').style.display = 'none';
+                } else {
+                    // 获取关系类型
+                    const relationType = document.getElementById('relation-type').value;
+                    
+                    // 根据关系类型设置颜色
+                    let color = '#999999';
+                    if (relationType === 'upstream') {
+                        color = '#3b82f6';  // 蓝色 - 上游
+                    } else if (relationType === 'downstream') {
+                        color = '#10b981';  // 绿色 - 下游
+                    } else if (relationType === 'belongs_to') {
+                        color = '#f59e0b';  // 橙色 - 属于
+                    }
+                    
+                    // 创建连线
+                    const connection = jsPlumbInstance.connect({
+                        source: sourceCard.id,
+                        target: card.id,
+                        paintStyle: { stroke: color, strokeWidth: 3 },
+                        endpointStyle: { fill: color, radius: 6 },
+                        connector: ['Bezier', { curviness: 50 }]
+                    });
+                    connection.addClass(relationType);
+
+                    // 保存连线到服务器
+                    saveConnection(sourceCard.dataset.cardId, card.dataset.cardId, relationType, color);
+                    
+                    sourceCard.classList.remove('selected');
+                    card.classList.remove('selected');
+                    sourceCard = null;
+                    connectionMode = false;
+                    document.getElementById('connection-btn').textContent = '🔗 连线模式';
+                    document.getElementById('relation-type').style.display = 'none';
+                }
+            }
+        }
+
+        // 添加卡片
+        function addCard(cardType = 'company') {
+            const x = Math.random() * (window.innerWidth - 300) + 100;
+            const y = Math.random() * (window.innerHeight - 300) + 100;
+            
+            document.getElementById('card-id').value = '';
+            document.getElementById('card-title-input').value = '';
+            document.getElementById('card-content-input').value = '';
+            document.getElementById('card-type-input').value = cardType;
+            
+            // 根据类型设置默认颜色
+            const defaultColor = cardType === 'industry' ? '#6366f1' : '#10b981';
+            document.getElementById('card-color').value = defaultColor;
+            document.getElementById('modal-title').textContent = cardType === 'industry' ? '新建行业' : '新建公司';
+            
+            // 重置颜色选择
+            document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+            const defaultColorOption = document.querySelector(`.color-option[data-color="${defaultColor}"]`);
+            if (defaultColorOption) {
+                defaultColorOption.classList.add('selected');
+            } else {
+                document.querySelector('.color-option').classList.add('selected');
+            }
+            
+            document.getElementById('card-modal').classList.add('active');
+            document.getElementById('card-title-input').focus();
+        }
+
+        // 编辑卡片
+        function editCard(cardId) {
+            const card = document.getElementById('card-' + cardId);
+            const title = card.querySelector('.card-title').textContent;
+            const content = card.querySelector('.card-content')?.textContent || '';
+            const cardType = card.dataset.cardType || 'company';
+            const color = card.style.borderColor || (cardType === 'industry' ? '#6366f1' : '#10b981');
+            
+            document.getElementById('card-id').value = cardId;
+            document.getElementById('card-title-input').value = title;
+            document.getElementById('card-content-input').value = content;
+            document.getElementById('card-type-input').value = cardType;
+            document.getElementById('card-color').value = color;
+            document.getElementById('modal-title').textContent = cardType === 'industry' ? '编辑行业' : '编辑公司';
+            
+            // 设置颜色选择
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.color === color);
+            });
+            
+            document.getElementById('card-modal').classList.add('active');
+            document.getElementById('card-title-input').focus();
+        }
+
+        // 关闭对话框
+        function closeCardModal() {
+            document.getElementById('card-modal').classList.remove('active');
+        }
+
+        // 保存卡片
+        function saveCard(event) {
+            event.preventDefault();
+            
+            const cardId = document.getElementById('card-id').value;
+            const title = document.getElementById('card-title-input').value;
+            const content = document.getElementById('card-content-input').value;
+            const cardType = document.getElementById('card-type-input').value;
+            const color = document.getElementById('card-color').value;
+            
+            const cardData = {
+                id: cardId || null,
+                topic_id: topicId,
+                title: title,
+                content: content,
+                card_type: cardType,
+                color: color,
+                x: 100,
+                y: 100,
+                width: cardType === 'industry' ? 260 : 220,
+                height: cardType === 'industry' ? 180 : 160
+            };
+
+            // 如果是编辑，获取现有位置和大小
+            if (cardId) {
+                const card = document.getElementById('card-' + cardId);
+                const rect = card.getBoundingClientRect();
+                const canvas = document.getElementById('canvas').getBoundingClientRect();
+                cardData.x = rect.left - canvas.left;
+                cardData.y = rect.top - canvas.top;
+                cardData.width = rect.width;
+                cardData.height = rect.height;
+            }
+
+            fetch('/api/topics/save_card', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cardData)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    if (cardId) {
+                        // 更新现有卡片
+                        updateCardDisplay(cardId, title, content, cardType, color);
+                    } else {
+                        // 创建新卡片
+                        location.reload();
+                    }
+                    closeCardModal();
+                } else {
+                    alert('保存失败：' + data.error);
+                }
+            });
+        }
+
+        // 更新卡片显示
+        function updateCardDisplay(cardId, title, content, cardType, color) {
+            const card = document.getElementById('card-' + cardId);
+            
+            // 更新类型
+            card.classList.remove('industry', 'company');
+            card.classList.add(cardType);
+            card.dataset.cardType = cardType;
+            
+            // 更新类型徽章
+            const badge = card.querySelector('.card-type-badge');
+            badge.textContent = cardType === 'industry' ? '🏢 行业' : '🏭 公司';
+            badge.classList.remove('industry', 'company');
+            badge.classList.add(cardType);
+            
+            // 更新内容
+            card.querySelector('.card-title').textContent = title;
+            const contentEl = card.querySelector('.card-content');
+            if (content) {
+                if (!contentEl) {
+                    const newContent = document.createElement('div');
+                    newContent.className = 'card-content';
+                    card.appendChild(newContent);
+                    card.querySelector('.card-content').textContent = content;
+                } else {
+                    contentEl.textContent = content;
+                }
+            } else if (contentEl) {
+                contentEl.remove();
+            }
+            
+            // 更新颜色
+            card.style.borderColor = color;
+        }
+
+        // 删除卡片
+        function deleteCard(cardId) {
+            if (!confirm('确定要删除这个卡片吗？')) return;
+            
+            fetch('/api/topics/delete_card/' + cardId, {
+                method: 'DELETE'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const card = document.getElementById('card-' + cardId);
+                    jsPlumbInstance.remove(card);
+                    card.remove();
+                }
+            });
+        }
+
+        // 保存连线
+        function saveConnection(fromId, toId, relationType, color) {
+            fetch('/api/topics/save_connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic_id: topicId,
+                    from_card_id: fromId,
+                    to_card_id: toId,
+                    relation_type: relationType,
+                    connection_type: 'bezier',
+                    color: color
+                })
+            });
+        }
+
+        // 保存卡片位置（拖拽后）
+        let saveTimeout;
+        jsPlumbInstance.bind('drag', function(params) {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                const cardId = params.el.dataset.cardId;
+                const rect = params.el.getBoundingClientRect();
+                const canvas = document.getElementById('canvas').getBoundingClientRect();
+                
+                fetch('/api/topics/save_card', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: cardId,
+                        topic_id: topicId,
+                        x: rect.left - canvas.left,
+                        y: rect.top - canvas.top,
+                        width: rect.width,
+                        height: rect.height
+                    })
+                });
+            }, 500);
+        });
+
+        // 颜色选择
+        document.querySelectorAll('.color-option').forEach(opt => {
+            opt.addEventListener('click', function() {
+                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                document.getElementById('card-color').value = this.dataset.color;
+            });
+        });
+
+        // 点击模态框外部关闭
+        document.getElementById('card-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeCardModal();
+            }
+        });
+
+        // 保存专题信息
+        function saveTopicInfo() {
+            const title = prompt('专题标题：', '{{ topic.title }}');
+            if (!title) return;
+            
+            const description = prompt('专题描述：', '{{ topic.description or "" }}');
+            
+            fetch('/api/topics/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: topicId,
+                    title: title,
+                    description: description || ''
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('保存失败');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

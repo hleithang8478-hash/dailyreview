@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ '编辑报告' if report else '新建报告' }}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-glass: rgba(255, 255, 255, 0.08);
+            --bg-glass-hover: rgba(255, 255, 255, 0.12);
+            
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.5);
+            
+            --border: rgba(255, 255, 255, 0.1);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --report-color: #06b6d4;
+            
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .back-btn {
+            padding: 0.625rem 1.25rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+            transform: translateX(-4px);
+        }
+
+        .form-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .form-group {
+            margin-bottom: 2rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9375rem;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            transition: var(--transition);
+            background: var(--bg-glass);
+            background-color: rgba(17, 17, 17, 0.9);
+            color: var(--text-primary);
+            backdrop-filter: blur(10px);
+            font-family: inherit;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            transition: var(--transition);
+            background: #ffffff;
+            background-color: #ffffff;
+            color: #000000;
+            font-family: inherit;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-glass-hover);
+            background-color: rgba(17, 17, 17, 0.95);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: #ffffff;
+            background-color: #ffffff;
+            color: #000000;
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-group select option {
+            background: #ffffff;
+            background-color: #ffffff;
+            color: #000000;
+            padding: 0.75rem;
+        }
+
+        .form-group textarea {
+            min-height: 200px;
+            resize: vertical;
+            line-height: 1.8;
+        }
+
+        .form-group textarea.large {
+            min-height: 400px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn {
+            padding: 0.875rem 2rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            border-color: var(--accent);
+            color: white;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-glass);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .hint {
+            margin-top: 1.5rem;
+            padding: 1rem 1.25rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            backdrop-filter: blur(10px);
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ '📊 编辑报告' if report else '📊 新建报告' }}</h1>
+            <a href="{{ url_for('reports') }}" class="back-btn">← 返回报告列表</a>
+        </div>
+
+        <form method="post" class="form-card">
+            {% if report %}
+            <input type="hidden" name="id" value="{{ report.id }}">
+            {% endif %}
+
+            <div class="form-group">
+                <label for="title">报告标题 *</label>
+                <input type="text" name="title" id="title" 
+                       value="{{ report.title if report else '' }}" 
+                       placeholder="例如：2024年第一季度市场深度分析" required>
+            </div>
+
+            <div class="form-group">
+                <label for="summary">摘要/总结</label>
+                <div id="summary-editor" style="min-height: 150px; background: rgba(17, 17, 17, 0.9); border: 1px solid var(--border); border-radius: var(--radius-md);"></div>
+                <textarea name="summary" id="summary" style="display: none;"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="content">详细内容</label>
+                <div id="content-editor" style="min-height: 400px; background: rgba(17, 17, 17, 0.9); border: 1px solid var(--border); border-radius: var(--radius-md);"></div>
+                <textarea name="content" id="content" style="display: none;"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="category">分类</label>
+                    <input type="text" name="category" id="category" 
+                           value="{{ report.category if report else '' }}" 
+                           placeholder="例如：市场分析、个股研究、策略总结">
+                </div>
+                <div class="form-group">
+                    <label for="date">日期</label>
+                    <input type="date" name="date" id="date" 
+                           value="{{ report.date if report else default_date }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>报表维度选择 *</label>
+                <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="sheet_types" value="stock" id="sheet-stock" 
+                               {{ 'checked' if not report or 'stock' in (report.sheet_types or '').split(',') else '' }}>
+                        <span>📈 个股</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="sheet_types" value="concept" id="sheet-concept"
+                               {{ 'checked' if report and 'concept' in (report.sheet_types or '').split(',') else '' }}>
+                        <span>💡 概念</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="sheet_types" value="industry" id="sheet-industry"
+                               {{ 'checked' if report and 'industry' in (report.sheet_types or '').split(',') else '' }}>
+                        <span>🏭 行业</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 个股选择 -->
+            <div class="form-group" id="stock-sheet-section" style="display: block;">
+                <label>个股选择（手动输入）</label>
+                <input type="text" name="stock_codes" id="stock-codes" 
+                       value="{{ report.stock_codes if report else '' }}"
+                       placeholder="输入股票代码，多个用逗号分隔，例如：000001,600000">
+                <small style="color: rgba(255,255,255,0.5); font-size: 12px; display: block; margin-top: 0.5rem;">
+                    手动输入股票代码，多个用逗号分隔
+                </small>
+            </div>
+
+            <!-- 概念股选择 -->
+            <div class="form-group" id="concept-sheet-section" style="display: none;">
+                <label>概念股选择</label>
+                <select name="concept_ids" id="concept-ids" multiple style="min-height: 150px;">
+                    <option value="">加载中...</option>
+                </select>
+                <small style="color: rgba(255,255,255,0.5); font-size: 12px; display: block; margin-top: 0.5rem;">
+                    按住Ctrl/Cmd键可多选概念股
+                </small>
+            </div>
+
+            <!-- 行业选择 -->
+            <div class="form-group" id="industry-sheet-section" style="display: none;">
+                <label>行业选择（三级行业）</label>
+                <div id="industry-selector" style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 1rem; min-height: 200px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label style="font-size: 0.875rem; color: rgba(255,255,255,0.7);">一级行业</label>
+                            <select id="first-industry" style="width: 100%; margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff;">
+                                <option value="">请选择一级行业</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.875rem; color: rgba(255,255,255,0.7);">二级行业</label>
+                            <select id="second-industry" style="width: 100%; margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff;">
+                                <option value="">请先选择一级行业</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.875rem; color: rgba(255,255,255,0.7);">三级行业</label>
+                            <select name="industry_names" id="third-industry" multiple style="width: 100%; margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff; min-height: 120px;">
+                                <option value="">请先选择二级行业</option>
+                            </select>
+                        </div>
+                    </div>
+                    <small style="color: rgba(255,255,255,0.5); font-size: 12px; display: block; margin-top: 0.5rem;">
+                        依次选择一级、二级、三级行业，三级行业可多选（按住Ctrl/Cmd键）
+                    </small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="tags">标签</label>
+                    <input type="text" name="tags" id="tags" 
+                           value="{{ report.tags if report else '' }}" 
+                           placeholder="多个标签用逗号分隔，例如：A股,科技股,长期投资">
+                </div>
+                <div class="form-group">
+                    <label for="related_plan_id">关联投资计划（可选）</label>
+                    <select name="related_plan_id" id="related_plan_id">
+                        <option value="">无关联计划</option>
+                        {% for plan in plans %}
+                        <option value="{{ plan.id }}" 
+                                {{ 'selected' if report and report.related_plan_id == plan.id else '' }}>
+                            {{ plan.title }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="actions">
+                {% if report %}
+                <a href="{{ url_for('delete_report', id=report.id) }}" class="btn btn-danger" 
+                   onclick="return confirm('确定要删除这个报告吗？')">🗑️ 删除</a>
+                {% endif %}
+                <a href="{{ url_for('reports') }}" class="btn btn-secondary">取消</a>
+                <button type="submit" class="btn btn-primary">💾 {{ '更新' if report else '创建' }}</button>
+            </div>
+
+            <div class="hint">
+                💡 提示：深度报告和总结模块可以帮助你系统地整理和记录投资分析、市场研究和策略总结。你可以为每个报告添加分类、标签，并关联到相应的投资计划。
+            </div>
+        </form>
+    </div>
+
+    <!-- Quill 富文本编辑器 -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    
+    <script>
+        // 初始化摘要编辑器
+        const summaryEditor = new Quill('#summary-editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link'],
+                    ['clean']
+                ]
+            },
+            placeholder: '简要总结报告的核心观点和结论...'
+        });
+
+        // 初始化内容编辑器
+        const contentEditor = new Quill('#content-editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    [{ 'font': [] }],
+                    [{ 'size': ['small', false, 'large', 'huge'] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'script': 'sub'}, { 'script': 'super' }],
+                    [{ 'align': [] }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                    ['blockquote', 'code-block'],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            },
+            placeholder: '在这里详细撰写你的深度报告内容...支持丰富的文本格式。'
+        });
+
+        // 设置暗色主题样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .ql-toolbar {
+                background: rgba(17, 17, 17, 0.9);
+                border: 1px solid var(--border);
+                border-bottom: none;
+                border-radius: var(--radius-md) var(--radius-md) 0 0;
+            }
+            .ql-container {
+                border: 1px solid var(--border);
+                border-top: none;
+                border-radius: 0 0 var(--radius-md) var(--radius-md);
+                font-size: 1rem;
+                color: var(--text-primary);
+                background: rgba(17, 17, 17, 0.9);
+            }
+            .ql-editor {
+                color: var(--text-primary);
+                min-height: 150px;
+            }
+            .ql-editor.ql-blank::before {
+                color: var(--text-tertiary);
+                font-style: italic;
+            }
+            .ql-stroke {
+                stroke: var(--text-secondary);
+            }
+            .ql-fill {
+                fill: var(--text-secondary);
+            }
+            .ql-picker-label {
+                color: var(--text-primary);
+            }
+            .ql-picker-options {
+                background: rgba(17, 17, 17, 0.95);
+                border: 1px solid var(--border);
+                color: var(--text-primary);
+            }
+            .ql-picker-item:hover {
+                background: var(--bg-glass-hover);
+            }
+            .ql-tooltip {
+                background: rgba(17, 17, 17, 0.95);
+                border: 1px solid var(--border);
+                color: var(--text-primary);
+            }
+            .ql-tooltip input {
+                background: var(--bg-glass);
+                border: 1px solid var(--border);
+                color: var(--text-primary);
+            }
+            #content-editor .ql-editor {
+                min-height: 400px;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // 如果有现有内容，加载到编辑器
+        {% if report %}
+        {% if report.summary %}
+        summaryEditor.root.innerHTML = {{ report.summary|tojson|safe }};
+        {% endif %}
+        {% if report.content %}
+        contentEditor.root.innerHTML = {{ report.content|tojson|safe }};
+        {% endif %}
+        {% endif %}
+
+        // 表单提交前，将编辑器内容同步到隐藏的textarea
+        document.querySelector('form').addEventListener('submit', function(e) {
+            document.getElementById('summary').value = summaryEditor.root.innerHTML;
+            document.getElementById('content').value = contentEditor.root.innerHTML;
+        });
+
+        document.getElementById('title').focus();
+
+        // Sheet选择切换
+        const sheetCheckboxes = document.querySelectorAll('input[name="sheet_types"]');
+        sheetCheckboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                updateSheetSections();
+            });
+        });
+
+        function updateSheetSections() {
+            const stockChecked = document.getElementById('sheet-stock').checked;
+            const conceptChecked = document.getElementById('sheet-concept').checked;
+            const industryChecked = document.getElementById('sheet-industry').checked;
+
+            document.getElementById('stock-sheet-section').style.display = stockChecked ? 'block' : 'none';
+            document.getElementById('concept-sheet-section').style.display = conceptChecked ? 'block' : 'none';
+            document.getElementById('industry-sheet-section').style.display = industryChecked ? 'block' : 'none';
+
+            // 加载概念股列表
+            if (conceptChecked) {
+                loadConceptStocks();
+            }
+
+            // 加载行业层级
+            if (industryChecked) {
+                loadIndustryHierarchy();
+            }
+        }
+
+        // 加载概念股列表
+        async function loadConceptStocks() {
+            try {
+                const response = await fetch('/api/concept_stocks/list');
+                const data = await response.json();
+                const select = document.getElementById('concept-ids');
+                
+                if (data.success) {
+                    select.innerHTML = '<option value="">请选择概念股</option>';
+                    data.concepts.forEach(concept => {
+                        const option = document.createElement('option');
+                        option.value = concept.id;
+                        option.textContent = concept.name;
+                        select.appendChild(option);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">加载失败</option>';
+                }
+            } catch (error) {
+                console.error('加载概念股列表失败:', error);
+            }
+        }
+
+        // 加载行业层级结构
+        let industryHierarchy = {};
+        async function loadIndustryHierarchy() {
+            try {
+                const response = await fetch('/api/industries/hierarchy');
+                const data = await response.json();
+                
+                if (data.success) {
+                    industryHierarchy = data.hierarchy;
+                    const firstSelect = document.getElementById('first-industry');
+                    firstSelect.innerHTML = '<option value="">请选择一级行业</option>';
+                    
+                    Object.keys(industryHierarchy).sort().forEach(first => {
+                        const option = document.createElement('option');
+                        option.value = first;
+                        option.textContent = first;
+                        firstSelect.appendChild(option);
+                    });
+
+                    // 一级行业变化时更新二级行业
+                    firstSelect.addEventListener('change', function() {
+                        const secondSelect = document.getElementById('second-industry');
+                        const thirdSelect = document.getElementById('third-industry');
+                        
+                        secondSelect.innerHTML = '<option value="">请选择二级行业</option>';
+                        thirdSelect.innerHTML = '<option value="">请先选择二级行业</option>';
+                        
+                        if (this.value && industryHierarchy[this.value]) {
+                            Object.keys(industryHierarchy[this.value]).sort().forEach(second => {
+                                const option = document.createElement('option');
+                                option.value = second;
+                                option.textContent = second;
+                                secondSelect.appendChild(option);
+                            });
+                        }
+                    });
+
+                    // 二级行业变化时更新三级行业
+                    document.getElementById('second-industry').addEventListener('change', function() {
+                        const firstValue = document.getElementById('first-industry').value;
+                        const thirdSelect = document.getElementById('third-industry');
+                        
+                        thirdSelect.innerHTML = '<option value="">请选择三级行业</option>';
+                        
+                        if (firstValue && this.value && industryHierarchy[firstValue] && industryHierarchy[firstValue][this.value]) {
+                            industryHierarchy[firstValue][this.value].sort().forEach(third => {
+                                const option = document.createElement('option');
+                                option.value = third;
+                                option.textContent = third;
+                                thirdSelect.appendChild(option);
+                            });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('加载行业层级失败:', error);
+            }
+        }
+
+        // 初始化
+        updateSheetSections();
+    </script>
+</body>
+</html>

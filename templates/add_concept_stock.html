@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ '编辑概念股' if concept else '新建概念股' }}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .form-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stock-list {
+            margin-top: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .stock-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .stock-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .stock-info {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .stock-code {
+            font-weight: 600;
+            color: #818cf8;
+        }
+
+        .stock-name {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .btn-remove {
+            padding: 0.25rem 0.75rem;
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .btn-remove:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        .upload-section {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+        }
+
+        .upload-section input[type="file"] {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #ffffff;
+        }
+
+        .btn-upload {
+            margin-top: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .btn-upload:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ '📊 编辑概念股' if concept else '📊 新建概念股' }}</h1>
+            <a href="{{ url_for('concept_stocks') }}" class="btn btn-secondary">← 返回</a>
+        </div>
+
+        <form method="post" class="form-card" id="concept-form">
+            <div class="form-group">
+                <label for="concept_name">概念股名称 *</label>
+                <input type="text" name="concept_name" id="concept_name" 
+                       value="{{ concept.concept_name if concept else '' }}" 
+                       placeholder="例如：人工智能概念" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">描述</label>
+                <textarea name="description" id="description" 
+                          placeholder="概念股的简要描述...">{{ concept.description if concept else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label>股票列表</label>
+                <input type="text" id="stock-codes-input" 
+                       placeholder="输入股票代码，多个用逗号分隔，例如：000001,600000,000002">
+                <button type="button" class="btn-upload" onclick="addStocksFromInput()">添加股票</button>
+                
+                <div class="upload-section">
+                    <label>📷 上传图片识别股票代码（支持多张）</label>
+                    <input type="file" id="image-upload" multiple accept="image/*">
+                    <button type="button" class="btn-upload" onclick="recognizeStocksFromImages()">识别股票代码</button>
+                    <small style="color: rgba(255,255,255,0.5); font-size: 12px; display: block; margin-top: 0.5rem;">
+                        上传包含股票代码的截图，系统将自动识别并添加
+                    </small>
+                </div>
+
+                <div class="stock-list" id="stock-list">
+                    {% if stock_items %}
+                        {% for item in stock_items %}
+                        <div class="stock-item" data-code="{{ item.code }}">
+                            <div class="stock-info">
+                                <span class="stock-code">{{ item.code }}</span>
+                                <span class="stock-name">{{ item.name or '未知' }}</span>
+                            </div>
+                            <button type="button" class="btn-remove" onclick="removeStock('{{ item.code }}')">删除</button>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div style="color: rgba(255,255,255,0.5); text-align: center; padding: 2rem;">
+                            暂无股票，请添加股票代码
+                        </div>
+                    {% endif %}
+                </div>
+                <input type="hidden" name="stock_codes" id="stock-codes-hidden">
+            </div>
+
+            <div class="actions">
+                <a href="{{ url_for('concept_stocks') }}" class="btn btn-secondary">取消</a>
+                <button type="submit" class="btn btn-primary">💾 {{ '更新' if concept else '创建' }}</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let stockList = [];
+        
+        // 初始化已存在的股票列表
+        {% if stock_items %}
+        stockList = [
+            {% for item in stock_items %}
+            {code: '{{ item.code }}', name: '{{ item.name or "" }}'},
+            {% endfor %}
+        ];
+        {% endif %}
+
+        function updateStockList() {
+            const listDiv = document.getElementById('stock-list');
+            if (stockList.length === 0) {
+                listDiv.innerHTML = '<div style="color: rgba(255,255,255,0.5); text-align: center; padding: 2rem;">暂无股票，请添加股票代码</div>';
+            } else {
+                listDiv.innerHTML = stockList.map(stock => `
+                    <div class="stock-item" data-code="${stock.code}">
+                        <div class="stock-info">
+                            <span class="stock-code">${stock.code}</span>
+                            <span class="stock-name">${stock.name || '未知'}</span>
+                        </div>
+                        <button type="button" class="btn-remove" onclick="removeStock('${stock.code}')">删除</button>
+                    </div>
+                `).join('');
+            }
+            
+            // 更新隐藏字段
+            document.getElementById('stock-codes-hidden').value = stockList.map(s => s.code).join(',');
+        }
+
+        function addStocksFromInput() {
+            const input = document.getElementById('stock-codes-input');
+            const codes = input.value.split(',').map(c => c.trim()).filter(c => c);
+            
+            codes.forEach(code => {
+                if (code && !stockList.find(s => s.code === code)) {
+                    stockList.push({code: code, name: ''});
+                    // 尝试获取股票名称
+                    fetchStockName(code);
+                }
+            });
+            
+            input.value = '';
+            updateStockList();
+        }
+
+        function removeStock(code) {
+            stockList = stockList.filter(s => s.code !== code);
+            updateStockList();
+        }
+
+        async function fetchStockName(code) {
+            try {
+                const response = await fetch(`/api/data_query/search_stock`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: code})
+                });
+                const data = await response.json();
+                if (data.success && data.stocks && data.stocks.length > 0) {
+                    const stock = data.stocks.find(s => s.code === code);
+                    if (stock) {
+                        const item = stockList.find(s => s.code === code);
+                        if (item) {
+                            item.name = stock.name || '';
+                            updateStockList();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('获取股票名称失败:', error);
+            }
+        }
+
+        async function recognizeStocksFromImages() {
+            const fileInput = document.getElementById('image-upload');
+            const files = fileInput.files;
+            
+            if (!files || files.length === 0) {
+                alert('请先选择图片文件');
+                return;
+            }
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('images', file);
+            }
+
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '识别中...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/concept_stocks/recognize_stocks', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success && data.stocks) {
+                    data.stocks.forEach(stock => {
+                        if (!stockList.find(s => s.code === stock.code)) {
+                            stockList.push(stock);
+                        }
+                    });
+                    updateStockList();
+                    alert(`成功识别 ${data.stocks.length} 只股票`);
+                    fileInput.value = '';
+                } else {
+                    alert('识别失败: ' + (data.error || '未知错误'));
+                }
+            } catch (error) {
+                console.error('识别失败:', error);
+                alert('识别失败: ' + error.message);
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // 表单提交前更新股票代码
+        document.getElementById('concept-form').addEventListener('submit', function(e) {
+            document.getElementById('stock-codes-hidden').value = stockList.map(s => s.code).join(',');
+        });
+
+        // 初始化
+        updateStockList();
+    </script>
+</body>
+</html>

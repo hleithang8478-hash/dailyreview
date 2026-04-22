@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深度报告和总结</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-card: #111111;
+            --bg-hover: #1a1a1a;
+            
+            --text-primary: #ffffff;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            
+            --border: rgba(255, 255, 255, 0.15);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            
+            --accent: #6366f1;
+            --report-color: #06b6d4;
+            
+            --radius: 4px;
+            --transition: all 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body * {
+            text-rendering: optimizeLegibility;
+        }
+
+        .top-bar {
+            background: rgba(10, 10, 10, 0.6);
+            backdrop-filter: blur(25px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .top-bar h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        
+        .back-button {
+            padding: 0.625rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+        }
+        
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-hover);
+            transform: translateX(-4px);
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #818cf8 100%);
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .main-content {
+            padding: 2rem 2.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* 筛选和搜索栏 */
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: var(--bg-card);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-item label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .filter-item input,
+        .filter-item select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            background-color: rgba(17, 17, 17, 0.9);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: var(--transition);
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .filter-item input {
+            min-width: 200px;
+        }
+
+        .filter-item input:focus,
+        .filter-item select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .filter-item select option {
+            background: #ffffff;
+            background-color: #ffffff;
+            color: #000000;
+            padding: 0.5rem;
+        }
+
+        /* 报告列表 */
+        .reports-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .reports-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .report-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .report-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .report-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .report-card-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1.125rem;
+            line-height: 1.4;
+            flex: 1;
+            margin-right: 1rem;
+        }
+
+        .report-card-category {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            background: rgba(6, 182, 212, 0.2);
+            border: 1px solid var(--report-color);
+            color: var(--report-color);
+            white-space: nowrap;
+        }
+
+        .report-card-summary {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .report-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .report-card-tag {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-tertiary);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1>📊 深度报告和总结</h1>
+        <div class="top-actions">
+            <a href="{{ url_for('index') }}" class="btn">← 返回</a>
+            <a href="{{ url_for('add_report') }}" class="btn btn-primary">➕ 新建报告</a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- 筛选和搜索栏 -->
+        <div class="filters">
+            <div class="filter-item">
+                <label>搜索：</label>
+                <input type="text" id="search-input" placeholder="搜索标题、内容或总结..." 
+                       value="{{ search_query }}" onkeyup="handleSearch(event)">
+            </div>
+            {% if categories %}
+            <div class="filter-item">
+                <label>分类：</label>
+                <select id="category-filter" onchange="applyFilters()">
+                    <option value="">全部分类</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {{ 'selected' if category_filter == cat else '' }}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 报告列表 -->
+        {% if reports %}
+        <div class="reports-grid">
+            {% for report in reports %}
+            <div class="report-card" onclick="window.location.href='/reports/view/{{ report.id }}'">
+                <div class="report-card-header">
+                    <div class="report-card-title">{{ report.title }}</div>
+                    {% if report.category %}
+                    <span class="report-card-category">{{ report.category }}</span>
+                    {% endif %}
+                </div>
+                {% if report.summary %}
+                <div class="report-card-summary">{{ report.summary }}</div>
+                {% elif report.content %}
+                <div class="report-card-summary">{{ report.content[:150] }}...</div>
+                {% endif %}
+                <div class="report-card-meta">
+                    {% if report.date %}
+                    <span>📅 {{ report.date }}</span>
+                    {% endif %}
+                    {% if report.tags %}
+                    <span class="report-card-tag">{{ report.tags }}</span>
+                    {% endif %}
+                    <span style="margin-left: auto;">{{ report.created_at[:10] if report.created_at else '' }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📝</div>
+            <p>暂无报告</p>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem;">点击右上角"新建报告"开始创建</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function applyFilters() {
+            const category = document.getElementById('category-filter').value;
+            const search = document.getElementById('search-input').value;
+            
+            let url = '/reports?';
+            if (category) url += `category=${category}&`;
+            if (search) url += `search=${encodeURIComponent(search)}&`;
+            
+            window.location.href = url.slice(0, -1); // 移除最后的&
+        }
+
+        function handleSearch(event) {
+            // 按回车键或延迟搜索
+            if (event.key === 'Enter') {
+                applyFilters();
+            } else {
+                // 延迟搜索（可选）
+                clearTimeout(window.searchTimeout);
+                window.searchTimeout = setTimeout(applyFilters, 500);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,3650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模拟仓分析</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js 插件 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- Chart.js 时间轴支持 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+        
+        html {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+        
+        /* 强制所有元素不超出视口 */
+        body > * {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        
+        /* 防止任何元素超出页面 */
+        #app, .main-content, .wrapper {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        
+        /* 确保所有图表和表格不会撑大页面 */
+        .section {
+            overflow-x: hidden;
+        }
+        
+        .chart-view {
+            overflow-x: hidden;
+            max-width: 100%;
+        }
+        
+        /* 防止 Chart.js 图表超出容器 */
+        canvas {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 12px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-button:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.6);
+            transform: translateX(-4px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            width: 100%;
+            max-width: 100vw;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+        
+        h1 {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        
+        .section {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: #ffffff;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+        }
+        
+        input[type="file"],
+        select,
+        input[type="text"],
+        input[type="date"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #ffffff !important;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        /* 文件输入框文字颜色 */
+        input[type="file"] {
+            color: #ffffff !important;
+        }
+        
+        input[type="file"]::file-selector-button {
+            padding: 8px 16px;
+            background: rgba(99, 102, 241, 0.3);
+            border: 1px solid rgba(99, 102, 241, 0.5);
+            border-radius: 8px;
+            color: #ffffff;
+            cursor: pointer;
+            margin-right: 12px;
+            font-size: 14px;
+        }
+        
+        input[type="file"]::file-selector-button:hover {
+            background: rgba(99, 102, 241, 0.5);
+        }
+        
+        /* 下拉框样式 */
+        select {
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #ffffff !important;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 40px;
+        }
+        
+        select:focus {
+            background: rgba(255, 255, 255, 0.1) !important;
+        }
+        
+        /* 下拉框选项样式 */
+        select option {
+            background: #1a1a2e !important;
+            color: #ffffff !important;
+            padding: 10px;
+        }
+        
+        select option:checked {
+            background: rgba(99, 102, 241, 0.3) !important;
+            color: #ffffff !important;
+        }
+        
+        select option:hover {
+            background: rgba(99, 102, 241, 0.2) !important;
+        }
+        
+        select option[value=""] {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        
+        /* 日期输入框样式 */
+        input[type="date"] {
+            color-scheme: dark;
+        }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+        
+        input[type="file"]:hover,
+        select:hover,
+        input[type="text"]:hover,
+        input[type="date"]:hover,
+        input[type="number"]:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+        
+        input[type="file"]:focus,
+        select:focus,
+        input[type="text"]:focus,
+        input[type="date"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: rgba(99, 102, 241, 0.8);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        /* 表格样式 */
+        .data-table {
+            width: 100%;
+            min-width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            margin-top: 0;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 13px;
+            table-layout: auto;
+            box-sizing: border-box;
+        }
+        
+        /* 表格列宽度控制 - 移除固定宽度限制 */
+        .data-table th,
+        .data-table td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .data-table thead {
+            background: rgba(99, 102, 241, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .data-table th {
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #ffffff;
+            border-bottom: 2px solid rgba(99, 102, 241, 0.5);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        
+        .data-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        
+        .data-table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* 输入框占位符颜色 */
+        input::placeholder,
+        textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5) !important;
+            opacity: 1;
+        }
+        
+        /* 复选框样式 */
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #6366f1;
+            margin-right: 8px;
+        }
+        
+        /* 文本区域样式 */
+        textarea {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #ffffff !important;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        textarea:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: rgba(99, 102, 241, 0.8);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        /* 确保所有文本都有颜色 */
+        label {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* 状态消息中的文本颜色 */
+        .status-message {
+            color: inherit !important;
+        }
+        
+        /* 表格单元格文本颜色 - 已在上面定义，这里删除重复 */
+        
+        /* 确保所有span和div中的文本都有颜色 */
+        span, div {
+            color: inherit;
+        }
+        
+        /* 日期范围中的"至"文字 */
+        .form-group span {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+        
+        /* 确保所有选项文本可见 */
+        option {
+            background-color: #1a1a2e !important;
+            color: #ffffff !important;
+        }
+        
+        /* 文件输入框的文本显示区域 */
+        input[type="file"] + label,
+        input[type="file"] ~ span {
+            color: #ffffff !important;
+        }
+        
+        /* 确保所有动态生成的文本都有颜色 */
+        .multi-select div {
+            color: #ffffff !important;
+        }
+        
+        /* 图表控制区域的label */
+        .chart-controls label {
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        
+        /* 强制所有输入框和选择框的文字颜色 */
+        * {
+            color-scheme: dark;
+        }
+        
+        /* 确保所有表单元素都有正确的文字颜色 */
+        input, select, textarea, option {
+            color: #ffffff !important;
+        }
+        
+        /* 强制所有表格相关元素使用深色背景 */
+        table, thead, tbody, tr, th, td {
+            background-color: transparent !important;
+        }
+        
+        /* 确保表格中的文字始终可见 */
+        .mapping-table * {
+            color: #ffffff !important;
+        }
+        
+        /* 确保下拉框在表格中显示时背景不是白色 */
+        .mapping-table select,
+        .mapping-table select:focus,
+        .mapping-table select:active {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E"), rgba(255, 255, 255, 0.08) !important;
+        }
+        
+        /* 特殊处理：确保文件输入框的显示文本可见 */
+        input[type="file"] {
+            color: #ffffff !important;
+        }
+        
+        /* 确保下拉框打开时的背景和文字颜色 */
+        select:focus {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: #ffffff !important;
+        }
+        
+        /* 确保所有文本输入框在输入时文字可见 */
+        input[type="text"]:not(:placeholder-shown),
+        input[type="date"]:not(:placeholder-shown),
+        input[type="number"]:not(:placeholder-shown) {
+            color: #ffffff !important;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: #ffffff;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #ffffff;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            margin: 5% auto;
+            padding: 32px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .close {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        
+        .close:hover {
+            color: #ffffff;
+        }
+        
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: transparent;
+        }
+        
+        .mapping-table th,
+        .mapping-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.03) !important;
+            color: #ffffff !important;
+        }
+        
+        .mapping-table th {
+            background: rgba(99, 102, 241, 0.2) !important;
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+        
+        .mapping-table tbody tr {
+            background: rgba(255, 255, 255, 0.03) !important;
+        }
+        
+        .mapping-table tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.05) !important;
+        }
+        
+        .mapping-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
+        
+        .mapping-table td {
+            background: inherit !important;
+            color: #ffffff !important;
+        }
+        
+        .mapping-table select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff !important;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 32px;
+        }
+        
+        .mapping-table select:focus {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(99, 102, 241, 0.6);
+            outline: none;
+        }
+        
+        .mapping-table select option {
+            background: #1a1a2e !important;
+            color: #ffffff !important;
+            padding: 10px;
+        }
+        
+        .mapping-table select option:checked {
+            background: rgba(99, 102, 241, 0.3) !important;
+            color: #ffffff !important;
+        }
+        
+        .mapping-table select option[value=""] {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        
+        .chart-container {
+            position: relative;
+            margin-bottom: 32px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            padding: 20px;
+            width: 100%;
+            max-width: 100%;
+            max-height: 500px !important;
+            box-sizing: border-box;
+            overflow: hidden !important;
+            min-width: 0;
+        }
+        
+        /* 图表容器有固定高度和宽度限制 */
+        .chart-container canvas {
+            height: 400px !important;
+            max-height: 400px !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box;
+        }
+        
+        /* 确保图表容器内的所有内容不超出 */
+        .chart-container > * {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Chart.js 图表包装器限制 */
+        .chart-container > div {
+            max-width: 100% !important;
+            width: 100% !important;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        
+        
+        /* 表格容器内的滚动区域 - 限制高度并添加滚动 */
+        .chart-container > div[style*="overflow"] {
+            max-height: 400px !important;
+            overflow-y: auto !important;
+            overflow-x: auto !important;
+            margin-top: 16px;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            display: block !important;
+        }
+        
+        /* 表格包装器限制 */
+        .chart-container > div[style*="overflow"] .data-table {
+            display: table !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        
+        /* 交易分析视图：单列布局，每个容器占满整行 */
+        #tradingView {
+            display: block;
+            width: 100%;
+        }
+        
+        #tradingView .chart-container {
+            width: 100%;
+            max-width: 100%;
+            margin-bottom: 24px;
+            box-sizing: border-box;
+        }
+        
+        /* 表格容器限制 */
+        #tradingView .chart-container:has(.data-table) {
+            max-height: 500px;
+            overflow: hidden;
+        }
+        
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #ffffff;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .chart-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 6px;
+        }
+        
+        .chart-tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .chart-tab:hover {
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .chart-tab.active {
+            background: rgba(99, 102, 241, 0.3);
+            color: #ffffff;
+        }
+        
+        .chart-view {
+            display: none;
+        }
+        
+        .chart-view.active {
+            display: block;
+        }
+        
+        .chart-controls label {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        
+        .chart-controls input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+        
+        .status-message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        
+        .status-success {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #10b981;
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #ef4444;
+        }
+        
+        .status-info {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #3b82f6;
+        }
+        
+        .status-warning {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #f59e0b;
+        }
+        
+        .multi-select {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .select-tag {
+            padding: 6px 12px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .select-tag:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .select-tag.selected {
+            background: rgba(99, 102, 241, 0.6);
+            border-color: rgba(99, 102, 241, 0.8);
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-button">← 返回首页</a>
+    
+    <div class="container">
+        <h1>模拟仓分析</h1>
+        
+        <!-- 数据导入区域 -->
+        <div class="section">
+            <h2 class="section-title">数据导入</h2>
+            <div id="importStatus"></div>
+            
+            <div class="form-group">
+                <label>选择Excel文件</label>
+                <input type="file" id="excelFile" accept=".xlsx,.xls">
+            </div>
+            
+            <div class="form-group">
+                <label>选择字段映射配置</label>
+                <select id="mappingSelect">
+                    <option value="">-- 请选择或创建映射配置 --</option>
+                </select>
+                <button class="btn btn-secondary" onclick="showMappingModal()" style="margin-top: 8px;">创建/编辑映射配置</button>
+            </div>
+            
+            <button class="btn btn-primary" onclick="importData()">导入数据</button>
+            <button class="btn btn-success" onclick="preprocessData()" style="margin-left: 12px;">预处理数据（获取行业信息）</button>
+        </div>
+        
+        <!-- 分析配置区域 -->
+        <div class="section">
+            <h2 class="section-title">分析配置</h2>
+            
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>选择模拟组合（可多选）</label>
+                    <div id="portfolioTags" class="multi-select"></div>
+                    <button class="btn btn-secondary" onclick="loadPortfolios()" style="margin-top: 8px;">刷新列表</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>日期范围</label>
+                    <div style="display: flex; gap: 12px;">
+                        <input type="date" id="startDate" style="flex: 1;">
+                        <span style="line-height: 44px;">至</span>
+                        <input type="date" id="endDate" style="flex: 1;">
+                    </div>
+                    <button class="btn btn-secondary" onclick="loadDateRange()" style="margin-top: 8px;">自动填充日期范围</button>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" onclick="loadAnalysis()">开始分析</button>
+        </div>
+        
+        <!-- 图表展示区域 -->
+        <div class="section">
+            <h2 class="section-title">分析结果</h2>
+            
+            <!-- 图表类型选择 -->
+            <div class="chart-tabs">
+                <button class="chart-tab active" onclick="switchChartView('overview', this)">概览</button>
+                <button class="chart-tab" onclick="switchChartView('performance', this)">表现分析</button>
+                <button class="chart-tab" onclick="switchChartView('composition', this)">持仓构成</button>
+                <button class="chart-tab" onclick="switchChartView('trading', this)">交易分析</button>
+            </div>
+            
+            <!-- 概览视图 -->
+            <div id="overviewView" class="chart-view active">
+                <!-- 持仓市值变化（面积图） -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">持仓市值变化趋势</div>
+                        <div class="chart-controls">
+                            <label><input type="checkbox" id="showCumulative" onchange="refreshMarketValueChart()"> 显示累计收益</label>
+                            <label><input type="checkbox" id="showPercentage" onchange="refreshMarketValueChart()"> 显示百分比变化</label>
+                        </div>
+                    </div>
+                    <canvas id="marketValueChart"></canvas>
+                </div>
+                
+                <!-- 持仓股票数量变化（折线图+面积图组合） -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">持仓股票数量变化</div>
+                        <div class="chart-controls">
+                            <label>图表类型：</label>
+                            <select id="stockCountChartType" onchange="refreshStockCountChart()">
+                                <option value="line">折线图</option>
+                                <option value="area">面积图</option>
+                                <option value="bar">柱状图</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="stockCountChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- 表现分析视图 -->
+            <div id="performanceView" class="chart-view">
+                <!-- 收益率分析（散点图+趋势线） -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">收益率分析（按买入日期）</div>
+                        <div class="chart-controls">
+                            <label>显示维度：</label>
+                            <select id="returnDimension" onchange="updateReturnAnalysis()">
+                                <option value="scatter">散点图</option>
+                                <option value="line">趋势线</option>
+                                <option value="bar">柱状图</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="returnAnalysisChart"></canvas>
+                </div>
+                
+                <!-- 买入股票表现（水平柱状图） -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">买入股票收益率排名</div>
+                        <div class="chart-controls">
+                            <label>显示数量：</label>
+                            <select id="topNStocks" onchange="refreshBuyPerformanceChart()">
+                                <option value="10">Top 10</option>
+                                <option value="20" selected>Top 20</option>
+                                <option value="30">Top 30</option>
+                                <option value="50">Top 50</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="buyPerformanceChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- 持仓构成视图 -->
+            <div id="compositionView" class="chart-view">
+                <!-- 持仓行业分布（堆叠面积图 / 饼图） -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">持仓行业分布变化</div>
+                        <div class="chart-controls">
+                            <label>行业级别：</label>
+                            <select id="industryLevel" onchange="loadIndustryAnalysis()">
+                                <option value="first">一级行业</option>
+                                <option value="second">二级行业</option>
+                                <option value="third" selected>三级行业</option>
+                            </select>
+                            <label>图表类型：</label>
+                            <select id="industryChartType" onchange="loadIndustryAnalysis()">
+                                <option value="stacked">堆叠柱状图</option>
+                                <option value="stackedArea" selected>堆叠面积图</option>
+                                <option value="pie">饼图（最新）</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="industryChart"></canvas>
+                </div>
+                
+                <!-- 行业股票明细（随饼图悬停联动） -->
+                <div class="chart-container" id="industryStockDetailContainer" style="max-height: 300px; overflow-y: auto;">
+                    <div class="chart-header">
+                        <div class="chart-title">行业股票明细</div>
+                        <div class="chart-controls" id="industryStockDetailTitle" style="color: rgba(255,255,255,0.7);">
+                            将鼠标移动到饼图的某个行业扇区上，查看该行业持仓股票明细
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table class="data-table" id="industryStockDetailTable">
+                            <thead>
+                                <tr>
+                                    <th>行业</th>
+                                    <th>股票代码</th>
+                                    <th>股票名称</th>
+                                    <th>持仓市值（元）</th>
+                                    <th>占比（%）</th>
+                                </tr>
+                            </thead>
+                            <tbody id="industryStockDetailBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #999;">
+                                        暂无数据
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 持仓集中度（雷达图） -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">持仓集中度分析</div>
+                        <div class="chart-controls">
+                            <label>分析维度：</label>
+                            <select id="concentrationDimension" onchange="updateConcentrationChart()">
+                                <option value="industry">按行业</option>
+                                <option value="stock">按股票</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="concentrationChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- 交易分析视图 -->
+            <div id="tradingView" class="chart-view">
+                <!-- 交易汇总堆叠柱状图 -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">交易汇总（买入量、卖出量、净买量）</div>
+                        <div class="chart-controls">
+                            <button class="btn btn-primary" onclick="loadTradingSummary()">刷新数据</button>
+                        </div>
+                    </div>
+                    <canvas id="tradingSummaryChart"></canvas>
+                </div>
+                
+                <!-- 股票特征指标表格 -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">持仓股票特征指标（波动率等）</div>
+                        <div class="chart-controls">
+                            <button class="btn btn-primary" onclick="loadStockMetrics()">刷新数据</button>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto; overflow-y: auto; max-height: 400px; width: 100%; box-sizing: border-box; margin-top: 16px;">
+                        <table id="stockMetricsTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>股票代码</th>
+                                    <th>股票名称</th>
+                                    <th>日波动率</th>
+                                    <th>年化波动率</th>
+                                    <th>5日收益率</th>
+                                    <th>10日收益率</th>
+                                    <th>20日收益率</th>
+                                    <th>60日收益率</th>
+                                    <th>20日振幅</th>
+                                    <th>60日振幅</th>
+                                    <th>20日最大涨幅</th>
+                                    <th>20日最大回撤</th>
+                                    <th>60日最大回撤</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stockMetricsTableBody">
+                                <tr>
+                                    <td colspan="13" style="text-align: center; color: #999;">请点击"刷新数据"加载股票指标</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 买卖交易量对比（组合图） -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">买卖交易量对比</div>
+                        <div class="chart-controls">
+                            <label>显示方式：</label>
+                            <select id="tradingChartType" onchange="updateTradingChart()">
+                                <option value="grouped">分组柱状图</option>
+                                <option value="stacked">堆叠柱状图</option>
+                                <option value="line">折线图</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="tradingChart"></canvas>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+    
+    <!-- 字段映射弹窗 -->
+    <div id="mappingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">字段映射配置</h3>
+                <span class="close" onclick="closeMappingModal()">&times;</span>
+            </div>
+            
+            <div class="form-group">
+                <label>映射配置名称</label>
+                <input type="text" id="mappingName" placeholder="例如：默认映射">
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="setAsDefault"> 设为默认映射
+                </label>
+            </div>
+            
+            <div id="mappingTableContainer"></div>
+            
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+                <button class="btn btn-primary" onclick="saveMapping()">保存映射</button>
+                <button class="btn btn-secondary" onclick="closeMappingModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量
+        let excelHeaders = [];
+        let charts = {};
+        let selectedPortfolios = new Set();
+        
+        // 保存当前加载的数据，用于实时刷新图表
+        let currentData = {
+            marketValue: null,
+            stockCount: null,
+            industry: null,
+            buyPerformance: null
+        };
+        
+        // 必需的字段映射
+        const requiredFields = [
+            { key: 'portfolio_name', label: '模拟组合名称' },
+            { key: 'date', label: '日期' },
+            { key: 'stock_code', label: '股票代码' },
+            { key: 'stock_name', label: '股票名称' },
+            { key: 'stock_market', label: '股票市场' },
+            { key: 'position_quantity', label: '持仓量' },
+            { key: 'position_value', label: '持仓市值' },
+            { key: 'buy_quantity', label: '当日买量' },
+            { key: 'sell_quantity', label: '当日卖量' },
+            { key: 'avg_price', label: '成交均价' }
+        ];
+        
+        // 保存用户选择到 localStorage
+        function saveUserPreferences() {
+            const preferences = {
+                selectedPortfolios: Array.from(selectedPortfolios),
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                industryLevel: document.getElementById('industryLevel')?.value || 'third',
+                industryChartType: document.getElementById('industryChartType')?.value || 'stackedArea',
+                returnDimension: document.getElementById('returnDimension')?.value || 'scatter',
+                concentrationDimension: document.getElementById('concentrationDimension')?.value || 'industry',
+                currentView: document.querySelector('.chart-view.active')?.id?.replace('View', '') || 'overview'
+            };
+            localStorage.setItem('portfolioAnalysisPreferences', JSON.stringify(preferences));
+        }
+        
+        // 从 localStorage 恢复用户选择
+        function restoreUserPreferences() {
+            try {
+                const saved = localStorage.getItem('portfolioAnalysisPreferences');
+                if (!saved) return false;
+                
+                const preferences = JSON.parse(saved);
+                
+                // 恢复日期
+                if (preferences.startDate) {
+                    document.getElementById('startDate').value = preferences.startDate;
+                }
+                if (preferences.endDate) {
+                    document.getElementById('endDate').value = preferences.endDate;
+                }
+                
+                // 恢复行业级别
+                if (preferences.industryLevel && document.getElementById('industryLevel')) {
+                    document.getElementById('industryLevel').value = preferences.industryLevel;
+                }
+                
+                // 恢复图表类型
+                if (preferences.industryChartType && document.getElementById('industryChartType')) {
+                    document.getElementById('industryChartType').value = preferences.industryChartType;
+                }
+                
+                if (preferences.returnDimension && document.getElementById('returnDimension')) {
+                    document.getElementById('returnDimension').value = preferences.returnDimension;
+                }
+                
+                if (preferences.concentrationDimension && document.getElementById('concentrationDimension')) {
+                    document.getElementById('concentrationDimension').value = preferences.concentrationDimension;
+                }
+                
+                // 恢复视图
+                if (preferences.currentView) {
+                    setTimeout(() => {
+                        switchView(preferences.currentView);
+                    }, 100);
+                }
+                
+                // 恢复组合选择（需要在组合列表加载后）
+                if (preferences.selectedPortfolios && preferences.selectedPortfolios.length > 0) {
+                    return preferences.selectedPortfolios;
+                }
+                
+                return false;
+            } catch (e) {
+                console.error('恢复用户选择失败:', e);
+                return false;
+            }
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMappings();
+            
+            // 给日期输入框添加事件监听器，保存用户选择
+            document.getElementById('startDate').addEventListener('change', saveUserPreferences);
+            document.getElementById('endDate').addEventListener('change', saveUserPreferences);
+            
+            loadPortfolios().then(() => {
+                // 组合列表加载完成后，恢复用户选择
+                const savedPortfolios = restoreUserPreferences();
+                if (savedPortfolios && savedPortfolios.length > 0) {
+                    // 恢复组合选择状态
+                    savedPortfolios.forEach(portfolio => {
+                        selectedPortfolios.add(portfolio);
+                        const tags = document.querySelectorAll('#portfolioTags .select-tag');
+                        tags.forEach(t => {
+                            if (t.textContent === portfolio) {
+                                t.classList.add('selected');
+                            }
+                        });
+                    });
+                    
+                    // 如果有保存的选择，自动加载数据
+                    if (selectedPortfolios.size > 0) {
+                        setTimeout(() => {
+                            loadAnalysis();
+                        }, 500);
+                    }
+                }
+            });
+            initCharts();
+        });
+        
+        // 文件选择处理
+        document.getElementById('excelFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                parseExcelHeaders(file);
+            }
+        });
+        
+        // 解析Excel表头
+        async function parseExcelHeaders(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/api/portfolio/parse_headers', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    excelHeaders = result.headers;
+                    showStatus('success', 'Excel表头解析成功，共 ' + excelHeaders.length + ' 个字段');
+                    showMappingModal();
+                } else {
+                    showStatus('error', result.error || '解析失败');
+                }
+            } catch (error) {
+                showStatus('error', '解析失败: ' + error.message);
+            }
+        }
+        
+        // 显示字段映射弹窗
+        function showMappingModal() {
+            const modal = document.getElementById('mappingModal');
+            const container = document.getElementById('mappingTableContainer');
+            
+            if (excelHeaders.length === 0) {
+                showStatus('error', '请先上传Excel文件');
+                return;
+            }
+            
+            // 构建映射表
+            let html = '<table class="mapping-table"><thead><tr><th>系统字段</th><th>Excel字段</th></tr></thead><tbody>';
+            
+            requiredFields.forEach(field => {
+                html += `<tr style="background: rgba(255, 255, 255, 0.03) !important;">
+                    <td style="background: inherit !important; color: #ffffff !important;">${field.label}</td>
+                    <td style="background: inherit !important; color: #ffffff !important;">
+                        <select id="map_${field.key}" class="mapping-select" style="background: rgba(255, 255, 255, 0.08) !important; color: #ffffff !important;">
+                            <option value="" style="background: #1a1a2e !important; color: rgba(255, 255, 255, 0.6) !important;">-- 请选择 --</option>
+                            ${excelHeaders.map(header => `<option value="${header}" style="background: #1a1a2e !important; color: #ffffff !important;">${header}</option>`).join('')}
+                        </select>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+            
+            // 尝试加载默认映射
+            loadDefaultMapping();
+            
+            modal.style.display = 'block';
+        }
+        
+        // 关闭映射弹窗
+        function closeMappingModal() {
+            document.getElementById('mappingModal').style.display = 'none';
+        }
+        
+        // 加载默认映射
+        async function loadDefaultMapping() {
+            try {
+                const response = await fetch('/api/portfolio/get_mappings');
+                const result = await response.json();
+                
+                if (result.success && result.mappings.length > 0) {
+                    const defaultMapping = result.mappings.find(m => m.is_default) || result.mappings[0];
+                    if (defaultMapping) {
+                        const config = defaultMapping.mapping_config;
+                        document.getElementById('mappingName').value = defaultMapping.mapping_name;
+                        document.getElementById('setAsDefault').checked = defaultMapping.is_default;
+                        
+                        requiredFields.forEach(field => {
+                            const select = document.getElementById(`map_${field.key}`);
+                            if (select && config[field.key]) {
+                                select.value = config[field.key];
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('加载默认映射失败:', error);
+            }
+        }
+        
+        // 保存映射配置
+        async function saveMapping() {
+            const mappingName = document.getElementById('mappingName').value.trim();
+            if (!mappingName) {
+                showStatus('error', '请输入映射配置名称');
+                return;
+            }
+            
+            const mappingConfig = {};
+            let hasError = false;
+            
+            requiredFields.forEach(field => {
+                const select = document.getElementById(`map_${field.key}`);
+                const value = select ? select.value : '';
+                if (!value) {
+                    hasError = true;
+                    showStatus('error', `请为"${field.label}"选择Excel字段`);
+                    return;
+                }
+                mappingConfig[field.key] = value;
+            });
+            
+            if (hasError) return;
+            
+            const isDefault = document.getElementById('setAsDefault').checked;
+            
+            try {
+                const response = await fetch('/api/portfolio/save_mapping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mapping_name: mappingName,
+                        is_default: isDefault,
+                        mapping_config: mappingConfig
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showStatus('success', '映射配置保存成功');
+                    closeMappingModal();
+                    loadMappings();
+                } else {
+                    showStatus('error', result.error || '保存失败');
+                }
+            } catch (error) {
+                showStatus('error', '保存失败: ' + error.message);
+            }
+        }
+        
+        // 加载映射配置列表
+        async function loadMappings() {
+            try {
+                const response = await fetch('/api/portfolio/get_mappings');
+                const result = await response.json();
+                
+                const select = document.getElementById('mappingSelect');
+                select.innerHTML = '<option value="">-- 请选择或创建映射配置 --</option>';
+                
+                if (result.success && result.mappings.length > 0) {
+                    result.mappings.forEach(mapping => {
+                        const option = document.createElement('option');
+                        option.value = mapping.id;
+                        option.textContent = mapping.mapping_name + (mapping.is_default ? ' (默认)' : '');
+                        if (mapping.is_default) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('加载映射配置失败:', error);
+            }
+        }
+        
+        // 导入数据
+        async function importData() {
+            const fileInput = document.getElementById('excelFile');
+            const mappingId = document.getElementById('mappingSelect').value;
+            
+            if (!fileInput.files[0]) {
+                showStatus('error', '请选择Excel文件');
+                return;
+            }
+            
+            if (!mappingId) {
+                showStatus('error', '请选择字段映射配置');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('mapping_id', mappingId);
+            
+            showStatus('info', '正在导入数据...');
+            
+            try {
+                const response = await fetch('/api/portfolio/import_data', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showStatus('success', result.message);
+                    loadPortfolios();
+                    loadDateRange();
+                } else {
+                    showStatus('error', result.error || '导入失败');
+                }
+            } catch (error) {
+                showStatus('error', '导入失败: ' + error.message);
+            }
+        }
+        
+        // 预处理数据
+        async function preprocessData() {
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            // 如果没有选择组合，提示用户
+            if (portfolios.length === 0) {
+                showStatus('warning', '请先选择要预处理的模拟组合');
+                return;
+            }
+            
+            showStatus('info', '正在预处理数据，获取行业信息...');
+            
+            try {
+                const response = await fetch('/api/portfolio/preprocess', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        portfolio_names: portfolios,
+                        date_range: {
+                            start_date: startDate || null,
+                            end_date: endDate || null
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showStatus('success', result.message);
+                    // 预处理成功后，自动刷新行业图表
+                    if (selectedPortfolios.size > 0) {
+                        setTimeout(() => {
+                            // 重新加载分析数据以刷新所有图表
+                            loadAnalysis();
+                        }, 1000);
+                    } else {
+                        showStatus('info', '请选择模拟组合后点击"开始分析"查看行业图表');
+                    }
+                } else {
+                    showStatus('error', result.error || '预处理失败');
+                }
+            } catch (error) {
+                showStatus('error', '预处理失败: ' + error.message);
+            }
+        }
+        
+        // 加载组合列表
+        async function loadPortfolios() {
+            try {
+                const response = await fetch('/api/portfolio/portfolios');
+                const result = await response.json();
+                
+                const container = document.getElementById('portfolioTags');
+                container.innerHTML = '';
+                
+                if (result.success && result.portfolios.length > 0) {
+                    result.portfolios.forEach(portfolio => {
+                        const tag = document.createElement('div');
+                        tag.className = 'select-tag' + (selectedPortfolios.has(portfolio) ? ' selected' : '');
+                        tag.textContent = portfolio;
+                        tag.onclick = () => {
+                            if (selectedPortfolios.has(portfolio)) {
+                                selectedPortfolios.delete(portfolio);
+                                tag.classList.remove('selected');
+                            } else {
+                                selectedPortfolios.add(portfolio);
+                                tag.classList.add('selected');
+                            }
+                            saveUserPreferences();
+                        };
+                        container.appendChild(tag);
+                    });
+                } else {
+                    container.innerHTML = '<div style="color: rgba(255,255,255,0.5);">暂无数据，请先导入</div>';
+                }
+            } catch (error) {
+                console.error('加载组合列表失败:', error);
+            }
+        }
+        
+        // 加载日期范围
+        async function loadDateRange() {
+            const portfolios = Array.from(selectedPortfolios);
+            const portfolioName = portfolios.length === 1 ? portfolios[0] : null;
+            
+            try {
+                const url = '/api/portfolio/date_range' + (portfolioName ? `?portfolio_name=${encodeURIComponent(portfolioName)}` : '');
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success && result.min_date) {
+                    document.getElementById('startDate').value = result.min_date;
+                    document.getElementById('endDate').value = result.max_date;
+                    // 保存用户选择
+                    saveUserPreferences();
+                }
+            } catch (error) {
+                console.error('加载日期范围失败:', error);
+            }
+        }
+        
+        // 通用图表配置
+        const getBaseChartOptions = (yAxisLabel = '', xAxisLabel = '日期', formatY = null) => ({
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#ffffff',
+                        font: { size: 12 },
+                        padding: 15,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    },
+                    onClick: (e, legendItem, legend) => {
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                    titleColor: '#ffffff',
+                    bodyColor: '#ffffff',
+                    borderColor: 'rgba(99, 102, 241, 0.5)',
+                    borderWidth: 1,
+                    padding: 12,
+                    cornerRadius: 8,
+                    displayColors: true,
+                    callbacks: {
+                        title: (context) => context[0]?.label || '',
+                        label: (context) => {
+                            let label = context.dataset?.label || '';
+                            if (label) label += ': ';
+                            
+                            // 对于饼图，使用 context.parsed 或 context.raw
+                            // 对于其他图表，使用 context.parsed.y
+                            let value;
+                            if (context.parsed !== null && context.parsed !== undefined) {
+                                // 饼图使用 context.parsed（数值）
+                                // 其他图表使用 context.parsed.y
+                                value = typeof context.parsed === 'number' 
+                                    ? context.parsed 
+                                    : (context.parsed?.y ?? context.parsed);
+                            } else {
+                                value = context.raw ?? 0;
+                            }
+                            
+                            // 确保 value 是数字
+                            if (typeof value !== 'number' || isNaN(value)) {
+                                value = 0;
+                            }
+                            
+                            if (formatY) {
+                                label += formatY(value);
+                            } else {
+                                label += typeof value === 'number' ? value.toLocaleString('zh-CN', { 
+                                    minimumFractionDigits: 2, 
+                                    maximumFractionDigits: 2 
+                                }) : String(value || '0');
+                            }
+                            return label;
+                        }
+                    }
+                },
+                zoom: {
+                    zoom: {
+                        wheel: { enabled: true },
+                        pinch: { enabled: true },
+                        mode: 'x'
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'x'
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'category',
+                    title: {
+                        display: true,
+                        text: xAxisLabel,
+                        color: '#ffffff',
+                        font: { size: 13, weight: 'bold' }
+                    },
+                    ticks: {
+                        color: '#ffffff',
+                        font: { size: 11 },
+                        maxRotation: 45,
+                        minRotation: 0
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)',
+                        drawBorder: false
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: yAxisLabel,
+                        color: '#ffffff',
+                        font: { size: 13, weight: 'bold' }
+                    },
+                    ticks: {
+                        color: '#ffffff',
+                        font: { size: 11 },
+                        callback: formatY || function(value) {
+                            if (value >= 1000000) return (value / 1000000).toFixed(2) + 'M';
+                            if (value >= 1000) return (value / 1000).toFixed(2) + 'K';
+                            return value.toFixed(2);
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)',
+                        drawBorder: false
+                    },
+                    beginAtZero: false
+                }
+            }
+        });
+        
+        // 初始化所有图表
+        function initCharts() {
+            // 持仓市值变化图表（面积图）
+            charts.marketValue = new Chart(
+                document.getElementById('marketValueChart'),
+                {
+                    type: 'line',
+                    data: { labels: [], datasets: [] },
+                    options: getBaseChartOptions('持仓市值 (元)', '日期', (value) => {
+                        if (value >= 100000000) return (value / 100000000).toFixed(2) + ' 亿';
+                        if (value >= 10000) return (value / 10000).toFixed(2) + ' 万';
+                        return value.toLocaleString('zh-CN');
+                    })
+                }
+            );
+            
+            // 持仓股票数量变化图表
+            charts.stockCount = new Chart(
+                document.getElementById('stockCountChart'),
+                {
+                    type: 'line',
+                    data: { labels: [], datasets: [] },
+                    options: getBaseChartOptions('股票数量 (只)', '日期', (value) => value.toFixed(0) + ' 只')
+                }
+            );
+            
+            // 持仓行业分布图表
+            charts.industry = new Chart(
+                document.getElementById('industryChart'),
+                {
+                    type: 'bar',
+                    data: { labels: [], datasets: [] },
+                    options: {
+                        ...getBaseChartOptions('持仓市值 (元)', '日期', (value) => {
+                            if (value >= 100000000) return (value / 100000000).toFixed(2) + ' 亿';
+                            if (value >= 10000) return (value / 10000).toFixed(2) + ' 万';
+                            return value.toLocaleString('zh-CN');
+                        }),
+                        scales: {
+                            ...getBaseChartOptions().scales,
+                            x: {
+                                ...getBaseChartOptions().scales.x,
+                                stacked: true
+                            },
+                            y: {
+                                ...getBaseChartOptions().scales.y,
+                                stacked: true
+                            }
+                        }
+                    }
+                }
+            );
+            
+            // 买入股票表现图表（水平柱状图）
+            charts.buyPerformance = new Chart(
+                document.getElementById('buyPerformanceChart'),
+                {
+                    type: 'bar',
+                    data: { labels: [], datasets: [] },
+                    options: {
+                        ...getBaseChartOptions('收益率 (%)', '股票'),
+                        indexAxis: 'y',
+                        scales: {
+                            x: {
+                                ...getBaseChartOptions().scales.x,
+                                title: { display: true, text: '收益率 (%)', color: '#ffffff' }
+                            },
+                            y: {
+                                ...getBaseChartOptions().scales.y,
+                                title: { display: false },
+                                ticks: {
+                                    color: '#ffffff',
+                                    font: { size: 10 }
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+            
+            // 收益率分析图表
+            charts.returnAnalysis = new Chart(
+                document.getElementById('returnAnalysisChart'),
+                {
+                    type: 'scatter',
+                    data: { labels: [], datasets: [] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: {
+                            duration: 1000,
+                            easing: 'easeInOutQuart'
+                        },
+                        interaction: {
+                            mode: 'nearest',
+                            intersect: false
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    color: '#ffffff',
+                                    font: { size: 12 },
+                                    usePointStyle: true
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                borderColor: 'rgba(99, 102, 241, 0.5)',
+                                borderWidth: 1,
+                                padding: 12,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    title: (context) => {
+                                        const point = context[0].raw;
+                                        return point.stock || '股票';
+                                    },
+                                    label: (context) => {
+                                        const point = context.raw;
+                                        return [
+                                            `日期: ${new Date(point.x).toLocaleDateString('zh-CN')}`,
+                                            `收益率: ${point.y.toFixed(2)}%`,
+                                            `买入金额: ${point.buyValue ? point.buyValue.toLocaleString('zh-CN') : 'N/A'}`
+                                        ];
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: '买入日期',
+                                    color: '#ffffff',
+                                    font: { size: 13, weight: 'bold' }
+                                },
+                                ticks: {
+                                    color: '#ffffff',
+                                    font: { size: 11 },
+                                    callback: function(value) {
+                                        return new Date(value).toLocaleDateString('zh-CN');
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)',
+                                    drawBorder: false
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: '收益率 (%)',
+                                    color: '#ffffff',
+                                    font: { size: 13, weight: 'bold' }
+                                },
+                                ticks: {
+                                    color: '#ffffff',
+                                    font: { size: 11 },
+                                    callback: function(value) {
+                                        return value.toFixed(2) + '%';
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)',
+                                    drawBorder: false
+                                },
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                }
+            );
+            
+            // 持仓集中度图表（雷达图）
+            charts.concentration = new Chart(
+                document.getElementById('concentrationChart'),
+                {
+                    type: 'radar',
+                    data: { labels: [], datasets: [] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#ffffff' }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff'
+                            }
+                        },
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: '#ffffff',
+                                    backdropColor: 'transparent'
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                pointLabels: {
+                                    color: '#ffffff'
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+            
+            // 交易量对比图表
+            charts.trading = new Chart(
+                document.getElementById('tradingChart'),
+                {
+                    type: 'bar',
+                    data: { labels: [], datasets: [] },
+                    options: getBaseChartOptions('交易量 (股)', '日期', (value) => {
+                        if (value >= 10000) return (value / 10000).toFixed(2) + ' 万';
+                        return value.toLocaleString('zh-CN');
+                    })
+                }
+            );
+            
+            // 交易汇总堆叠柱状图
+            charts.tradingSummary = new Chart(
+                document.getElementById('tradingSummaryChart'),
+                {
+                    type: 'bar',
+                    data: { labels: [], datasets: [] },
+                    options: {
+                        ...getBaseChartOptions('交易量 (股)', '日期', (value) => {
+                            if (value >= 10000) return (value / 10000).toFixed(2) + ' 万';
+                            return value.toLocaleString('zh-CN');
+                        }),
+                        scales: {
+                            ...getBaseChartOptions().scales,
+                            x: {
+                                ...getBaseChartOptions().scales.x,
+                                stacked: true
+                            },
+                            y: {
+                                ...getBaseChartOptions().scales.y,
+                                stacked: true
+                            }
+                        }
+                    }
+                }
+            );
+            
+            // 换手率热力图已移除
+            
+            // 添加窗口调整大小监听器，确保图表响应式调整
+            let resizeTimeout;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(function() {
+                    // 确保所有图表容器不会超出页面宽度
+                    document.querySelectorAll('.chart-container').forEach(container => {
+                        const containerWidth = container.offsetWidth;
+                        const maxWidth = Math.min(containerWidth, window.innerWidth - 40);
+                        container.style.maxWidth = maxWidth + 'px';
+                        
+                        // 确保 canvas 元素不会超出容器
+                        const canvas = container.querySelector('canvas');
+                        if (canvas) {
+                            canvas.style.maxWidth = '100%';
+                            canvas.style.width = '100%';
+                        }
+                    });
+                    
+                    // 调整所有图表大小
+                    Object.values(charts).forEach(chart => {
+                        if (chart && typeof chart.resize === 'function') {
+                            chart.resize();
+                        }
+                    });
+                }, 250);
+            });
+            
+            // 确保图表在更新时也保持正确的尺寸
+            const originalUpdate = Chart.prototype.update;
+            Chart.prototype.update = function(mode) {
+                const result = originalUpdate.call(this, mode);
+                // 更新后确保尺寸正确
+                setTimeout(() => ensureChartContainerSize(this), 50);
+                return result;
+            };
+        }
+        
+        // 数据采样函数 - 当数据点过多时进行采样
+        function sampleData(labels, datasets, maxPoints = 1000) {
+            // 如果标签为空或数据集为空，直接返回
+            if (!labels || labels.length === 0 || !datasets || datasets.length === 0) {
+                return { labels: labels || [], datasets: datasets || [] };
+            }
+            
+            // 如果数据点数量不超过限制，直接返回
+            if (labels.length <= maxPoints) {
+                return { labels, datasets };
+            }
+            
+            const step = Math.ceil(labels.length / maxPoints);
+            const sampledLabels = [];
+            const sampledDatasets = datasets.map(dataset => ({
+                ...dataset,
+                data: []
+            }));
+            
+            for (let i = 0; i < labels.length; i += step) {
+                sampledLabels.push(labels[i]);
+                datasets.forEach((originalDataset, datasetIndex) => {
+                    if (originalDataset.data && originalDataset.data[i] !== undefined) {
+                        sampledDatasets[datasetIndex].data.push(originalDataset.data[i]);
+                    }
+                });
+            }
+            
+            // 确保包含最后一个数据点
+            if (sampledLabels.length > 0 && labels.length > 0 && 
+                sampledLabels[sampledLabels.length - 1] !== labels[labels.length - 1]) {
+                sampledLabels.push(labels[labels.length - 1]);
+                datasets.forEach((originalDataset, datasetIndex) => {
+                    if (originalDataset.data && originalDataset.data.length > 0) {
+                        sampledDatasets[datasetIndex].data.push(originalDataset.data[originalDataset.data.length - 1]);
+                    }
+                });
+            }
+            
+            return { labels: sampledLabels, datasets: sampledDatasets };
+        }
+        
+        // 确保图表容器尺寸正确的辅助函数
+        function ensureChartContainerSize(chart) {
+            if (!chart || !chart.canvas) return;
+            
+            const canvas = chart.canvas;
+            const container = canvas.closest('.chart-container');
+            
+            if (!container) return;
+            
+            // 确保容器不会超出页面宽度
+            const maxContainerWidth = Math.min(window.innerWidth - 40, container.parentElement.offsetWidth || window.innerWidth - 40);
+            container.style.maxWidth = maxContainerWidth + 'px';
+            container.style.width = '100%';
+            
+            // 对饼图单独处理，避免被容器高度裁切
+            const isPieChart = chart.config && chart.config.type === 'pie';
+            
+            if (isPieChart) {
+                // 饼图需要更多垂直空间，且不强制裁剪
+                container.style.maxHeight = 'none';
+                container.style.overflow = 'visible';
+                
+                canvas.style.maxWidth = '100%';
+                canvas.style.width = '100%';
+                canvas.style.height = 'auto';
+                canvas.style.maxHeight = 'none';
+            } else {
+                // 其他图表保持原来的高度约束，防止无限撑大页面
+                container.style.maxHeight = '500px';
+                container.style.overflow = 'hidden';
+                
+                canvas.style.maxWidth = '100%';
+                canvas.style.width = '100%';
+                canvas.style.height = '400px';
+                canvas.style.maxHeight = '400px';
+            }
+            
+            // 强制图表调整大小
+            if (typeof chart.resize === 'function') {
+                setTimeout(() => chart.resize(), 100);
+            }
+        }
+        
+        // 切换图表视图
+        function switchChartView(view, tabElement) {
+            document.querySelectorAll('.chart-view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+            
+            const viewElement = document.getElementById(view + 'View');
+            if (viewElement) {
+                viewElement.classList.add('active');
+            }
+            
+            if (tabElement) {
+                tabElement.classList.add('active');
+            }
+            
+            // 如果切换视图，重新加载该视图的数据（如果有选中的组合）
+            if (selectedPortfolios.size > 0) {
+                if (view === 'performance') {
+                    updateReturnAnalysis();
+                } else if (view === 'composition') {
+                    updateConcentrationChart();
+                } else if (view === 'trading') {
+                    updateTradingChart();
+                }
+            }
+            
+            // 保存当前视图
+            saveUserPreferences();
+        }
+        
+        // 加载分析数据
+        async function loadAnalysis() {
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (portfolios.length === 0) {
+                showStatus('error', '请至少选择一个模拟组合');
+                return;
+            }
+            
+            showStatus('info', '正在加载分析数据...');
+            
+            try {
+                // 并行加载所有分析数据
+                const industryLevel = document.getElementById('industryLevel')?.value || 'third';
+                
+                const [marketValueRes, stockCountRes, industryRes, buyPerformanceRes] = await Promise.all([
+                    fetch('/api/portfolio/analysis/market_value', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ portfolio_names: portfolios, start_date: startDate, end_date: endDate })
+                    }),
+                    fetch('/api/portfolio/analysis/stock_changes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ portfolio_names: portfolios, start_date: startDate, end_date: endDate })
+                    }),
+                    fetch('/api/portfolio/analysis/industry_changes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            portfolio_names: portfolios, 
+                            start_date: startDate, 
+                            end_date: endDate,
+                            industry_level: industryLevel
+                        })
+                    }),
+                    fetch('/api/portfolio/analysis/buy_performance', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ portfolio_names: portfolios, start_date: startDate, end_date: endDate })
+                    })
+                ]);
+                
+                const [marketValueData, stockCountData, industryData, buyPerformanceData] = await Promise.all([
+                    marketValueRes.json(),
+                    stockCountRes.json(),
+                    industryRes.json(),
+                    buyPerformanceRes.json()
+                ]);
+                
+                // 保存数据到全局变量
+                currentData.marketValue = marketValueData;
+                currentData.stockCount = stockCountData;
+                currentData.industry = industryData;
+                currentData.buyPerformance = buyPerformanceData;
+                
+                // 验证数据并更新图表
+                if (marketValueData && marketValueData.success) {
+                    const validation = validateChartData(marketValueData, '持仓市值');
+                    if (validation.valid) {
+                        updateMarketValueChart(marketValueData);
+                    } else {
+                        showStatus('error', validation.message);
+                        charts.marketValue.data.datasets = [];
+                        charts.marketValue.data.labels = [];
+                        charts.marketValue.update('active');
+                    }
+                } else {
+                    showStatus('warning', '持仓市值数据加载失败或为空');
+                    charts.marketValue.data.datasets = [];
+                    charts.marketValue.update('active');
+                }
+                
+                if (stockCountData && stockCountData.success) {
+                    const validation = validateChartData(stockCountData, '持仓股票数量');
+                    if (validation.valid) {
+                        updateStockCountChart(stockCountData);
+                    } else {
+                        showStatus('error', validation.message);
+                        charts.stockCount.data.datasets = [];
+                        charts.stockCount.data.labels = [];
+                        charts.stockCount.update('active');
+                    }
+                } else {
+                    showStatus('warning', '持仓股票数量数据加载失败或为空');
+                    charts.stockCount.data.datasets = [];
+                    charts.stockCount.update('active');
+                }
+                
+                if (industryData && industryData.success) {
+                    const validation = validateChartData(industryData, '行业分布');
+                    if (validation.valid) {
+                        updateIndustryChart(industryData);
+                    } else {
+                        showStatus('error', validation.message);
+                        charts.industry.data.datasets = [];
+                        charts.industry.data.labels = [];
+                        charts.industry.update('active');
+                    }
+                } else {
+                    showStatus('warning', '行业分布数据加载失败或为空');
+                    charts.industry.data.datasets = [];
+                    charts.industry.update('active');
+                }
+                
+                if (buyPerformanceData && buyPerformanceData.success) {
+                    const validation = validateChartData(buyPerformanceData, '买入表现');
+                    if (validation.valid) {
+                        updateBuyPerformanceChart(buyPerformanceData);
+                        // 更新其他依赖买入数据的图表
+                        updateReturnAnalysis();
+                        updateTradingChart();
+                    } else {
+                        showStatus('error', validation.message);
+                        charts.buyPerformance.data.datasets = [];
+                        charts.buyPerformance.data.labels = [];
+                        charts.buyPerformance.update('active');
+                    }
+                } else {
+                    showStatus('warning', '买入表现数据加载失败或为空');
+                    charts.buyPerformance.data.datasets = [];
+                    charts.buyPerformance.update('active');
+                }
+                
+                // 更新集中度图表（依赖行业数据）
+                if (industryData && industryData.success) {
+                    updateConcentrationChart();
+                } else {
+                    charts.concentration.data.datasets = [];
+                    charts.concentration.update('active');
+                }
+                
+                showStatus('success', '分析数据加载完成');
+                
+                // 保存用户选择
+                saveUserPreferences();
+            } catch (error) {
+                showStatus('error', '加载分析数据失败: ' + error.message);
+            }
+        }
+        
+        // 更新持仓市值图表
+        function updateMarketValueChart(data) {
+            if (!data || !data.success || !data.data || Object.keys(data.data).length === 0) {
+                charts.marketValue.data.datasets = [];
+                charts.marketValue.data.labels = [];
+                charts.marketValue.update('active');
+                return;
+            }
+            
+            // 验证数据
+            const validation = validateChartData(data, '持仓市值');
+            if (!validation.valid) {
+                showStatus('error', validation.message);
+                charts.marketValue.data.datasets = [];
+                charts.marketValue.data.labels = [];
+                charts.marketValue.update('active');
+                return;
+            }
+            
+            const showCumulative = document.getElementById('showCumulative')?.checked || false;
+            const showPercentage = document.getElementById('showPercentage')?.checked || false;
+            
+            const datasets = [];
+            const colors = [
+                { border: '#6366f1', fill: 'rgba(99, 102, 241, 0.2)' },
+                { border: '#8b5cf6', fill: 'rgba(139, 92, 246, 0.2)' },
+                { border: '#ec4899', fill: 'rgba(236, 72, 153, 0.2)' },
+                { border: '#10b981', fill: 'rgba(16, 185, 129, 0.2)' },
+                { border: '#f59e0b', fill: 'rgba(245, 158, 11, 0.2)' }
+            ];
+            let colorIndex = 0;
+            
+            const allDates = new Set();
+            Object.values(data.data).forEach(p => p.dates.forEach(d => allDates.add(d)));
+            const sortedDates = Array.from(allDates).sort();
+            
+            Object.keys(data.data).forEach(portfolio => {
+                const portfolioData = data.data[portfolio];
+                let values = [...portfolioData.values];
+                
+                // 计算累计收益
+                if (showCumulative && values.length > 0) {
+                    const firstValue = values[0];
+                    values = values.map(v => ((v - firstValue) / firstValue) * 100);
+                }
+                
+                // 计算百分比变化
+                if (showPercentage && !showCumulative && values.length > 1) {
+                    const firstValue = values[0];
+                    values = values.map(v => ((v - firstValue) / firstValue) * 100);
+                }
+                
+                // 对齐日期
+                const alignedValues = sortedDates.map(date => {
+                    const dateIndex = portfolioData.dates.indexOf(date);
+                    return dateIndex >= 0 ? values[dateIndex] : null;
+                });
+                
+                const color = colors[colorIndex % colors.length];
+                datasets.push({
+                    label: portfolio,
+                    data: alignedValues,
+                    borderColor: color.border,
+                    backgroundColor: color.fill,
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: color.border,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2
+                });
+                colorIndex++;
+            });
+            
+            // 更新Y轴标签
+            if (showCumulative || showPercentage) {
+                charts.marketValue.options.scales.y.title.text = '收益率 (%)';
+            } else {
+                charts.marketValue.options.scales.y.title.text = '持仓市值 (元)';
+            }
+            
+            // 如果数据点过多，进行采样（最多显示1000个点）
+            const sampled = sampleData(sortedDates, datasets, 1000);
+            charts.marketValue.data.labels = sampled.labels;
+            charts.marketValue.data.datasets = sampled.datasets;
+            charts.marketValue.update('active');
+            ensureChartContainerSize(charts.marketValue);
+        }
+        
+        // 更新持仓股票数量图表
+        function updateStockCountChart(data) {
+            if (!data || !data.success || !data.data || Object.keys(data.data).length === 0) {
+                charts.stockCount.data.datasets = [];
+                charts.stockCount.data.labels = [];
+                charts.stockCount.update('active');
+                return;
+            }
+            
+            // 验证数据
+            const validation = validateChartData(data, '持仓股票数量');
+            if (!validation.valid) {
+                showStatus('error', validation.message);
+                charts.stockCount.data.datasets = [];
+                charts.stockCount.data.labels = [];
+                charts.stockCount.update('active');
+                return;
+            }
+            
+            const chartType = document.getElementById('stockCountChartType')?.value || 'line';
+            
+            const datasets = [];
+            const colors = [
+                { border: '#6366f1', fill: 'rgba(99, 102, 241, 0.3)' },
+                { border: '#8b5cf6', fill: 'rgba(139, 92, 246, 0.3)' },
+                { border: '#ec4899', fill: 'rgba(236, 72, 153, 0.3)' },
+                { border: '#10b981', fill: 'rgba(16, 185, 129, 0.3)' },
+                { border: '#f59e0b', fill: 'rgba(245, 158, 11, 0.3)' }
+            ];
+            let colorIndex = 0;
+            
+            const allDates = new Set();
+            Object.values(data.data).forEach(p => p.dates.forEach(d => allDates.add(d)));
+            const sortedDates = Array.from(allDates).sort();
+            
+            Object.keys(data.data).forEach(portfolio => {
+                const portfolioData = data.data[portfolio];
+                const alignedCounts = sortedDates.map(date => {
+                    const dateIndex = portfolioData.dates.indexOf(date);
+                    return dateIndex >= 0 ? portfolioData.counts[dateIndex] : null;
+                });
+                
+                const color = colors[colorIndex % colors.length];
+                const dataset = {
+                    label: portfolio,
+                    data: alignedCounts,
+                    borderColor: color.border,
+                    backgroundColor: color.fill,
+                    borderWidth: chartType === 'bar' ? 0 : 2,
+                    tension: chartType === 'line' ? 0.4 : 0,
+                    fill: chartType === 'area',
+                    pointRadius: chartType === 'line' ? 3 : 0,
+                    pointHoverRadius: 5
+                };
+                
+                if (chartType === 'bar') {
+                    dataset.type = 'bar';
+                }
+                
+                datasets.push(dataset);
+                colorIndex++;
+            });
+            
+            // 更新图表类型
+            if (chartType === 'bar') {
+                charts.stockCount.config.type = 'bar';
+            } else {
+                charts.stockCount.config.type = 'line';
+            }
+            
+            // 如果数据点过多，进行采样（最多显示1000个点）
+            const sampled = sampleData(sortedDates, datasets, 1000);
+            charts.stockCount.data.labels = sampled.labels;
+            charts.stockCount.data.datasets = sampled.datasets;
+            charts.stockCount.update('active');
+            ensureChartContainerSize(charts.stockCount);
+        }
+        
+        // 全局缓存：行业 -> 股票明细（用于饼图悬停展示）
+        let industryStockDetails = {};
+        let latestIndustryDate = null;
+        
+        // 显示某个行业的股票明细（在右侧表格中）
+        function showIndustryStockDetails(industryName) {
+            const tableBody = document.getElementById('industryStockDetailBody');
+            const titleEl = document.getElementById('industryStockDetailTitle');
+            
+            if (!tableBody || !titleEl) return;
+            
+            titleEl.textContent = industryName ? `行业：${industryName} 的持仓股票明细` : '行业股票明细';
+            
+            // 行业名称在不同来源（SQL / 图表标签）可能存在空格或全角/半角差异，这里做一次归一化匹配
+            const normalizedName = (industryName || '').trim();
+            let stocks = [];
+            
+            if (normalizedName && industryStockDetails && Object.keys(industryStockDetails).length > 0) {
+                // 先直接匹配键
+                if (industryStockDetails[normalizedName]) {
+                    stocks = industryStockDetails[normalizedName];
+                } else {
+                    // 再按去空格匹配一次，尽量避免因为末尾空格等原因匹配不到
+                    const matchKey = Object.keys(industryStockDetails).find(
+                        key => (key || '').trim() === normalizedName
+                    );
+                    if (matchKey) {
+                        stocks = industryStockDetails[matchKey];
+                    }
+                }
+            }
+            
+            if (!stocks || !stocks.length) {
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999;">该行业暂无持仓股票数据</td></tr>';
+                return;
+            }
+            
+            const totalValue = stocks.reduce((sum, s) => sum + (s.position_value || 0), 0);
+            tableBody.innerHTML = '';
+            
+            stocks.forEach(stock => {
+                const value = stock.position_value || 0;
+                const weight = totalValue > 0 ? (value / totalValue * 100).toFixed(2) : '0.00';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 6px 8px; border: 1px solid #333;">${industryName}</td>
+                    <td style="padding: 6px 8px; border: 1px solid #333;">${stock.stock_code || ''}</td>
+                    <td style="padding: 6px 8px; border: 1px solid #333;">${stock.stock_name || ''}</td>
+                    <td style="padding: 6px 8px; border: 1px solid #333; text-align: right;">${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style="padding: 6px 8px; border: 1px solid #333; text-align: right;">${weight}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+        
+        // 更新持仓行业分布图表
+        function updateIndustryChart(data) {
+            if (!data || !data.success || !data.data) {
+                charts.industry.data.datasets = [];
+                charts.industry.data.labels = [];
+                charts.industry.update('active');
+                return;
+            }
+            
+            // 验证数据
+            const validation = validateChartData(data, '行业分布');
+            if (!validation.valid) {
+                showStatus('error', validation.message);
+                charts.industry.data.datasets = [];
+                charts.industry.data.labels = [];
+                charts.industry.update('active');
+                return;
+            }
+            
+            const chartType = document.getElementById('industryChartType')?.value || 'stackedArea';
+            
+            // 收集所有日期和行业
+            const allDates = new Set();
+            const allIndustries = new Set();
+            
+            Object.values(data.data).forEach(portfolioData => {
+                Object.keys(portfolioData).forEach(date => {
+                    allDates.add(date);
+                    Object.keys(portfolioData[date]).forEach(industry => {
+                        allIndustries.add(industry);
+                    });
+                });
+            });
+            
+            const sortedDates = Array.from(allDates).sort();
+            const sortedIndustries = Array.from(allIndustries).sort();
+            
+            if (sortedDates.length === 0 || sortedIndustries.length === 0) {
+                charts.industry.data.datasets = [];
+                charts.industry.data.labels = [];
+                charts.industry.update('active');
+                return;
+            }
+            
+            // 只显示前10个行业（按最新日期总市值排序）
+            const latestDate = sortedDates[sortedDates.length - 1];
+            latestIndustryDate = latestDate;
+            const industryValues = {};
+            sortedIndustries.forEach(industry => {
+                let totalValue = 0;
+                Object.values(data.data).forEach(portfolioData => {
+                    if (portfolioData[latestDate] && portfolioData[latestDate][industry]) {
+                        totalValue += portfolioData[latestDate][industry];
+                    }
+                });
+                industryValues[industry] = totalValue;
+            });
+            
+            const topIndustries = sortedIndustries
+                .sort((a, b) => industryValues[b] - industryValues[a])
+                .slice(0, 10);
+            
+            const datasets = [];
+            const colors = generateColors(topIndustries.length);
+            
+            topIndustries.forEach((industry, index) => {
+                const values = [];
+                sortedDates.forEach(date => {
+                    let totalValue = 0;
+                    Object.values(data.data).forEach(portfolioData => {
+                        if (portfolioData[date] && portfolioData[date][industry]) {
+                            totalValue += portfolioData[date][industry];
+                        }
+                    });
+                    values.push(totalValue);
+                });
+                
+                datasets.push({
+                    label: industry,
+                    data: values,
+                    backgroundColor: colors[index % colors.length],
+                    borderColor: colors[index % colors.length].replace('0.7', '1'),
+                    borderWidth: chartType === 'stackedArea' ? 1 : 0,
+                    stack: 'stack',
+                    tension: chartType === 'stackedArea' ? 0.4 : 0
+                });
+            });
+            
+            // 更新图表类型
+            if (chartType === 'pie') {
+                // 饼图只显示最新日期的数据
+                const pieData = topIndustries.map(industry => {
+                    const value = industryValues[industry] || 0;
+                    return value;
+                });
+                
+                // 过滤掉值为0的数据
+                const validData = [];
+                const validLabels = [];
+                const validColors = [];
+                pieData.forEach((value, index) => {
+                    if (value > 0) {
+                        validData.push(value);
+                        validLabels.push(topIndustries[index]);
+                        validColors.push(colors[index % colors.length]);
+                    }
+                });
+                
+                charts.industry.config.type = 'pie';
+                charts.industry.data.labels = validLabels;
+                charts.industry.data.datasets = [{
+                    label: '持仓市值',
+                    data: validData,
+                    backgroundColor: validColors,
+                    borderColor: '#1a1a2e',
+                    borderWidth: 2
+                }];
+                
+                // 更新饼图的选项（移除scales，更新tooltip）
+                charts.industry.options = {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'right',
+                            labels: {
+                                color: '#ffffff',
+                                font: { size: 11 },
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            enabled: true,
+                            backgroundColor: 'rgba(15, 15, 35, 0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(99, 102, 241, 0.5)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                title: (context) => context[0].label || '',
+                                label: (context) => {
+                                    const label = context.label || '';
+                                    const value = context.parsed || context.raw || 0;
+                                    let formattedValue = '';
+                                    if (value >= 100000000) {
+                                        formattedValue = (value / 100000000).toFixed(2) + ' 亿';
+                                    } else if (value >= 10000) {
+                                        formattedValue = (value / 10000).toFixed(2) + ' 万';
+                                    } else {
+                                        formattedValue = typeof value === 'number' 
+                                            ? value.toLocaleString('zh-CN', { 
+                                                minimumFractionDigits: 2, 
+                                                maximumFractionDigits: 2 
+                                            }) 
+                                            : String(value || '0');
+                                    }
+                                    
+                                    // 计算百分比
+                                    const total = validData.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(2) : '0.00';
+                                    
+                                    return `${label}: ${formattedValue} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    // 悬停时在右侧表格中显示行业股票明细
+                    onHover: (event, activeElements, chart) => {
+                        if (activeElements && activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            const industryName = chart.data.labels[index];
+                            showIndustryStockDetails(industryName);
+                        }
+                    }
+                };
+                
+                charts.industry.update('active');
+                ensureChartContainerSize(charts.industry);
+            } else {
+                charts.industry.config.type = chartType === 'stackedArea' ? 'line' : 'bar';
+                // 如果数据点过多，进行采样（最多显示1000个点）
+                const sampled = sampleData(sortedDates, datasets, 1000);
+                charts.industry.data.labels = sampled.labels;
+                charts.industry.data.datasets = sampled.datasets;
+                
+                // 恢复柱状图/折线图的选项
+                charts.industry.options = {
+                    ...getBaseChartOptions('持仓市值 (元)', '日期', (value) => {
+                        if (value >= 100000000) return (value / 100000000).toFixed(2) + ' 亿';
+                        if (value >= 10000) return (value / 10000).toFixed(2) + ' 万';
+                        return value.toLocaleString('zh-CN');
+                    }),
+                    scales: {
+                        ...getBaseChartOptions().scales,
+                        x: {
+                            ...getBaseChartOptions().scales.x,
+                            stacked: true
+                        },
+                        y: {
+                            ...getBaseChartOptions().scales.y,
+                            stacked: true
+                        }
+                    }
+                };
+            }
+            
+            charts.industry.update('active');
+            ensureChartContainerSize(charts.industry);
+        }
+        
+        // 更新收益率分析图表
+        async function updateReturnAnalysis() {
+            // 保存用户选择
+            saveUserPreferences();
+            
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const dimension = document.getElementById('returnDimension')?.value || 'scatter';
+            
+            if (portfolios.length === 0) {
+                charts.returnAnalysis.data.datasets = [];
+                charts.returnAnalysis.data.labels = [];
+                charts.returnAnalysis.update('active');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/portfolio/analysis/buy_performance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ portfolio_names: portfolios, start_date: startDate, end_date: endDate })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                if (!result || !result.success || !result.data || Object.keys(result.data).length === 0) {
+                    showStatus('warning', '收益率分析：没有买入数据，请先导入包含买入记录的数据');
+                    charts.returnAnalysis.data.datasets = [];
+                    charts.returnAnalysis.data.labels = [];
+                    charts.returnAnalysis.update('active');
+                    return;
+                }
+                
+                // 验证数据
+                const validation = validateChartData(result, '收益率分析');
+                if (!validation.valid) {
+                    showStatus('error', validation.message);
+                    charts.returnAnalysis.data.datasets = [];
+                    charts.returnAnalysis.data.labels = [];
+                    charts.returnAnalysis.update('active');
+                    return;
+                }
+                
+                const scatterData = [];
+                Object.keys(result.data).forEach(portfolio => {
+                    Object.keys(result.data[portfolio]).forEach(stockKey => {
+                        const stock = result.data[portfolio][stockKey];
+                        if (stock.buy_records && stock.buy_records.length > 0) {
+                            stock.buy_records.forEach(record => {
+                                const buyValue = record.buy_quantity * record.avg_price;
+                                const returnRate = buyValue > 0 
+                                    ? ((record.position_value - buyValue) / buyValue * 100)
+                                    : 0;
+                                
+                                scatterData.push({
+                                    x: new Date(record.date).getTime(),
+                                    y: returnRate,
+                                    stock: `${stock.stock_name || ''}(${stock.stock_code})`,
+                                    buyValue: buyValue,
+                                    returnValue: record.position_value - buyValue
+                                });
+                            });
+                        }
+                    });
+                });
+                
+                if (scatterData.length === 0) {
+                    charts.returnAnalysis.data.datasets = [];
+                    charts.returnAnalysis.data.labels = [];
+                    charts.returnAnalysis.update('active');
+                    return;
+                }
+                
+                // 更新图表类型和配置
+                if (dimension === 'line' || dimension === 'bar') {
+                    // 按日期分组计算平均收益率
+                    const groupedData = {};
+                    scatterData.forEach(point => {
+                        const date = new Date(point.x).toISOString().split('T')[0];
+                        if (!groupedData[date]) {
+                            groupedData[date] = { values: [] };
+                        }
+                        groupedData[date].values.push(point.y);
+                    });
+                    
+                    const sortedDates = Object.keys(groupedData).sort();
+                    const avgReturns = sortedDates.map(date => {
+                        const values = groupedData[date].values;
+                        return values.reduce((a, b) => a + b, 0) / values.length;
+                    });
+                    
+                    // 更新为折线图或柱状图
+                    charts.returnAnalysis.config.type = dimension === 'line' ? 'line' : 'bar';
+                    charts.returnAnalysis.config.options.scales.x.type = 'category';
+                    charts.returnAnalysis.config.options.scales.x.time = undefined;
+                    
+                    // 如果数据点过多，进行采样（最多显示1000个点）
+                    const sampled = sampleData(sortedDates, [{
+                        label: '平均收益率 (%)',
+                        data: avgReturns,
+                        borderColor: '#6366f1',
+                        backgroundColor: dimension === 'bar' ? 'rgba(99, 102, 241, 0.6)' : 'rgba(99, 102, 241, 0.2)',
+                        borderWidth: 2,
+                        tension: dimension === 'line' ? 0.4 : 0,
+                        fill: dimension === 'line'
+                    }], 1000);
+                    charts.returnAnalysis.data.labels = sampled.labels;
+                    charts.returnAnalysis.data.datasets = sampled.datasets;
+                } else {
+                    // 散点图
+                    charts.returnAnalysis.config.type = 'scatter';
+                    charts.returnAnalysis.config.options.scales.x.type = 'linear';
+                    charts.returnAnalysis.config.options.scales.x.time = undefined;
+                    charts.returnAnalysis.config.options.scales.x.ticks = {
+                        color: '#ffffff',
+                        font: { size: 11 },
+                        callback: function(value) {
+                            return new Date(value).toLocaleDateString('zh-CN');
+                        }
+                    };
+                    
+                    charts.returnAnalysis.data.labels = [];
+                    charts.returnAnalysis.data.datasets = [{
+                        label: '买入收益率',
+                        data: scatterData,
+                        backgroundColor: scatterData.map(p => p.y >= 0 ? 'rgba(16, 185, 129, 0.6)' : 'rgba(239, 68, 68, 0.6)'),
+                        borderColor: scatterData.map(p => p.y >= 0 ? '#10b981' : '#ef4444'),
+                        borderWidth: 1,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }];
+                }
+                
+                charts.returnAnalysis.update('active');
+                ensureChartContainerSize(charts.returnAnalysis);
+            } catch (error) {
+                console.error('更新收益率分析失败:', error);
+                charts.returnAnalysis.data.datasets = [];
+                charts.returnAnalysis.data.labels = [];
+                charts.returnAnalysis.update('active');
+                ensureChartContainerSize(charts.returnAnalysis);
+            }
+        }
+        
+        // 更新持仓集中度图表
+        async function updateConcentrationChart() {
+            // 保存用户选择
+            saveUserPreferences();
+            
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const dimension = document.getElementById('concentrationDimension')?.value || 'industry';
+            
+            if (portfolios.length === 0) {
+                charts.concentration.data.datasets = [];
+                charts.concentration.data.labels = [];
+                charts.concentration.update('active');
+                return;
+            }
+            
+            try {
+                const industryLevel = document.getElementById('industryLevel')?.value || 'third';
+                const response = await fetch('/api/portfolio/analysis/industry_changes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        portfolio_names: portfolios, 
+                        start_date: startDate, 
+                        end_date: endDate,
+                        industry_level: industryLevel
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                if (!result || !result.success || !result.data || Object.keys(result.data).length === 0) {
+                    showStatus('warning', '持仓集中度：没有行业数据，请先预处理数据获取行业信息');
+                    charts.concentration.data.datasets = [];
+                    charts.concentration.data.labels = [];
+                    charts.concentration.update('active');
+                    return;
+                }
+                
+                // 验证数据
+                const validation = validateChartData(result, '持仓集中度');
+                if (!validation.valid) {
+                    showStatus('error', validation.message);
+                    charts.concentration.data.datasets = [];
+                    charts.concentration.data.labels = [];
+                    charts.concentration.update('active');
+                    return;
+                }
+                
+                // 获取最新日期
+                let latestDate = null;
+                portfolios.forEach(portfolio => {
+                    if (result.data[portfolio]) {
+                        const dates = Object.keys(result.data[portfolio]).sort();
+                        if (dates.length > 0) {
+                            const lastDate = dates[dates.length - 1];
+                            if (!latestDate || lastDate > latestDate) {
+                                latestDate = lastDate;
+                            }
+                        }
+                    }
+                });
+                
+                if (!latestDate) {
+                    charts.concentration.data.datasets = [];
+                    charts.concentration.update('active');
+                    return;
+                }
+                
+                // 收集所有行业
+                const allIndustries = new Set();
+                portfolios.forEach(portfolio => {
+                    if (result.data[portfolio] && result.data[portfolio][latestDate]) {
+                        Object.keys(result.data[portfolio][latestDate]).forEach(industry => {
+                            allIndustries.add(industry);
+                        });
+                    }
+                });
+                
+                // 计算每个行业的权重并排序
+                const industryWeights = {};
+                portfolios.forEach(portfolio => {
+                    if (result.data[portfolio] && result.data[portfolio][latestDate]) {
+                        const industryData = result.data[portfolio][latestDate];
+                        const totalValue = Object.values(industryData).reduce((a, b) => a + b, 0);
+                        Object.keys(industryData).forEach(industry => {
+                            if (!industryWeights[industry]) {
+                                industryWeights[industry] = 0;
+                            }
+                            industryWeights[industry] += (industryData[industry] / totalValue) * 100;
+                        });
+                    }
+                });
+                
+                // 取前8个行业
+                const sortedIndustries = Object.keys(industryWeights)
+                    .sort((a, b) => industryWeights[b] - industryWeights[a])
+                    .slice(0, 8);
+                
+                if (sortedIndustries.length === 0) {
+                    charts.concentration.data.datasets = [];
+                    charts.concentration.data.labels = [];
+                    charts.concentration.update('active');
+                    return;
+                }
+                
+                const datasets = portfolios.map((portfolio, index) => {
+                    const values = sortedIndustries.map(industry => {
+                        if (result.data[portfolio] && result.data[portfolio][latestDate] && result.data[portfolio][latestDate][industry]) {
+                            const industryData = result.data[portfolio][latestDate];
+                            const totalValue = Object.values(industryData).reduce((a, b) => a + b, 0);
+                            return (industryData[industry] / totalValue) * 100;
+                        }
+                        return 0;
+                    });
+                    
+                    return {
+                        label: portfolio,
+                        data: values,
+                        borderColor: ['#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'][index % 5],
+                        backgroundColor: ['rgba(99, 102, 241, 0.2)', 'rgba(139, 92, 246, 0.2)', 'rgba(236, 72, 153, 0.2)', 'rgba(16, 185, 129, 0.2)', 'rgba(245, 158, 11, 0.2)'][index % 5],
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    };
+                });
+                
+                charts.concentration.data.labels = sortedIndustries;
+                charts.concentration.data.datasets = datasets;
+                charts.concentration.update('active');
+                ensureChartContainerSize(charts.concentration);
+            } catch (error) {
+                console.error('更新集中度分析失败:', error);
+                charts.concentration.data.datasets = [];
+                charts.concentration.data.labels = [];
+                charts.concentration.update('active');
+                ensureChartContainerSize(charts.concentration);
+            }
+        }
+        
+        // 更新交易量对比图表
+        async function updateTradingChart() {
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const chartType = document.getElementById('tradingChartType')?.value || 'grouped';
+            
+            if (portfolios.length === 0) {
+                charts.trading.data.datasets = [];
+                charts.trading.data.labels = [];
+                charts.trading.update('active');
+                return;
+            }
+            
+            try {
+                // 从买入表现数据中提取交易数据
+                const response = await fetch('/api/portfolio/analysis/buy_performance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ portfolio_names: portfolios, start_date: startDate, end_date: endDate })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                if (!result || !result.success || !result.data || Object.keys(result.data).length === 0) {
+                    showStatus('warning', '交易分析：没有交易数据，请先导入包含买卖记录的数据');
+                    charts.trading.data.datasets = [];
+                    charts.trading.data.labels = [];
+                    charts.trading.update('active');
+                    return;
+                }
+                
+                // 验证数据
+                const validation = validateChartData(result, '交易分析');
+                if (!validation.valid) {
+                    showStatus('error', validation.message);
+                    charts.trading.data.datasets = [];
+                    charts.trading.data.labels = [];
+                    charts.trading.update('active');
+                    return;
+                }
+                
+                // 按日期汇总买卖交易量
+                const tradingByDate = {};
+                
+                Object.keys(result.data).forEach(portfolio => {
+                    Object.keys(result.data[portfolio]).forEach(stockKey => {
+                        const stock = result.data[portfolio][stockKey];
+                        if (stock.buy_records && stock.buy_records.length > 0) {
+                            stock.buy_records.forEach(record => {
+                                const date = record.date;
+                                if (!tradingByDate[date]) {
+                                    tradingByDate[date] = {};
+                                }
+                                portfolios.forEach(p => {
+                                    if (!tradingByDate[date][p]) {
+                                        tradingByDate[date][p] = { buy: 0, sell: 0 };
+                                    }
+                                });
+                                
+                                if (record.buy_quantity > 0) {
+                                    tradingByDate[date][portfolio].buy += record.buy_quantity;
+                                }
+                            });
+                        }
+                    });
+                });
+                
+                // 获取所有日期并排序
+                const sortedDates = Object.keys(tradingByDate).sort();
+                
+                if (sortedDates.length === 0) {
+                    charts.trading.data.datasets = [];
+                    charts.trading.data.labels = [];
+                    charts.trading.update('active');
+                    return;
+                }
+                
+                // 构建数据集
+                const buyDatasets = portfolios.map((portfolio, index) => {
+                    const buyData = sortedDates.map(date => {
+                        return tradingByDate[date][portfolio] ? tradingByDate[date][portfolio].buy : 0;
+                    });
+                    
+                    return {
+                        label: `${portfolio} - 买入`,
+                        data: buyData,
+                        backgroundColor: ['rgba(16, 185, 129, 0.6)', 'rgba(99, 102, 241, 0.6)', 'rgba(236, 72, 153, 0.6)', 'rgba(245, 158, 11, 0.6)', 'rgba(59, 130, 246, 0.6)'][index % 5],
+                        borderColor: ['#10b981', '#6366f1', '#ec4899', '#f59e0b', '#3b82f6'][index % 5],
+                        borderWidth: 1
+                    };
+                });
+                
+                // 更新图表类型
+                charts.trading.config.type = chartType === 'line' ? 'line' : 'bar';
+                
+                if (chartType === 'stacked') {
+                    // 堆叠模式
+                    charts.trading.data.datasets = buyDatasets.map(ds => ({
+                        ...ds,
+                        stack: 'trading'
+                    }));
+                } else if (chartType === 'grouped') {
+                    // 分组模式
+                    charts.trading.data.datasets = buyDatasets;
+                } else {
+                    // 折线图模式
+                    charts.trading.data.datasets = buyDatasets.map(ds => ({
+                        ...ds,
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 2
+                    }));
+                }
+                
+                // 如果数据点过多，进行采样（最多显示1000个点）
+                const sampled = sampleData(sortedDates, charts.trading.data.datasets, 1000);
+                charts.trading.data.labels = sampled.labels;
+                charts.trading.data.datasets = sampled.datasets;
+                charts.trading.update('active');
+                ensureChartContainerSize(charts.trading);
+            } catch (error) {
+                console.error('更新交易分析失败:', error);
+                charts.trading.data.datasets = [];
+                charts.trading.data.labels = [];
+                charts.trading.update('active');
+                ensureChartContainerSize(charts.trading);
+            }
+        }
+        
+        // 加载交易汇总数据并渲染堆叠柱状图
+        async function loadTradingSummary() {
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (portfolios.length === 0) {
+                showStatus('warning', '请先选择至少一个组合');
+                charts.tradingSummary.data.datasets = [];
+                charts.tradingSummary.data.labels = [];
+                charts.tradingSummary.update('active');
+                return;
+            }
+            
+            try {
+                showStatus('info', '正在加载交易汇总数据...');
+                const response = await fetch('/api/portfolio/analysis/trading_summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ portfolio_names: portfolios, start_date: startDate, end_date: endDate })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                if (!result || !result.success) {
+                    throw new Error(result.error || '获取交易汇总数据失败');
+                }
+                
+                if (!result.data || Object.keys(result.data).length === 0) {
+                    charts.tradingSummary.data.datasets = [];
+                    charts.tradingSummary.data.labels = [];
+                    charts.tradingSummary.update('active');
+                    showStatus('warning', '没有找到交易数据');
+                    return;
+                }
+                
+                // 按日期汇总所有组合的数据
+                const tradingByDate = {};
+                const allDates = new Set();
+                
+                Object.keys(result.data).forEach(portfolio => {
+                    result.data[portfolio].forEach(record => {
+                        const date = record.date;
+                        allDates.add(date);
+                        
+                        if (!tradingByDate[date]) {
+                            tradingByDate[date] = {
+                                buy: 0,
+                                sell: 0,
+                                net: 0
+                            };
+                        }
+                        
+                        tradingByDate[date].buy += record.buy_quantity || 0;
+                        tradingByDate[date].sell += record.sell_quantity || 0;
+                        tradingByDate[date].net += record.net_buy || 0;
+                    });
+                });
+                
+                // 排序日期
+                const sortedDates = Array.from(allDates).sort();
+                
+                if (sortedDates.length === 0) {
+                    charts.tradingSummary.data.datasets = [];
+                    charts.tradingSummary.data.labels = [];
+                    charts.tradingSummary.update('active');
+                    showStatus('warning', '没有找到交易数据');
+                    return;
+                }
+                
+                // 准备数据：买入量、卖出量、净买量
+                const buyData = sortedDates.map(date => tradingByDate[date].buy);
+                const sellData = sortedDates.map(date => tradingByDate[date].sell);
+                const netData = sortedDates.map(date => tradingByDate[date].net);
+                
+                // 创建数据集：
+                // - 买入量、卖出量：堆叠柱状图，直观展示总成交量结构
+                // - 净买量：使用折线图叠加在同一坐标系上，更容易看出净流入/流出
+                charts.tradingSummary.data.labels = sortedDates;
+                charts.tradingSummary.data.datasets = [
+                    {
+                        label: '买入量',
+                        data: buyData,
+                        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                        borderColor: '#10b981',
+                        borderWidth: 1,
+                        stack: 'volume'
+                    },
+                    {
+                        label: '卖出量',
+                        data: sellData,
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                        borderColor: '#ef4444',
+                        borderWidth: 1,
+                        stack: 'volume'
+                    },
+                    {
+                        label: '净买量',
+                        data: netData,
+                        type: 'line',
+                        backgroundColor: 'rgba(99, 102, 241, 0.9)',
+                        borderColor: '#6366f1',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: false,
+                        yAxisID: 'y1'
+                    }
+                ];
+                
+                // 为净买量配置第二个Y轴，避免与成交量刻度混在一起
+                charts.tradingSummary.options.scales.y1 = {
+                    ...charts.tradingSummary.options.scales.y,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '净买量 (股)',
+                        color: '#ffffff',
+                        font: { size: 13, weight: 'bold' }
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                };
+                
+                // 如果数据点过多，进行采样
+                const sampled = sampleData(sortedDates, charts.tradingSummary.data.datasets, 1000);
+                charts.tradingSummary.data.labels = sampled.labels;
+                charts.tradingSummary.data.datasets = sampled.datasets;
+                
+                charts.tradingSummary.update('active');
+                ensureChartContainerSize(charts.tradingSummary);
+                
+                showStatus('success', `成功加载交易汇总数据，共 ${sortedDates.length} 个交易日`);
+            } catch (error) {
+                console.error('加载交易汇总数据失败:', error);
+                showStatus('error', '加载交易汇总数据失败: ' + error.message);
+                charts.tradingSummary.data.datasets = [];
+                charts.tradingSummary.data.labels = [];
+                charts.tradingSummary.update('active');
+            }
+        }
+        
+        // 加载股票特征指标数据
+        async function loadStockMetrics() {
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (portfolios.length === 0) {
+                showStatus('warning', '请先选择至少一个组合');
+                return;
+            }
+            
+            try {
+                showStatus('info', '正在加载股票特征指标数据，这可能需要一些时间...');
+                const response = await fetch('/api/portfolio/analysis/stock_metrics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ portfolio_names: portfolios, start_date: startDate, end_date: endDate })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                if (!result || !result.success) {
+                    throw new Error(result.error || '获取股票特征指标失败');
+                }
+                
+                const tbody = document.getElementById('stockMetricsTableBody');
+                tbody.innerHTML = '';
+                
+                if (!result.data || Object.keys(result.data).length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; color: #999;">没有股票数据</td></tr>';
+                    showStatus('warning', '没有找到股票数据');
+                    return;
+                }
+                
+                // 转换为数组并排序
+                const stockList = Object.values(result.data).sort((a, b) => 
+                    (a.stock_code || '').localeCompare(b.stock_code || '')
+                );
+                
+                stockList.forEach(stock => {
+                    const tr = document.createElement('tr');
+                    tr.style.backgroundColor = '#1a1a2e';
+                    tr.style.color = '#ffffff';
+                    
+                    // 格式化函数
+                    const formatPercent = (val) => {
+                        if (val === null || val === undefined) return '-';
+                        return (val * 100).toFixed(2) + '%';
+                    };
+                    
+                    const formatNumber = (val, decimals = 4) => {
+                        if (val === null || val === undefined) return '-';
+                        return val.toFixed(decimals);
+                    };
+                    
+                    // 根据收益率设置颜色
+                    const getReturnColor = (val) => {
+                        if (val === null || val === undefined) return '#ffffff';
+                        return val > 0 ? '#10b981' : (val < 0 ? '#ef4444' : '#ffffff');
+                    };
+                    
+                    tr.innerHTML = `
+                        <td style="padding: 8px; border: 1px solid #333;">${stock.stock_code || '-'}</td>
+                        <td style="padding: 8px; border: 1px solid #333;">${stock.stock_name || '-'}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right;">${formatNumber(stock.daily_volatility)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right;">${formatPercent(stock.annualized_volatility)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right; color: ${getReturnColor(stock.return_5d)};">${formatPercent(stock.return_5d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right; color: ${getReturnColor(stock.return_10d)};">${formatPercent(stock.return_10d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right; color: ${getReturnColor(stock.return_20d)};">${formatPercent(stock.return_20d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right; color: ${getReturnColor(stock.return_60d)};">${formatPercent(stock.return_60d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right;">${formatPercent(stock.amplitude_20d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right;">${formatPercent(stock.amplitude_60d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right; color: ${getReturnColor(stock.max_gain_20d)};">${formatPercent(stock.max_gain_20d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right; color: #ef4444;">${formatPercent(stock.max_drawdown_20d)}</td>
+                        <td style="padding: 8px; border: 1px solid #333; text-align: right; color: #ef4444;">${formatPercent(stock.max_drawdown_60d)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                showStatus('success', `成功加载 ${stockList.length} 只股票的特征指标`);
+            } catch (error) {
+                console.error('加载股票特征指标失败:', error);
+                showStatus('error', '加载股票特征指标失败: ' + error.message);
+                document.getElementById('stockMetricsTableBody').innerHTML = 
+                    '<tr><td colspan="13" style="text-align: center; color: #ef4444;">加载失败，请重试</td></tr>';
+            }
+        }
+        
+        // 更新买入股票表现图表
+        function updateBuyPerformanceChart(data) {
+            if (!data || !data.success || !data.data || Object.keys(data.data).length === 0) {
+                charts.buyPerformance.data.datasets = [];
+                charts.buyPerformance.data.labels = [];
+                charts.buyPerformance.update('active');
+                return;
+            }
+            
+            // 验证数据
+            const validation = validateChartData(data, '买入表现');
+            if (!validation.valid) {
+                showStatus('error', validation.message);
+                charts.buyPerformance.data.datasets = [];
+                charts.buyPerformance.data.labels = [];
+                charts.buyPerformance.update('active');
+                return;
+            }
+            
+            const topN = parseInt(document.getElementById('topNStocks')?.value || 20);
+            
+            // 收集所有买入的股票
+            const stockData = {};
+            
+            Object.keys(data.data).forEach(portfolio => {
+                Object.keys(data.data[portfolio]).forEach(stockKey => {
+                    const stock = data.data[portfolio][stockKey];
+                    const key = stock.stock_code;
+                    
+                    if (!stockData[key]) {
+                        stockData[key] = {
+                            stock_code: stock.stock_code,
+                            stock_name: stock.stock_name,
+                            total_buy_value: 0,
+                            total_position_value: 0,
+                            buy_count: 0
+                        };
+                    }
+                    
+                    stock.buy_records.forEach(record => {
+                        stockData[key].total_buy_value += record.buy_quantity * record.avg_price;
+                        stockData[key].total_position_value += record.position_value;
+                        stockData[key].buy_count++;
+                    });
+                });
+            });
+            
+            // 计算收益率
+            const stocks = Object.values(stockData)
+                .map(stock => ({
+                    ...stock,
+                    return_rate: stock.total_buy_value > 0 
+                        ? ((stock.total_position_value - stock.total_buy_value) / stock.total_buy_value * 100)
+                        : 0
+                }))
+                .sort((a, b) => b.return_rate - a.return_rate)
+                .slice(0, topN);
+            
+            // 反转数组以显示在水平柱状图中（从高到低）
+            const reversedStocks = [...stocks].reverse();
+            
+            charts.buyPerformance.data.labels = reversedStocks.map(s => 
+                s.stock_name ? `${s.stock_name}(${s.stock_code})` : s.stock_code
+            );
+            charts.buyPerformance.data.datasets = [{
+                label: '收益率 (%)',
+                data: reversedStocks.map(s => s.return_rate),
+                backgroundColor: reversedStocks.map(s => {
+                    if (s.return_rate >= 10) return '#10b981';
+                    if (s.return_rate >= 0) return '#84cc16';
+                    if (s.return_rate >= -10) return '#f59e0b';
+                    return '#ef4444';
+                }),
+                borderColor: reversedStocks.map(s => {
+                    if (s.return_rate >= 10) return '#059669';
+                    if (s.return_rate >= 0) return '#65a30d';
+                    if (s.return_rate >= -10) return '#d97706';
+                    return '#dc2626';
+                }),
+                borderWidth: 1
+            }];
+            charts.buyPerformance.update('active');
+            ensureChartContainerSize(charts.buyPerformance);
+        }
+        
+        // 加载行业分析（当行业级别改变时）
+        async function loadIndustryAnalysis() {
+            const portfolios = Array.from(selectedPortfolios);
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            // 保存用户选择
+            saveUserPreferences();
+            
+            if (portfolios.length === 0) {
+                charts.industry.data.datasets = [];
+                charts.industry.data.labels = [];
+                charts.industry.update('active');
+                return;
+            }
+            
+            try {
+                const industryLevel = document.getElementById('industryLevel')?.value || 'third';
+                const response = await fetch('/api/portfolio/analysis/industry_changes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        portfolio_names: portfolios, 
+                        start_date: startDate, 
+                        end_date: endDate,
+                        industry_level: industryLevel
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                if (result && result.success && result.data && Object.keys(result.data).length > 0) {
+                    // 验证数据
+                    const validation = validateChartData(result, '行业分布');
+                    if (validation.valid) {
+                        updateIndustryChart(result);
+                        
+                        // 如果当前图表类型为饼图，则同时加载行业股票明细，用于悬停展示
+                        const chartType = document.getElementById('industryChartType')?.value || 'stackedArea';
+                        if (chartType === 'pie' && latestIndustryDate) {
+                            try {
+                                const detailRes = await fetch('/api/portfolio/analysis/industry_stocks', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        portfolio_names: portfolios,
+                                        date: latestIndustryDate,
+                                        industry_level: industryLevel
+                                    })
+                                });
+                                
+                                if (detailRes.ok) {
+                                    const detailJson = await detailRes.json();
+                                    if (detailJson && detailJson.success && detailJson.data) {
+                                        industryStockDetails = detailJson.data || {};
+                                        // 默认显示第一个行业的明细（如果有）
+                                        const firstIndustry = Object.keys(industryStockDetails)[0];
+                                        if (firstIndustry) {
+                                            showIndustryStockDetails(firstIndustry);
+                                        } else {
+                                            showIndustryStockDetails(null);
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('加载行业股票明细失败:', e);
+                            }
+                        }
+                    } else {
+                        showStatus('error', validation.message);
+                        charts.industry.data.datasets = [];
+                        charts.industry.data.labels = [];
+                        charts.industry.update('active');
+                    }
+                } else {
+                    showStatus('warning', '行业分布数据加载失败或为空，请先预处理数据获取行业信息');
+                    charts.industry.data.datasets = [];
+                    charts.industry.data.labels = [];
+                    charts.industry.update('active');
+                }
+            } catch (error) {
+                console.error('加载行业分析失败:', error);
+                charts.industry.data.datasets = [];
+                charts.industry.data.labels = [];
+                charts.industry.update('active');
+            }
+        }
+        
+        // 生成颜色
+        function generateColors(count) {
+            const colors = [];
+            const hueStep = 360 / count;
+            for (let i = 0; i < count; i++) {
+                const hue = i * hueStep;
+                colors.push(`hsla(${hue}, 70%, 60%, 0.7)`);
+            }
+            return colors;
+        }
+        
+        // 数据验证函数
+        function validateChartData(data, chartName) {
+            if (!data) {
+                return { valid: false, message: `${chartName}图表：数据为空` };
+            }
+            
+            if (!data.success) {
+                return { valid: false, message: `${chartName}图表：数据加载失败 - ${data.error || '未知错误'}` };
+            }
+            
+            if (!data.data) {
+                return { valid: false, message: `${chartName}图表：数据对象不存在` };
+            }
+            
+            if (Object.keys(data.data).length === 0) {
+                return { valid: false, message: `${chartName}图表：没有可用数据，请检查筛选条件` };
+            }
+            
+            // 检查数据内容
+            let hasValidData = false;
+            for (const key in data.data) {
+                const portfolioData = data.data[key];
+                if (portfolioData && (portfolioData.dates || portfolioData.values || portfolioData.counts || Object.keys(portfolioData).length > 0)) {
+                    hasValidData = true;
+                    break;
+                }
+            }
+            
+            if (!hasValidData) {
+                return { valid: false, message: `${chartName}图表：数据格式不正确或为空` };
+            }
+            
+            return { valid: true, message: '' };
+        }
+        
+        // 实时刷新函数（使用保存的数据）
+        function refreshMarketValueChart() {
+            if (currentData.marketValue) {
+                updateMarketValueChart(currentData.marketValue);
+            } else {
+                showStatus('warning', '请先加载分析数据');
+            }
+        }
+        
+        function refreshStockCountChart() {
+            if (currentData.stockCount) {
+                updateStockCountChart(currentData.stockCount);
+            } else {
+                showStatus('warning', '请先加载分析数据');
+            }
+        }
+        
+        function refreshBuyPerformanceChart() {
+            if (currentData.buyPerformance) {
+                updateBuyPerformanceChart(currentData.buyPerformance);
+            } else {
+                showStatus('warning', '请先加载分析数据');
+            }
+        }
+        
+        // 显示状态消息
+        function showStatus(type, message) {
+            const container = document.getElementById('importStatus');
+            container.className = 'status-message status-' + type;
+            container.textContent = message;
+            container.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    container.style.display = 'none';
+                }, 3000);
+            } else if (type === 'error' || type === 'warning') {
+                setTimeout(() => {
+                    container.style.display = 'none';
+                }, 8000);
+            }
+        }
+        
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('mappingModal');
+            if (event.target == modal) {
+                closeMappingModal();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>数据分析</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- 引入 table2excel 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/table2excel@1.0.4/dist/table2excel.min.js"></script>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            cursor: pointer;
+            background-color: #f2f2f2;
+        }
+
+        /* 确保表格可以滚动 */
+       .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* 下拉菜单样式 */
+       .select-container {
+            display: inline-block;
+            position: relative;
+        }
+
+       .select-dropdown {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+       .select-dropdown label {
+            display: block;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: #333;
+        }
+
+       .select-dropdown label input {
+            margin-right: 8px;
+        }
+
+        /* 图表控制样式 */
+       .chart-controls {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+       .btn {
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #f8f9fa;
+            transition: all 0.3s;
+        }
+
+       .btn:hover {
+            background: #e9ecef;
+        }
+
+       .btn-clear {
+            color: #dc3545;
+            border-color: #dc3545;
+        }
+
+       .select-dropdown.dropdown-header {
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            background: #e9ecef;
+            border-bottom: 1px solid #ddd;
+        }
+
+       .plot-loading,
+       .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+
+       .plotly-reset-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            padding: 5px 10px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        /* 搜索框样式 */
+       .search-input {
+            width: 100%;
+            padding: 6px 10px;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+        }
+    </style>
+    <script>
+        // 初始化数据和配置
+        const chartConfig = {
+            colors: ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3'],
+            maxDisplay: 6 // 最大同时显示行业数量
+        };
+
+        function toggleDropdown() {
+            var dropdown = document.getElementById("secondary-industry-dropdown");
+            dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            window.onclick = function (event) {
+                var dropdown = document.getElementById("secondary-industry-dropdown");
+                var selectButton = document.querySelector('.select-container button');
+                if (!event.target.matches('.select-container button') && dropdown && dropdown.style.display === "block") {
+                    dropdown.style.display = "none";
+                }
+            };
+
+            // 设置初始选中
+            const initialSelected = {{ selected_secondary_industries|tojson }};
+            initialSelected.forEach(industry => {
+                const checkbox = document.querySelector(`input[value="${industry}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+
+            // 首次渲染
+            updateChart();
+            updateSelectionCount();
+
+            // 添加搜索框事件监听
+            const searchInput = document.createElement('input');
+            searchInput.className ='search-input';
+            searchInput.placeholder = '搜索行业';
+            searchInput.addEventListener('input', function () {
+                const inputValue = this.value.toLowerCase();
+                const checkboxes = document.querySelectorAll('input[name="secondary_industries"]');
+                checkboxes.forEach(checkbox => {
+                    const label = checkbox.parentElement;
+                    if (inputValue === "") {
+                        label.style.display = "block";
+                    } else {
+                        const industryName = label.textContent.toLowerCase();
+                        if (industryName.includes(inputValue)) {
+                            label.style.display = "block";
+                        } else {
+                            label.style.display = "none";
+                        }
+                    }
+                });
+            });
+            const dropdownHeader = document.querySelector('.select-dropdown.dropdown-header');
+            dropdownHeader.insertAdjacentElement('afterbegin', searchInput);
+        });
+
+        // 处理选择变化
+        function handleSelectionChange(checkbox) {
+            const selected = getSelectedIndustries();
+            if (selected.length > chartConfig.maxDisplay) {
+                alert(`最多同时显示 ${chartConfig.maxDisplay} 个行业`);
+                checkbox.checked = false;
+            }
+            updateChart();
+            updateSelectionCount();
+        }
+
+        // 获取当前选中行业
+        function getSelectedIndustries() {
+            return Array.from(document.querySelectorAll('input[name="secondary_industries"]:checked'))
+               .map(cb => cb.value);
+        }
+
+        // 清空所有选择
+        function clearAllSelections() {
+            document.querySelectorAll('input[name="secondary_industries"]').forEach(cb => {
+                cb.checked = false;
+            });
+            updateChart();
+            updateSelectionCount();
+        }
+
+        // 全选
+        function selectAll() {
+            const checkboxes = document.querySelectorAll('input[name="secondary_industries"]');
+            const maxSelect = Math.min(chartConfig.maxDisplay, checkboxes.length);
+            checkboxes.forEach((cb, index) => {
+                cb.checked = index < maxSelect;
+            });
+            updateChart();
+            updateSelectionCount();
+        }
+
+        // 全不选
+        function deselectAll() {
+            document.querySelectorAll('input[name="secondary_industries"]').forEach(cb => {
+                cb.checked = false;
+            });
+            updateChart();
+            updateSelectionCount();
+        }
+
+        // 更新选中计数
+        function updateSelectionCount() {
+            const btn = document.querySelector('.select-container.btn');
+            if (btn) {
+                const count = getSelectedIndustries().length;
+                btn.innerHTML = `📊 选择行业`;
+            }
+        }
+
+        // 图表更新函数
+        function updateChart() {
+            const container = document.getElementById('secondary_industry_plot');
+            container.innerHTML = '<div class="plot-loading"></div>';
+
+            const selectedIndustries = getSelectedIndustries();
+            const allData = {{ secondary_industry_data|tojson|safe }};
+            const validData = allData.filter(item =>
+                selectedIndustries.includes(item.二级行业) &&
+                item.date &&
+                !isNaN(item['成交额(亿元)']) &&
+                !isNaN(item['市值加权涨跌幅']) &&
+                !isNaN(item.涨停家数) &&
+                !isNaN(item.跌停家数)
+            );
+
+            if (validData.length === 0 || selectedIndustries.length === 0) {
+                container.innerHTML = '<div class="no-data">请选择至少一个行业查看数据</div>';
+                return;
+            }
+
+            // 分组数据
+            const groupedData = validData.reduce((acc, item) => {
+                const industry = item.二级行业;
+                if (!acc[industry]) acc[industry] = [];
+                acc[industry].push(item);
+                return acc;
+            }, {});
+
+            // 生成图表轨迹
+            const traces = [];
+            Object.entries(groupedData).forEach(([industry, data], index) => {
+                const color = chartConfig.colors[index % chartConfig.colors.length];
+
+                // 成交额线
+                traces.push({
+                    x: data.map(d => d.date),
+                    y: data.map(d => d['成交额(亿元)']),
+                    name: `${industry} 成交额`,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color, width: 2 },
+                    marker: { size: 5 },
+                    yaxis: 'y1'
+                });
+
+                // 涨跌幅线
+                traces.push({
+                    x: data.map(d => d.date),
+                    y: data.map(d => d.市值加权涨跌幅),
+                    name: `${industry} 涨跌幅`,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color, dash: 'dot', width: 1 },
+                    yaxis: 'y2'
+                });
+
+                // 涨停柱状图
+                traces.push({
+                    x: data.map(d => d.date),
+                    y: data.map(d => d.涨停家数),
+                    name: `${industry} 涨停`,
+                    type: 'bar',
+                    marker: { color, opacity: 0.5 },
+                    yaxis: 'y1'
+                });
+
+                // 跌停柱状图
+                traces.push({
+                    x: data.map(d => d.date),
+                    y: data.map(d => d.跌停家数),
+                    name: `${industry} 跌停`,
+                    type: 'bar',
+                    marker: {
+                        color,
+                        opacity: 0.5,
+                        pattern: { shape: 'x', size: 6 }
+                    },
+                    yaxis: 'y1'
+                });
+            });
+
+            // 图表布局
+            const layout = {
+                title: '行业数据分析 <span style="font-size:12px;color:#666">（最多同时显示6个行业）</span>',
+                xaxis: {
+                    title: '日期',
+                    tickformat: '%Y-%m-%d',
+                    type: 'category',
+                    rangeslider: { visible: true }
+                },
+                yaxis: {
+                    title: '成交额（亿元）/ 数量',
+                    side: 'left',
+                    color: '#2c3e50'
+                },
+                yaxis2: {
+                    title: '涨跌幅（%）',
+                    side: 'right',
+                    overlaying: 'y',
+                    color: '#e74c3c'
+                },
+                barmode: 'group',
+                hovermode: 'x unified',
+                legend: {
+                    orientation: 'h',
+                    y: -0.3,
+                    font: { size: 10 }
+                },
+                margin: { t: 60, b: 100 },
+                plot_bgcolor: '#f8f9fa'
+            };
+
+            // 渲染图表
+            Plotly.newPlot('secondary_industry_plot', traces, layout)
+               .then(() => {
+                    // 添加图表重置按钮
+                    addChartResetButton();
+                });
+        }
+
+        // 添加图表重置按钮
+        function addChartResetButton() {
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'plotly-reset-btn';
+            resetBtn.innerHTML = '↺ 重置视图';
+            resetBtn.onclick = () => {
+                Plotly.relayout('secondary_industry_plot', {
+                    'xaxis.range': undefined,
+                    'yaxis.range': undefined,
+                    'yaxis2.range': undefined
+                });
+            };
+            document.querySelector('.plotly').appendChild(resetBtn);
+        }
+    </script>
+</head>
+
+<body>
+    <h1>数据分析</h1>
+    <form method="post">
+        <label for="start_date">开始日期:</label>
+        <input type="date" id="start_date" name="start_date" value="{{ start_date }}">
+        <label for="end_date">结束日期:</label>
+        <input type="date" id="end_date" name="end_date" value="{{ end_date }}">
+        <input type="submit" value="查询">
+    </form>
+
+    {% if daily_lianban_plot %}
+    <h2>每日连板数量</h2>
+    {{ daily_lianban_plot|safe }}
+    {% endif %}
+
+    {% if 涨跌情况_plot %}
+    <h2>涨跌情况</h2>
+    {{ 涨跌情况_plot|safe }}
+    {% endif %}
+
+    {% if 异常极值_plot %}
+    <h2>异常极值</h2>
+    {{ 异常极值_plot|safe }}
+    {% endif %}
+
+    {% if 市值分层_plot %}
+    <h2>市值分层</h2>
+    {{ 市值分层_plot|safe }}
+    {% endif %}
+
+    {% if 涨跌停概念_plot %}
+    <h2>涨跌停概念</h2>
+    {{ 涨跌停概念_plot|safe }}
+    {% endif %}
+
+    {% if 沪深成交额_plot %}
+    <h2>成交额变化情况</h2>
+    {{ 沪深成交额_plot|safe }}
+    {% endif %}
+
+    {% if secondary_industry_plot %}
+    <h2>二级行业成交额、涨跌比、涨停家数、跌停家数变化情况</h2>
+    <div class="chart-controls">
+        <div class="select-container">
+            <button class="btn" onclick="toggleDropdown()">📊 选择行业）</button>
+            <button class="btn btn-clear" onclick="clearAllSelections()">❌ 清空选择</button>
+            <div id="secondary-industry-dropdown" class="select-dropdown">
+                <div class="dropdown-header">
+                    <span>共{{ all_secondary_industries|length }}个行业</span>
+                    <button onclick="selectAll()">全选</button>
+                    <button onclick="deselectAll()">全不选</button>
+                </div>
+                {% for industry in all_secondary_industries %}
+                <label>
+                    <input type="checkbox" name="secondary_industries" value="{{ industry }}"
+                           {% if industry in selected_secondary_industries %}checked{% endif %}
+                           onchange="handleSelectionChange(this)">
+                    {{ industry }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div id="secondary_industry_plot" style="width: 100%; height: 500px;"></div>
+    {% endif %}
+
+    {% if secondary_industry_table %}
+    <h2>二级行业统计</h2>
+    <!-- 修改导出按钮 -->
+    <form action="{{ url_for('export_excel') }}" method="post">
+        <input type="hidden" name="start_date" value="{{ start_date }}">
+        <input type="hidden" name="end_date" value="{{ end_date }}">
+        <button type="submit">导出到 Excel</button>
+    </form>
+    <div class="table-container">
+        <table id="secondary_industry_table" class="table table-striped table-bordered">
+            <thead>
+                {% for col in secondary_industry_table.columns %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </thead>
+            <tbody>
+                {{ secondary_industry_table|safe }}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</body>
+
+</html>

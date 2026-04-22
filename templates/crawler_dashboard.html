@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>爬虫数据看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --bg: #05070f;
+            --card: rgba(16, 22, 36, 0.75);
+            --border: rgba(103, 232, 249, 0.18);
+            --text: #e6edf7;
+            --muted: #8fa3bf;
+            --cyan: #22d3ee;
+            --blue: #60a5fa;
+            --green: #34d399;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "PingFang SC", sans-serif;
+            background: radial-gradient(circle at 20% 0%, #12203d 0%, var(--bg) 42%), var(--bg);
+            color: var(--text);
+        }
+        .wrap { max-width: 1280px; margin: 0 auto; padding: 20px; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+        .title { font-size: 24px; font-weight: 700; letter-spacing: 1px; }
+        .nav-pills {
+            display: inline-flex;
+            padding: 4px;
+            border-radius: 999px;
+            background: rgba(8, 12, 24, 0.65);
+            border: 1px solid var(--border);
+        }
+        .nav-pill {
+            color: var(--muted);
+            text-decoration: none;
+            padding: 8px 18px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: color .2s, background .2s, box-shadow .2s;
+        }
+        .nav-pill:hover { color: var(--text); background: rgba(34, 211, 238, 0.08); }
+        .nav-pill.active {
+            color: #042f2e;
+            background: linear-gradient(135deg, #5eead4, #22d3ee);
+            box-shadow: 0 0 18px rgba(34, 211, 238, 0.3);
+        }
+        .topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .back {
+            color: var(--text); text-decoration: none; border: 1px solid var(--border);
+            padding: 8px 14px; border-radius: 999px; background: rgba(10, 15, 27, 0.7);
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+        .panel h3 { margin: 0 0 10px; font-size: 16px; color: #cfe5ff; }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 420px;
+            max-width: 92vw;
+            height: 100vh;
+            background: rgba(9, 14, 26, 0.98);
+            border-left: 1px solid var(--border);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.45);
+            z-index: 99;
+            transition: right 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            padding: 14px;
+        }
+        .sidebar.open { right: 0; }
+        .sidebar-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .toggle-btn {
+            border: 1px solid var(--border);
+            background: rgba(15, 20, 33, 0.8);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            color: #cfe5ff;
+        }
+        .summary-table th,
+        .summary-table td {
+            border-bottom: 1px solid rgba(143, 163, 191, 0.18);
+            padding: 8px 10px;
+            text-align: left;
+        }
+        .summary-table th { color: #93abc9; font-weight: 600; }
+        .summary-total {
+            margin-top: 10px;
+            color: #9fb4d1;
+            font-size: 13px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .list-head {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+        }
+        .toolbar {
+            display: grid;
+            grid-template-columns: 1.2fr repeat(3, minmax(120px, 1fr)) auto auto auto;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .toolbar input,
+        .toolbar select {
+            border: 1px solid var(--border);
+            background: rgba(10, 15, 27, 0.85);
+            color: var(--text);
+            padding: 7px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            outline: none;
+        }
+        .more-btn {
+            border: 1px solid var(--border);
+            background: rgba(15, 20, 33, 0.8);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .item {
+            border: 1px solid rgba(143, 163, 191, 0.2);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            background: rgba(8, 12, 22, 0.65);
+        }
+        .item-title { color: #dce9ff; text-decoration: none; font-size: 14px; }
+        .item-meta { color: var(--muted); font-size: 12px; margin-top: 5px; }
+
+        .terminal {
+            background: #020409;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 10px;
+            padding: 12px;
+            height: 220px;
+            overflow-y: auto;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 12px;
+            color: #7ef29f;
+            line-height: 1.55;
+            box-shadow: inset 0 0 20px rgba(52, 211, 153, 0.08);
+        }
+        .log-line { white-space: pre-wrap; margin-bottom: 4px; }
+
+        @media (max-width: 960px) {
+            .cards { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="topbar">
+        <div class="title">爬虫数据看板</div>
+        <div class="topbar-right">
+            <nav class="nav-pills" aria-label="爬虫看板子页面">
+                <a class="nav-pill active" href="{{ url_for('crawler_dashboard') }}">资讯流</a>
+                <a class="nav-pill" href="{{ url_for('crawler_dashboard_wordcloud') }}">标题词云</a>
+            </nav>
+            <a class="back" href="{{ url_for('index') }}">返回主页</a>
+        </div>
+    </div>
+
+    <div class="layout">
+        <div class="panel">
+            <div class="list-head">
+                <h3 style="margin:0;">最新抓取数据</h3>
+                <div style="display:flex; align-items:center;">
+                    <button class="toggle-btn" id="openSidebarBtn">渠道统计</button>
+                    <button class="more-btn" id="moreBtn">显示更多</button>
+                </div>
+            </div>
+            <div class="toolbar">
+                <input id="searchInput" type="text" placeholder="搜索标题或链接关键词">
+                <input id="startTimeInput" type="datetime-local" placeholder="开始时间">
+                <input id="endTimeInput" type="datetime-local" placeholder="结束时间">
+                <select id="hasLinkSelect">
+                    <option value="">链接状态：全部</option>
+                    <option value="yes">仅有链接</option>
+                    <option value="no">仅无链接</option>
+                </select>
+                <button class="more-btn" id="applyFilterBtn">筛选</button>
+                <button class="more-btn" id="resetFilterBtn">重置</button>
+                <button class="more-btn" id="exportBtn">导出 Excel</button>
+            </div>
+            <div id="currentFilter" style="font-size:12px;color:#8fa3bf;margin-bottom:8px;"></div>
+            <div id="latestList"></div>
+        </div>
+    </div>
+
+    <aside class="sidebar" id="channelSidebar">
+        <div class="sidebar-head">
+            <h3 style="margin:0;">消息渠道统计（按渠道）</h3>
+            <button class="more-btn" id="closeSidebarBtn">关闭</button>
+        </div>
+        <div id="channelSummary"></div>
+    </aside>
+
+    <div class="panel">
+        <h3>实时日志</h3>
+        <div class="terminal" id="terminalLog"></div>
+    </div>
+</div>
+
+<script>
+    let offset = 0;
+    const pageSize = 10;
+    let hasMore = true;
+    let currentSource = '';
+    let currentQuery = '';
+    let currentStartTime = '';
+    let currentEndTime = '';
+    let currentHasLink = '';
+
+    function appendLog(message) {
+        const el = document.getElementById('terminalLog');
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        const time = new Date().toLocaleTimeString();
+        line.textContent = `[${time}] ${message}`;
+        el.appendChild(line);
+        while (el.children.length > 200) {
+            el.removeChild(el.firstChild);
+        }
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function formatSpan(minTime, maxTime) {
+        if (!minTime && !maxTime) return '-';
+        if (minTime && maxTime) return `${minTime} ~ ${maxTime}`;
+        return minTime || maxTime || '-';
+    }
+
+    async function loadChannelSummary() {
+        const res = await fetch('/api/crawler_dashboard/channel_summary');
+        const data = await res.json();
+        if (!data.success) return;
+
+        const box = document.getElementById('channelSummary');
+        const channels = data.channels || [];
+        const summary = data.summary || {};
+
+        let html = '<table class="summary-table"><thead><tr>' +
+            '<th>消息渠道</th><th>消息时间跨度</th><th>条数</th></tr></thead><tbody>';
+
+        channels.forEach(ch => {
+            const source = (ch.source || '-').replace(/"/g, '&quot;');
+            html += `<tr><td><a href="#" class="channel-link" data-source="${source}" style="color:#7dd3fc;text-decoration:none;">${ch.source || '-'}</a></td><td>${formatSpan(ch.min_publish_time, ch.max_publish_time)}</td><td>${ch.message_count || 0}</td></tr>`;
+        });
+
+        html += '</tbody></table>';
+        html += `<div class="summary-total"><span>合计条数：${summary.total_count || 0}</span><span>全量时间跨度：${formatSpan(summary.total_min_publish_time, summary.total_max_publish_time)}</span></div>`;
+        html += `<div class="summary-total"><a href="#" id="showAllSource" style="color:#93c5fd;text-decoration:none;">显示全部渠道消息</a></div>`;
+
+        box.innerHTML = html;
+
+        box.querySelectorAll('.channel-link').forEach(a => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentSource = a.getAttribute('data-source') || '';
+                document.getElementById('channelSidebar').classList.remove('open');
+                loadLatest(true);
+                updateFilterLabel();
+                appendLog(`已切换到渠道过滤：${currentSource || '全部'}`);
+            });
+        });
+
+        const showAll = document.getElementById('showAllSource');
+        if (showAll) {
+            showAll.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentSource = '';
+                loadLatest(true);
+                updateFilterLabel();
+                appendLog('已切换到全部渠道');
+            });
+        }
+
+        appendLog('渠道统计已更新');
+    }
+
+    function updateFilterLabel() {
+        const parts = [];
+        parts.push(currentSource ? `渠道：${currentSource}` : '渠道：全部');
+        if (currentQuery) parts.push(`关键词：${currentQuery}`);
+        if (currentStartTime) parts.push(`开始：${currentStartTime}`);
+        if (currentEndTime) parts.push(`结束：${currentEndTime}`);
+        if (currentHasLink === 'yes') parts.push('链接：仅有链接');
+        if (currentHasLink === 'no') parts.push('链接：仅无链接');
+        document.getElementById('currentFilter').textContent = `当前筛选：${parts.join(' ｜ ')}`;
+    }
+
+    async function loadLatest(reset = false) {
+        if (reset) {
+            offset = 0;
+            hasMore = true;
+            document.getElementById('latestList').innerHTML = '';
+        }
+        if (!hasMore) return;
+
+        const sourceParam = currentSource ? `&source=${encodeURIComponent(currentSource)}` : '';
+        const qParam = currentQuery ? `&q=${encodeURIComponent(currentQuery)}` : '';
+        const startParam = currentStartTime ? `&start_time=${encodeURIComponent(currentStartTime.replace('T', ' '))}` : '';
+        const endParam = currentEndTime ? `&end_time=${encodeURIComponent(currentEndTime.replace('T', ' '))}` : '';
+        const linkParam = currentHasLink ? `&has_link=${encodeURIComponent(currentHasLink)}` : '';
+        const res = await fetch(`/api/crawler_dashboard/latest?limit=${pageSize}&offset=${offset}${sourceParam}${qParam}${startParam}${endParam}${linkParam}`);
+        const data = await res.json();
+        if (!data.success) return;
+
+        const box = document.getElementById('latestList');
+        (data.items || []).forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'item';
+            const hasUrl = !!(item.url && String(item.url).trim());
+            const linkTag = hasUrl
+                ? `<span style="color:#34d399;">[有链接]</span>`
+                : `<span style="color:#f59e0b;">[无链接]</span>`;
+            const titleHtml = hasUrl
+                ? `<a class="item-title" href="${item.url}" target="_blank">${item.title}</a>`
+                : `<span class="item-title">${item.title}</span>`;
+            const pubDisp = (item.publish_time_display || item.publish_time || item.crawl_time || '-');
+            div.innerHTML = `${titleHtml}<div class="item-meta">${linkTag} ｜ 来源：${item.source} ｜ 发布时间：${pubDisp} ｜ 抓取时间：${item.crawl_time || '-'}</div>`;
+            box.appendChild(div);
+        });
+
+        offset += (data.items || []).length;
+        hasMore = !!data.has_more;
+        document.getElementById('moreBtn').style.display = hasMore ? 'inline-block' : 'none';
+        appendLog(`最新数据加载 ${data.items ? data.items.length : 0} 条`);
+    }
+
+    async function refreshAll() {
+        await Promise.all([loadChannelSummary()]);
+    }
+
+    document.getElementById('moreBtn').addEventListener('click', () => loadLatest(false));
+    document.getElementById('openSidebarBtn').addEventListener('click', () => {
+        document.getElementById('channelSidebar').classList.add('open');
+    });
+    document.getElementById('closeSidebarBtn').addEventListener('click', () => {
+        document.getElementById('channelSidebar').classList.remove('open');
+    });
+
+    document.getElementById('applyFilterBtn').addEventListener('click', () => {
+        currentQuery = (document.getElementById('searchInput').value || '').trim();
+        currentStartTime = document.getElementById('startTimeInput').value || '';
+        currentEndTime = document.getElementById('endTimeInput').value || '';
+        currentHasLink = document.getElementById('hasLinkSelect').value || '';
+        updateFilterLabel();
+        loadLatest(true);
+        appendLog('已应用搜索/筛选条件');
+    });
+
+    document.getElementById('resetFilterBtn').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('startTimeInput').value = '';
+        document.getElementById('endTimeInput').value = '';
+        document.getElementById('hasLinkSelect').value = '';
+        currentQuery = '';
+        currentStartTime = '';
+        currentEndTime = '';
+        currentHasLink = '';
+        updateFilterLabel();
+        loadLatest(true);
+        appendLog('已重置筛选条件');
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+        const sourceParam = currentSource ? `source=${encodeURIComponent(currentSource)}&` : '';
+        const qParam = currentQuery ? `q=${encodeURIComponent(currentQuery)}&` : '';
+        const startParam = currentStartTime ? `start_time=${encodeURIComponent(currentStartTime.replace('T', ' '))}&` : '';
+        const endParam = currentEndTime ? `end_time=${encodeURIComponent(currentEndTime.replace('T', ' '))}&` : '';
+        const linkParam = currentHasLink ? `has_link=${encodeURIComponent(currentHasLink)}&` : '';
+
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const sourceName = currentSource ? currentSource.replace(/\s+/g, '_') : 'all';
+        const exportName = `crawler_news_${sourceName}_${y}${m}${d}_${hh}${mm}${ss}`;
+        const exportParam = `export_name=${encodeURIComponent(exportName)}&`;
+
+        const qs = `${sourceParam}${qParam}${startParam}${endParam}${linkParam}${exportParam}`;
+        window.open(`/api/crawler_dashboard/export?${qs}`, '_blank');
+        appendLog(`已触发 Excel 导出：${exportName}.xlsx`);
+    });
+
+    ['searchInput', 'startTimeInput', 'endTimeInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('applyFilterBtn').click();
+            }
+        });
+    });
+
+    updateFilterLabel();
+    loadLatest(true);
+    refreshAll();
+
+    setInterval(refreshAll, 15000);
+    setInterval(async () => {
+        await loadLatest(true);
+    }, 30000);
+</script>
+</body>
+</html>

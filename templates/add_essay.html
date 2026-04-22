@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>写随笔</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --bg-glass: rgba(255, 255, 255, 0.08);
+            --bg-glass-hover: rgba(255, 255, 255, 0.12);
+            
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.5);
+            
+            --border: rgba(255, 255, 255, 0.1);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            
+            --essay-color: #10b981;
+            --essay-glow: rgba(16, 185, 129, 0.2);
+            
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.1) 0px, transparent 50%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .back-btn {
+            padding: 0.625rem 1.25rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-btn:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+            transform: translateX(-4px);
+        }
+
+        .form-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .date-input {
+            margin-bottom: 2rem;
+        }
+
+        .date-input input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            transition: var(--transition);
+            background: var(--bg-glass);
+            color: var(--text-primary);
+            backdrop-filter: blur(10px);
+        }
+
+        .date-input input:focus {
+            outline: none;
+            border-color: var(--essay-color);
+            background: var(--bg-glass-hover);
+            box-shadow: 0 0 0 3px var(--essay-glow);
+        }
+
+        .content-input {
+            margin-bottom: 2rem;
+        }
+
+        .content-input textarea {
+            width: 100%;
+            min-height: 500px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: var(--transition);
+            background: var(--bg-glass);
+            color: var(--text-secondary);
+            line-height: 1.8;
+            backdrop-filter: blur(10px);
+        }
+
+        .content-input textarea:focus {
+            outline: none;
+            border-color: var(--essay-color);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 3px var(--essay-glow);
+        }
+
+        .content-input textarea::placeholder {
+            color: var(--text-tertiary);
+            font-style: italic;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn {
+            padding: 0.875rem 2rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--essay-color) 0%, #059669 100%);
+            border-color: var(--essay-color);
+            color: white;
+            box-shadow: 0 4px 12px var(--essay-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px var(--essay-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-glass);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .hint {
+            margin-top: 1.5rem;
+            padding: 1rem 1.25rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✍️ 写随笔</h1>
+            <a href="{{ url_for('index') }}" class="back-btn">← 返回</a>
+        </div>
+
+        <form method="post" class="form-card">
+            <div class="date-input">
+                <input type="date" name="date" id="date" value="{{ default_date }}" required>
+            </div>
+
+            <div class="content-input">
+                <textarea name="content" id="content" placeholder="想到什么写什么，自由记录你的想法..."></textarea>
+            </div>
+
+            <div class="actions">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
+                <button type="submit" class="btn btn-primary">💾 保存</button>
+            </div>
+
+            <div class="hint">
+                💡 提示：随笔是自由记录，一天可以写多篇，想到什么就写什么，不用拘束格式。
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('date').valueAsDate = new Date();
+        document.getElementById('content').focus();
+    </script>
+</body>
+</html>
