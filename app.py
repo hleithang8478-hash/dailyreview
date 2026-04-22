@@ -1089,6 +1089,18 @@ def init_db():
                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
         
+        # 投资日历：投研分类、关联股票、关联交易计划
+        for _mig in (
+            "ALTER TABLE investment_calendar ADD COLUMN event_category TEXT DEFAULT 'other'",
+            "ALTER TABLE investment_calendar ADD COLUMN related_stock TEXT",
+            "ALTER TABLE investment_calendar ADD COLUMN related_plan_id INTEGER",
+        ):
+            try:
+                c.execute(_mig)
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    logging.debug("投资日历表迁移: %s", e)
+        
         # 投资计划表 - 参考Notion/Linear的设计
         c.execute('''CREATE TABLE IF NOT EXISTS investment_plans
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1889,6 +1901,22 @@ def insert_db(query, args=()):
         # logging.debug(f"Data inserted: {query[:100]}...")
     except Exception as e:
         logging.error(f"数据插入失败: {e}", exc_info=True)
+
+
+def insert_db_return_id(query, args=()):
+    """执行 INSERT 并返回 lastrowid；失败时抛出异常。"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    try:
+        c = conn.cursor()
+        c.execute(query, args)
+        rid = c.lastrowid
+        conn.commit()
+        return rid
+    except Exception as e:
+        logging.error(f"数据插入失败: {e}", exc_info=True)
+        raise
+    finally:
+        conn.close()
 
 # 封装数据库更新函数
 def update_db(query, args=()):
@@ -2786,6 +2814,102 @@ def download_report(id):
         return '文件下载失败', 500
 
 # ==================== 投资日历功能 ====================
+
+# 投研日历事件分类（色块与前端图例一致）
+CALENDAR_EVENT_CATEGORIES = {
+    'macro': {'label': '宏观数据', 'color': '#0369a1'},
+    'earnings': {'label': '财报发布', 'color': '#15803d'},
+    'meeting': {'label': '重要会议', 'color': '#7e22ce'},
+    'personal_trade': {'label': '个人交易计划', 'color': '#c2410c'},
+    'other': {'label': '其他', 'color': '#4f46e5'},
+}
+
+
+def _cal_date(s):
+    if not s:
+        return ''
+    return str(s).strip()[:10]
+
+
+def _category_display_color(category, stored_color):
+    cat = category or 'other'
+    if cat in CALENDAR_EVENT_CATEGORIES:
+        return CALENDAR_EVENT_CATEGORIES[cat]['color']
+    return stored_color or '#6366f1'
+
+
+def _fc_end_exclusive_to_db_end_inclusive(start_s, end_exclusive_s):
+    start_s = _cal_date(start_s)
+    if not end_exclusive_s:
+        return start_s
+    end_ex = _cal_date(end_exclusive_s)
+    if not end_ex or end_ex <= start_s:
+        return start_s
+    d_end = datetime.strptime(end_ex, '%Y-%m-%d') - timedelta(days=1)
+    return d_end.strftime('%Y-%m-%d')
+
+
+def _db_end_inclusive_to_fc_end_exclusive(start_s, end_inclusive_s):
+    start_s = _cal_date(start_s)
+    end_inc = _cal_date(end_inclusive_s) or start_s
+    if not end_inc or end_inc <= start_s:
+        return None
+    d = datetime.strptime(end_inc, '%Y-%m-%d') + timedelta(days=1)
+    return d.strftime('%Y-%m-%d')
+
+
+def _calendar_row_to_dict(row):
+    """SELECT c.*..., p.title 共 14 列（含 plan_title）。"""
+    return {
+        'id': row[0],
+        'title': row[1],
+        'content': row[2] or '',
+        'start_date': row[3],
+        'end_date': row[4],
+        'reminder_type': row[5] or 'notification',
+        'reminder_time': row[6] or 0,
+        'reminder_sent': row[7] or 0,
+        'color': row[8] or '#6366f1',
+        'event_type': row[9] or 'single',
+        'event_category': (row[10] or 'other') if len(row) > 10 else 'other',
+        'related_stock': (row[11] or '').strip() if len(row) > 11 else '',
+        'related_plan_id': int(row[12]) if len(row) > 12 and row[12] not in (None, '') else None,
+        'plan_title': row[13] if len(row) > 13 else None,
+    }
+
+
+def _event_to_fullcalendar(ev):
+    start = _cal_date(ev['start_date'])
+    end_fc = _db_end_inclusive_to_fc_end_exclusive(start, ev.get('end_date'))
+    cat = ev.get('event_category') or 'other'
+    if cat not in CALENDAR_EVENT_CATEGORIES:
+        cat = 'other'
+    color = _category_display_color(cat, ev.get('color'))
+    item = {
+        'id': str(ev['id']),
+        'title': ev['title'],
+        'start': start,
+        'allDay': True,
+        'backgroundColor': color,
+        'borderColor': color,
+        'textColor': '#ffffff',
+        'extendedProps': {
+            'db_id': ev['id'],
+            'content': ev.get('content') or '',
+            'reminder_type': ev.get('reminder_type'),
+            'reminder_time': ev.get('reminder_time'),
+            'event_type': ev.get('event_type'),
+            'event_category': cat,
+            'related_stock': ev.get('related_stock') or '',
+            'related_plan_id': ev.get('related_plan_id'),
+            'plan_title': ev.get('plan_title'),
+        },
+    }
+    if end_fc:
+        item['end'] = end_fc
+    return item
+
+
 # 日历主页
 @app.route('/calendar')
 @login_required
@@ -2817,43 +2941,55 @@ def calendar():
             'color': plan[6] or '#f59e0b',
             'type': 'plan'
         })
-    
-    return render_template('calendar.html', upcoming_plans=plans_list)
 
-# 获取日历事件（JSON API）
+    plan_rows = query_db(
+        """SELECT id, title FROM investment_plans 
+           WHERE status IS NULL OR status != 'cancelled' 
+           ORDER BY updated_at DESC LIMIT 500"""
+    )
+    plan_options = [{'id': r[0], 'title': r[1]} for r in (plan_rows or [])]
+    
+    return render_template(
+        'calendar.html',
+        upcoming_plans=plans_list,
+        plan_options=plan_options,
+        calendar_categories=CALENDAR_EVENT_CATEGORIES,
+    )
+
+# 获取日历事件（JSON API，FullCalendar 友好格式）
 @app.route('/api/calendar/events')
 @login_required
 def get_calendar_events():
-    start_date = request.args.get('start', '')
-    end_date = request.args.get('end', '')
-    
-    if start_date and end_date:
-        events = query_db("""SELECT id, title, content, start_date, end_date, 
-                            color, reminder_type, event_type 
-                            FROM investment_calendar 
-                            WHERE (start_date <= ? AND (end_date >= ? OR end_date IS NULL))
-                            ORDER BY start_date ASC""", 
-                         (end_date, start_date))
+    fc_start = request.args.get('start', '')
+    fc_end = request.args.get('end', '')
+
+    base_sql = """SELECT c.id, c.title, c.content, c.start_date, c.end_date,
+                         c.reminder_type, c.reminder_time, c.reminder_sent, c.color, c.event_type,
+                         c.event_category, c.related_stock, c.related_plan_id, p.title AS plan_title
+                  FROM investment_calendar c
+                  LEFT JOIN investment_plans p ON c.related_plan_id = p.id """
+
+    if fc_start and fc_end:
+        first_day = _cal_date(fc_start)
+        last_day = (datetime.strptime(_cal_date(fc_end), '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+        events = query_db(
+            base_sql + """ WHERE c.start_date <= ? 
+                           AND coalesce(nullif(trim(c.end_date), ''), c.start_date) >= ?
+                           ORDER BY c.start_date ASC""",
+            (last_day, first_day),
+        )
     else:
-        events = query_db("""SELECT id, title, content, start_date, end_date, 
-                            color, reminder_type, event_type 
-                            FROM investment_calendar 
-                            ORDER BY start_date ASC""")
-    
-    events_list = []
-    for event in events:
-        events_list.append({
-            'id': event[0],
-            'title': event[1],
-            'content': event[2],
-            'start': event[3],
-            'end': event[4] or event[3],  # 如果没有结束日期，使用开始日期
-            'color': event[5] or '#6366f1',
-            'reminder_type': event[6] or 'notification',
-            'event_type': event[7] or 'single'
-        })
-    
+        events = query_db(base_sql + " ORDER BY c.start_date ASC")
+
+    events_list = [_event_to_fullcalendar(_calendar_row_to_dict(row)) for row in (events or [])]
     return jsonify(events_list)
+
+
+@app.route('/api/calendar/events/<int:id>/delete', methods=['POST'])
+@login_required
+def api_delete_calendar_event(id):
+    delete_db("DELETE FROM investment_calendar WHERE id = ?", (id,))
+    return jsonify({'success': True})
 
 # 添加/编辑日历事件
 @app.route('/calendar/add', methods=['GET', 'POST'])
@@ -2867,47 +3003,76 @@ def add_calendar_event(id=None):
         end_date = request.form.get('end_date', '') or start_date
         reminder_type = request.form.get('reminder_type', 'notification')
         reminder_time = int(request.form.get('reminder_time', 0))
-        color = request.form.get('color', '#6366f1')
         event_type = request.form.get('event_type', 'single')
+        event_category = request.form.get('event_category', 'other') or 'other'
+        if event_category not in CALENDAR_EVENT_CATEGORIES:
+            event_category = 'other'
+        related_stock = (request.form.get('related_stock') or '').strip()
+        rp = request.form.get('related_plan_id', '').strip()
+        related_plan_id = int(rp) if rp.isdigit() else None
+        color = _category_display_color(event_category, request.form.get('color', '#6366f1'))
         
         if id:
-            # 更新
             update_db("""UPDATE investment_calendar 
                         SET title=?, content=?, start_date=?, end_date=?, 
                         reminder_type=?, reminder_time=?, color=?, event_type=?,
+                        event_category=?, related_stock=?, related_plan_id=?,
                         updated_at=CURRENT_TIMESTAMP 
                         WHERE id=?""",
                      (title, content, start_date, end_date, reminder_type, 
-                      reminder_time, color, event_type, id))
+                      reminder_time, color, event_type, event_category, related_stock, related_plan_id, id))
         else:
-            # 新增
             insert_db("""INSERT INTO investment_calendar 
                         (title, content, start_date, end_date, reminder_type, 
-                         reminder_time, color, event_type) 
-                        VALUES (?,?,?,?,?,?,?,?)""",
+                         reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                      (title, content, start_date, end_date, reminder_type, 
-                      reminder_time, color, event_type))
+                      reminder_time, color, event_type, event_category, related_stock, related_plan_id))
         
         return redirect(url_for('calendar'))
     
     # GET请求
     event = None
     if id:
-        event_data = query_db("SELECT * FROM investment_calendar WHERE id =?", (id,), one=True)
-        if event_data:
+        row = query_db(
+            """SELECT c.id, c.title, c.content, c.start_date, c.end_date,
+                      c.reminder_type, c.reminder_time, c.reminder_sent, c.color, c.event_type,
+                      c.event_category, c.related_stock, c.related_plan_id, p.title AS plan_title
+               FROM investment_calendar c
+               LEFT JOIN investment_plans p ON c.related_plan_id = p.id
+               WHERE c.id = ?""",
+            (id,),
+            one=True,
+        )
+        if row:
+            d = _calendar_row_to_dict(row)
             event = {
-                'id': event_data[0],
-                'title': event_data[1],
-                'content': event_data[2],
-                'start_date': event_data[3],
-                'end_date': event_data[4],
-                'reminder_type': event_data[5] or 'notification',
-                'reminder_time': event_data[6] or 0,
-                'color': event_data[7] or '#6366f1',
-                'event_type': event_data[8] or 'single'
+                'id': d['id'],
+                'title': d['title'],
+                'content': d['content'],
+                'start_date': d['start_date'],
+                'end_date': d['end_date'],
+                'reminder_type': d['reminder_type'],
+                'reminder_time': d['reminder_time'],
+                'color': d['color'],
+                'event_type': d['event_type'],
+                'event_category': d['event_category'],
+                'related_stock': d['related_stock'],
+                'related_plan_id': d['related_plan_id'],
             }
     
-    return render_template('add_calendar_event.html', event=event)
+    plan_rows = query_db(
+        """SELECT id, title FROM investment_plans 
+           WHERE status IS NULL OR status != 'cancelled' 
+           ORDER BY updated_at DESC LIMIT 500"""
+    )
+    plan_options = [{'id': r[0], 'title': r[1]} for r in (plan_rows or [])]
+    return render_template(
+        'add_calendar_event.html',
+        event=event,
+        plan_options=plan_options,
+        calendar_categories=CALENDAR_EVENT_CATEGORIES,
+    )
 
 # 删除日历事件
 @app.route('/calendar/delete/<int:id>')
@@ -2921,34 +3086,49 @@ def delete_calendar_event(id):
 @login_required
 def save_calendar_event():
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         event_id = data.get('id')
-        title = data.get('title', '')
-        content = data.get('content', '')
-        start_date = data.get('start_date', '')
-        end_date = data.get('end_date', '') or start_date
+        if event_id is not None and str(event_id).isdigit():
+            event_id = int(event_id)
+        else:
+            event_id = None
+        title = (data.get('title') or '').strip() or '未命名事件'
+        content = data.get('content', '') or ''
+        start_date = _cal_date(data.get('start_date', ''))
+        end_date = _cal_date(data.get('end_date', '')) or start_date
         reminder_type = data.get('reminder_type', 'notification')
         reminder_time = int(data.get('reminder_time', 0))
-        color = data.get('color', '#6366f1')
         event_type = data.get('event_type', 'single')
+        event_category = data.get('event_category', 'other') or 'other'
+        if event_category not in CALENDAR_EVENT_CATEGORIES:
+            event_category = 'other'
+        related_stock = (data.get('related_stock') or '').strip()
+        rp = data.get('related_plan_id')
+        if rp in (None, '', 0, '0'):
+            related_plan_id = None
+        else:
+            related_plan_id = int(rp)
+        color = _category_display_color(event_category, data.get('color', '#6366f1'))
         
         if event_id:
             update_db("""UPDATE investment_calendar 
                         SET title=?, content=?, start_date=?, end_date=?, 
                         reminder_type=?, reminder_time=?, color=?, event_type=?,
+                        event_category=?, related_stock=?, related_plan_id=?,
                         updated_at=CURRENT_TIMESTAMP 
                         WHERE id=?""",
                      (title, content, start_date, end_date, reminder_type, 
-                      reminder_time, color, event_type, event_id))
-        else:
-            insert_db("""INSERT INTO investment_calendar 
-                        (title, content, start_date, end_date, reminder_type, 
-                         reminder_time, color, event_type) 
-                        VALUES (?,?,?,?,?,?,?,?)""",
-                     (title, content, start_date, end_date, reminder_type, 
-                      reminder_time, color, event_type))
-        
-        return jsonify({'success': True})
+                      reminder_time, color, event_type, event_category, related_stock, related_plan_id, event_id))
+            return jsonify({'success': True, 'id': event_id})
+        new_id = insert_db_return_id(
+            """INSERT INTO investment_calendar 
+               (title, content, start_date, end_date, reminder_type, 
+                reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (title, content, start_date, end_date, reminder_type, 
+             reminder_time, color, event_type, event_category, related_stock, related_plan_id),
+        )
+        return jsonify({'success': True, 'id': new_id})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

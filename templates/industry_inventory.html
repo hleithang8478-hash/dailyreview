@@ -660,6 +660,17 @@
         let selectedStock = null;
         let searchCache = new Map(); // 搜索缓存
         let currentCharts = []; // 存储当前图表实例
+
+        (function () {
+            try {
+                var p = new URLSearchParams(window.location.search);
+                var q = p.get('q') || p.get('stock') || p.get('code');
+                if (q) {
+                    var el = document.getElementById('stock-query');
+                    if (el) el.value = q;
+                }
+            } catch (e) {}
+        })();
         
         // 切换标签页
         function switchTab(tab) {

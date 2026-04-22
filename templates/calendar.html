@@ -3,862 +3,659 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投资日历</title>
+    <title>投研日历</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@5.11.5/main.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@5.11.5/main.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid@5.11.5/main.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/list@5.11.5/main.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            /* 统一极简配色 - 与index.html一致 */
             --bg-primary: #000000;
-            --bg-secondary: #0a0a0a;
             --bg-card: #111111;
-            --bg-hover: #1a1a1a;
-            
             --text-primary: #ffffff;
             --text-secondary: #999999;
-            --text-tertiary: #666666;
-            
-            --border: rgba(255, 255, 255, 0.15);
-            --border-hover: rgba(255, 255, 255, 0.2);
-            
+            --border: rgba(255, 255, 255, 0.12);
             --accent: #6366f1;
-            --essay-color: #10b981;
-            --review-color: #8b5cf6;
-            
-            --radius: 4px;
-            --transition: all 0.2s ease;
+            --radius: 8px;
         }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
-            line-height: 1.6;
-            -webkit-font-smoothing: antialiased;
-            position: relative;
-            overflow-x: hidden;
+            line-height: 1.5;
         }
-
-        body * {
-            text-rendering: optimizeLegibility;
-        }
-
         .top-bar {
-            background: rgba(10, 10, 10, 0.6);
-            backdrop-filter: blur(25px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0.875rem 1.5rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
-            gap: 1rem;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .top-bar h1 {
-            font-size: 1.25rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            letter-spacing: -0.3px;
-            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.5);
-        }
-
-        .top-actions {
-            display: flex;
             gap: 0.75rem;
-            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 2000;
         }
-
+        .top-bar h1 { font-size: 1.125rem; font-weight: 600; }
+        .top-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
         .btn {
-            padding: 0.5rem 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: var(--radius);
-            cursor: pointer;
-            font-size: 0.875rem;
-            font-weight: 400;
-            transition: var(--transition);
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-decoration: none;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            color: var(--text-primary);
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4);
-        }
-
-        .btn-primary {
-            background: rgba(99, 102, 241, 0.8);
-            backdrop-filter: blur(10px);
-            border-color: rgba(99, 102, 241, 0.5);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: rgba(99, 102, 241, 0.9);
-            border-color: rgba(99, 102, 241, 0.7);
-        }
-
-        .main-content {
-            padding: 2rem 2.5rem;
-            max-width: 1800px;
-            margin: 0 auto;
-        }
-
-        /* 日历控制栏 */
-        .calendar-controls {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 2rem;
-            background: rgba(17, 17, 17, 0.35);
-            backdrop-filter: blur(30px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius);
-            padding: 1.25rem 2rem;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .calendar-nav {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .nav-btn {
-            width: 40px;
-            height: 40px;
+            padding: 0.45rem 0.9rem;
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.06);
             color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.875rem;
             cursor: pointer;
+            transition: background 0.15s;
+        }
+        .btn:hover { background: rgba(255,255,255,0.1); }
+        .btn-primary { background: rgba(99, 102, 241, 0.85); border-color: rgba(99,102,241,0.5); }
+        .main-content { padding: 1rem 1.25rem 2rem; max-width: 1920px; margin: 0 auto; }
+        .legend {
             display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1.25rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+        .legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+        .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+        #calendar-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.75rem;
+            min-height: 640px;
+        }
+        #calendar { min-height: 600px; }
+        .fc-theme-standard .fc-scrollgrid { border-color: var(--border); }
+        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--border); }
+        .fc .fc-toolbar-title { color: var(--text-primary); font-size: 1.1rem; }
+        .fc .fc-button {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        .fc .fc-button:hover { background: rgba(255,255,255,0.14); }
+        .fc .fc-button-primary:not(:disabled).fc-button-active,
+        .fc .fc-button-primary:not(:disabled):active { background: var(--accent); border-color: var(--accent); }
+        .fc .fc-daygrid-day-number, .fc .fc-col-header-cell-cushion { color: var(--text-primary); }
+        .fc .fc-daygrid-day.fc-day-today { background: rgba(99, 102, 241, 0.12) !important; }
+        .fc .fc-list-event:hover td { background: rgba(255,255,255,0.06); }
+        .fc .fc-list-day-cushion, .fc .fc-list-table { background: transparent; color: var(--text-primary); }
+        .fc-theme-standard .fc-list { border-color: var(--border); }
+        .events-sidebar {
+            margin-top: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem 1.25rem;
+        }
+        .events-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; }
+        .event-list-item {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 0.5rem;
+            background: rgba(255,255,255,0.04);
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .event-list-item:hover { background: rgba(255,255,255,0.08); }
+        .event-list-item.plan-item { border-left: 3px solid #f59e0b; }
+        .empty-calendar { color: var(--text-secondary); text-align: center; padding: 2rem; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 3000;
             align-items: center;
             justify-content: center;
-            transition: var(--transition);
-        }
-
-        .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: var(--border-hover);
-        }
-
-        .current-date {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            min-width: 200px;
-            text-align: center;
-            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.5);
-        }
-
-        .view-toggle {
-            display: flex;
-            gap: 0.5rem;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            padding: 0.25rem;
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
-        }
-
-        .view-btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            background: transparent;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: var(--transition);
-            color: var(--text-secondary);
-            font-weight: 500;
-            font-size: 0.875rem;
-        }
-
-        .view-btn.active {
-            background: var(--accent);
-            color: white;
-            box-shadow: 0 2px 8px var(--accent-glow);
-        }
-
-        /* 日历网格 - 月视图 */
-        .calendar-grid {
-            background: rgba(17, 17, 17, 0.35);
-            backdrop-filter: blur(30px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius);
-            padding: 1.5rem;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .calendar-header {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .day-header {
-            padding: 0.75rem;
-            text-align: center;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .calendar-days {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 0.5rem;
-        }
-
-        .calendar-day {
-            min-height: 120px;
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            cursor: pointer;
-            transition: var(--transition);
-            position: relative;
-            backdrop-filter: blur(10px);
-        }
-
-        .calendar-day:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: var(--accent);
-            transform: scale(1.02);
-        }
-
-        .calendar-day.other-month {
-            opacity: 0.3;
-        }
-
-        .calendar-day.today {
-            border-color: var(--accent);
-            background: rgba(99, 102, 241, 0.1);
-            box-shadow: 0 0 0 2px var(--accent-glow);
-        }
-
-        .day-number {
-            font-size: 0.9375rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-        }
-
-        .day-lunar {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            font-weight: 400;
-            margin-bottom: 0.5rem;
-            opacity: 0.8;
-        }
-
-        .day-events {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .event-dot {
-            height: 4px;
-            border-radius: 2px;
-            background: var(--accent);
-            width: 100%;
-            transition: var(--transition);
-        }
-
-        .event-item {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: white;
-            margin-bottom: 0.25rem;
-            cursor: pointer;
-            transition: var(--transition);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .event-item:hover {
-            transform: translateX(4px);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        /* 事件列表侧栏 */
-        .events-sidebar {
-            margin-top: 2rem;
-            background: var(--bg-card);
-            backdrop-filter: blur(30px);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 1.5rem;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-        }
-
-        .events-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            color: var(--text-primary);
-        }
-
-        .event-list-item {
             padding: 1rem;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: #141414;
             border: 1px solid var(--border);
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            cursor: pointer;
-            transition: var(--transition);
-            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.5);
         }
-
-        .event-list-item:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: var(--border-hover);
-            transform: translateX(4px);
-        }
-
-        .event-list-item-header {
+        .modal-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 0.5rem;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
         }
-
-        .event-list-item-title {
-            font-weight: 600;
-            color: var(--text-primary);
-            flex: 1;
-        }
-
-        .event-list-item-date {
-            font-size: 0.875rem;
+        .modal-header h2 { font-size: 1rem; font-weight: 600; }
+        .modal-close {
+            background: none;
+            border: none;
             color: var(--text-secondary);
-            margin-left: 1rem;
-        }
-
-        .event-list-item-content {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            line-height: 1.6;
-            margin-top: 0.5rem;
-        }
-
-        .event-actions {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.75rem;
-            opacity: 0;
-            transition: var(--transition);
-        }
-
-        .event-list-item:hover .event-actions {
-            opacity: 1;
-        }
-
-        .event-list-item.plan-item {
-            border-left: 3px solid #f59e0b;
-        }
-
-        .action-btn {
-            padding: 0.375rem 0.75rem;
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 6px;
+            font-size: 1.5rem;
+            line-height: 1;
             cursor: pointer;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            transition: var(--transition);
+            padding: 0.25rem;
         }
-
-        .action-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: var(--border-hover);
+        .modal-body { padding: 1.25rem; }
+        .form-row { margin-bottom: 1rem; }
+        .form-row label { display: block; font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.35rem; }
+        .form-row input, .form-row select, .form-row textarea {
+            width: 100%;
+            padding: 0.5rem 0.65rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: #0a0a0a;
             color: var(--text-primary);
+            font-size: 0.875rem;
         }
-
-        /* 空状态 */
-        .empty-calendar {
-            text-align: center;
-            padding: 4rem 2rem;
-            color: var(--text-tertiary);
+        .form-row textarea { min-height: 88px; resize: vertical; }
+        .form-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        @media (max-width: 520px) { .form-inline { grid-template-columns: 1fr; } }
+        .modal-footer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
         }
-
-        /* 响应式 */
-        @media (max-width: 768px) {
-            .main-content {
-                padding: 1.5rem 1rem;
-            }
-
-            .calendar-controls {
-                flex-direction: column;
-                gap: 1rem;
-            }
-
-            .calendar-day {
-                min-height: 80px;
-                padding: 0.5rem;
-            }
-        }
+        .link-row { margin-top: 0.75rem; font-size: 0.8125rem; }
+        .link-row a { color: #93c5fd; margin-right: 0.75rem; }
+        .hint { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@5.11.5/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@5.11.5/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid@5.11.5/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/list@5.11.5/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/interaction@5.11.5/main.min.js"></script>
 </head>
 <body>
     <div class="top-bar">
-        <h1>📅 投资日历</h1>
+        <h1>投研日历</h1>
         <div class="top-actions">
             <a href="{{ url_for('index') }}" class="btn">← 返回</a>
-            <a href="{{ url_for('add_calendar_event') }}" class="btn btn-primary">➕ 新建事件</a>
+            <a href="{{ url_for('add_calendar_event') }}" class="btn btn-primary">完整表单</a>
         </div>
     </div>
 
     <div class="main-content">
-        <div class="calendar-controls">
-            <div class="calendar-nav">
-                <button class="nav-btn" id="prev-month">←</button>
-                <div class="current-date" id="current-month"></div>
-                <button class="nav-btn" id="next-month">→</button>
-                <button class="nav-btn" id="today-btn">今天</button>
-            </div>
-            <div class="view-toggle">
-                <button class="view-btn active" data-view="month">月</button>
-                <button class="view-btn" data-view="week">周</button>
-                <button class="view-btn" data-view="day">日</button>
-            </div>
+        <div class="legend" id="category-legend"></div>
+        <div id="calendar-wrap">
+            <div id="calendar"></div>
         </div>
 
-        <div class="calendar-grid" id="calendar-container">
-            <!-- 日历网格将通过JS生成 -->
+        <div class="events-sidebar">
+            <div class="events-title">近期事件与计划</div>
+            <div id="events-list"></div>
         </div>
+    </div>
 
-        <div class="events-sidebar" id="events-sidebar">
-            <div class="events-title">近期事件</div>
-            <div id="events-list">
-                <!-- 事件列表将通过JS生成 -->
+    <div class="modal-overlay" id="event-modal" role="dialog" aria-modal="true">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">事件</h2>
+                <button type="button" class="modal-close" id="modal-close" aria-label="关闭">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="f-id" value="">
+                <div class="form-row">
+                    <label for="f-title">标题</label>
+                    <input type="text" id="f-title" placeholder="例如：美国 CPI 公布">
+                </div>
+                <div class="form-row">
+                    <label for="f-category">分类</label>
+                    <select id="f-category"></select>
+                </div>
+                <div class="form-inline">
+                    <div class="form-row">
+                        <label for="f-start">开始日期</label>
+                        <input type="date" id="f-start">
+                    </div>
+                    <div class="form-row">
+                        <label for="f-end">结束日期（含）</label>
+                        <input type="date" id="f-end">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label for="f-content">备注</label>
+                    <textarea id="f-content" placeholder="补充说明、链接等"></textarea>
+                </div>
+                <div class="form-row">
+                    <label for="f-stock">关联股票代码</label>
+                    <input type="text" id="f-stock" placeholder="如 000001、600519">
+                    <p class="hint">保存后可在下方打开「行业库存」个股分析页（自动填入代码）。</p>
+                </div>
+                <div class="form-row">
+                    <label for="f-plan">关联交易计划</label>
+                    <select id="f-plan">
+                        <option value="">（不关联）</option>
+                    </select>
+                </div>
+                <div class="form-inline">
+                    <div class="form-row">
+                        <label for="f-reminder-type">提醒</label>
+                        <select id="f-reminder-type">
+                            <option value="notification">浏览器提醒</option>
+                            <option value="none">不提醒</option>
+                            <option value="email">邮件（占位）</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label for="f-reminder-time">提前</label>
+                        <select id="f-reminder-time">
+                            <option value="0">当天</option>
+                            <option value="1440">提前 1 天</option>
+                            <option value="2880">提前 2 天</option>
+                            <option value="10080">提前 1 周</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label for="f-event-type">跨度类型</label>
+                    <select id="f-event-type">
+                        <option value="single">单日</option>
+                        <option value="multi">多日</option>
+                        <option value="recurring">周期</option>
+                    </select>
+                </div>
+                <div class="link-row" id="modal-links" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" id="btn-delete" style="display:none;">删除</button>
+                <a class="btn" id="btn-full-edit" href="#" style="display:none;">打开完整编辑页</a>
+                <button type="button" class="btn" id="btn-cancel">取消</button>
+                <button type="button" class="btn btn-primary" id="btn-save">保存</button>
             </div>
         </div>
     </div>
 
     <script>
-        // 日历数据
-        let currentDate = new Date();
-        let events = [];
-        let currentView = 'month';
+        const PLAN_OPTIONS = {{ plan_options | tojson | safe }};
+        const CATEGORIES = {{ calendar_categories | tojson | safe }};
+        const upcomingPlans = {{ upcoming_plans | tojson | safe }} || [];
 
-        // 星期名称
-        const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
-        const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', 
-                           '七月', '八月', '九月', '十月', '十一月', '十二月'];
-
-        // 加载事件
-        async function loadEvents() {
-            try {
-                const response = await fetch('/api/calendar/events');
-                events = await response.json();
-                renderCalendar();
-                renderEventList();
-            } catch (error) {
-                console.error('加载事件失败:', error);
-            }
+        function fcEndExclusiveToInclusive(startStr, endExclusiveStr) {
+            if (!endExclusiveStr) return startStr.slice(0, 10);
+            const a = new Date(startStr.slice(0, 10));
+            const b = new Date(endExclusiveStr.slice(0, 10));
+            b.setDate(b.getDate() - 1);
+            return b.toISOString().slice(0, 10);
         }
 
-        // 渲染日历
-        function renderCalendar() {
-            const year = currentDate.getFullYear();
-            const month = currentDate.getMonth();
-            
-            // 更新标题
-            document.getElementById('current-month').textContent = 
-                `${year}年 ${monthNames[month]}`;
+        function inclusiveEndToFcExclusive(startStr, endInclusiveStr) {
+            const s = startStr.slice(0, 10);
+            const e = (endInclusiveStr || s).slice(0, 10);
+            if (e <= s) return null;
+            const d = new Date(e);
+            d.setDate(d.getDate() + 1);
+            return d.toISOString().slice(0, 10);
+        }
 
-            const firstDay = new Date(year, month, 1);
-            const lastDay = new Date(year, month + 1, 0);
-            const daysInMonth = lastDay.getDate();
-            const startDay = firstDay.getDay();
-
-            // 创建日历网格
-            let html = '<div class="calendar-header">';
-            weekDays.forEach(day => {
-                html += `<div class="day-header">${day}</div>`;
+        function fillCategorySelect(sel) {
+            sel.innerHTML = '';
+            Object.keys(CATEGORIES).forEach(k => {
+                const o = document.createElement('option');
+                o.value = k;
+                o.textContent = CATEGORIES[k].label;
+                sel.appendChild(o);
             });
-            html += '</div>';
+        }
 
-            html += '<div class="calendar-days">';
-
-            // 上个月的日期
-            const prevMonthLastDay = new Date(year, month, 0).getDate();
-            for (let i = startDay - 1; i >= 0; i--) {
-                const date = prevMonthLastDay - i;
-                html += createDayCell(year, month - 1, date, true);
-            }
-
-            // 本月的日期
-            for (let date = 1; date <= daysInMonth; date++) {
-                const isToday = isTodayDate(year, month, date);
-                html += createDayCell(year, month, date, false, isToday);
-            }
-
-            // 下个月的日期（填满6行）
-            const totalCells = 42; // 6行 x 7列
-            const filledCells = startDay + daysInMonth;
-            const remainingCells = totalCells - filledCells;
-            for (let date = 1; date <= remainingCells; date++) {
-                html += createDayCell(year, month + 1, date, true);
-            }
-
-            html += '</div>';
-            document.getElementById('calendar-container').innerHTML = html;
-
-            // 添加点击事件
-            document.querySelectorAll('.calendar-day').forEach(day => {
-                day.addEventListener('click', function() {
-                    const dateStr = this.dataset.date;
-                    if (dateStr) {
-                        window.location.href = `/calendar/add?date=${dateStr}`;
-                    }
-                });
+        function fillPlanSelect(sel) {
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">（不关联）</option>';
+            (PLAN_OPTIONS || []).forEach(p => {
+                const o = document.createElement('option');
+                o.value = String(p.id);
+                o.textContent = p.title;
+                sel.appendChild(o);
             });
-
-            // 异步加载农历日期
-            loadLunarDates();
+            if (cur) sel.value = cur;
         }
 
-        // 加载所有日期的农历信息
-        async function loadLunarDates() {
-            const lunarElements = document.querySelectorAll('.day-lunar[data-lunar-date]');
-            let hasLunarData = false;
-            
-            const promises = Array.from(lunarElements).slice(0, 10).map(async (elem) => {
-                const dateStr = elem.dataset.lunarDate;
-                try {
-                    const lunar = await fetchLunarDate(dateStr);
-                    if (lunar && lunar.trim()) {
-                        elem.textContent = lunar;
-                        hasLunarData = true;
-                    } else {
-                        elem.style.display = 'none';
-                    }
-                } catch (error) {
-                    elem.style.display = 'none';
-                }
-            });
-            
-            // 先测试前10个日期，如果都失败，说明需要安装zhdate库
-            await Promise.all(promises);
-            
-            if (!hasLunarData && lunarElements.length > 0) {
-                // 如果前10个都没有农历数据，隐藏所有农历元素
-                lunarElements.forEach(elem => {
-                    elem.style.display = 'none';
-                });
-                console.warn('未检测到农历数据，请安装zhdate库：pip install zhdate');
-            } else {
-                // 如果前10个有数据，继续加载其余的
-                const remainingElements = Array.from(lunarElements).slice(10);
-                const remainingPromises = remainingElements.map(async (elem) => {
-                    const dateStr = elem.dataset.lunarDate;
-                    try {
-                        const lunar = await fetchLunarDate(dateStr);
-                        if (lunar && lunar.trim()) {
-                            elem.textContent = lunar;
-                        } else {
-                            elem.style.display = 'none';
-                        }
-                    } catch (error) {
-                        elem.style.display = 'none';
-                    }
-                });
-                await Promise.all(remainingPromises);
-            }
+        function buildLegend() {
+            const el = document.getElementById('category-legend');
+            el.innerHTML = Object.keys(CATEGORIES).map(k =>
+                `<span class="legend-item"><span class="legend-swatch" style="background:${CATEGORIES[k].color}"></span>${CATEGORIES[k].label}</span>`
+            ).join('');
         }
 
-        // 农历转换函数（使用简化算法）
-        function getLunarDate(year, month, day) {
-            try {
-                const date = new Date(year, month - 1, day);
-                const lunarDate = convertSolarToLunar(year, month, day);
-                return lunarDate;
-            } catch (e) {
-                return '';
-            }
-        }
-
-        // 简化的农历转换（参考算法）
-        function convertSolarToLunar(year, month, day) {
-            // 使用农历数据表进行转换
-            // 这里实现一个简化版本，实际应该使用完整的农历算法
-            const lunarInfo = [
-                [0x04bd8, 0x04ae0, 0x0a570, 0x054d5, 0x0d260, 0x0d950, 0x16554, 0x056a0, 0x09ad0, 0x055d2],
-                // ... 更多数据
-            ];
-            
-            const lunarMonthNames = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊'];
-            const lunarDayNames = ['初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
-                '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
-                '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十'];
-            
-            // 使用API获取农历（更准确）
-            return null; // 返回null，然后通过API获取
-        }
-
-        // 从API获取农历日期
-        async function fetchLunarDate(dateStr) {
-            try {
-                const response = await fetch(`/api/calendar/lunar/${dateStr}`);
-                const data = await response.json();
-                return data.lunar || '';
-            } catch (error) {
-                console.error('获取农历失败:', error);
-                return '';
-            }
-        }
-
-        // 创建日期单元格
-        function createDayCell(year, month, date, isOtherMonth = false, isToday = false) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-            const dayEvents = events.filter(e => {
-                const eventStart = e.start.substring(0, 10);
-                const eventEnd = e.end ? e.end.substring(0, 10) : eventStart;
-                return dateStr >= eventStart && dateStr <= eventEnd;
-            });
-
-            let classes = 'calendar-day';
-            if (isOtherMonth) classes += ' other-month';
-            if (isToday) classes += ' today';
-
-            let html = `<div class="${classes}" data-date="${dateStr}">`;
-            html += `<div class="day-number">${date}</div>`;
-            html += `<div class="day-lunar" data-lunar-date="${dateStr}">加载中...</div>`;
-            
-            
-            if (dayEvents.length > 0) {
-                html += '<div class="day-events">';
-                dayEvents.slice(0, 3).forEach(event => {
-                    html += `<div class="event-item" style="background: ${event.color};" 
-                             onclick="event.stopPropagation(); openEvent(${event.id})" 
-                             title="${event.title}">${event.title}</div>`;
-                });
-                if (dayEvents.length > 3) {
-                    html += `<div class="event-dot" style="background: ${dayEvents[3].color}"></div>`;
-                }
-                html += '</div>';
-            }
-            
-            html += '</div>';
-            return html;
-        }
-
-        // 检查是否是今天
-        function isTodayDate(year, month, date) {
-            const today = new Date();
-            return year === today.getFullYear() && 
-                   month === today.getMonth() && 
-                   date === today.getDate();
-        }
-
-        // 渲染事件列表（包含日历事件和投资计划）
-        function renderEventList() {
+        function renderSidebar() {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const nextWeek = new Date(today);
-            nextWeek.setDate(today.getDate() + 7);
+            const next = new Date(today);
+            next.setDate(next.getDate() + 7);
 
-            // 筛选日历事件
-            const upcomingEvents = events
-                .filter(e => {
-                    const eventDate = new Date(e.start);
-                    eventDate.setHours(0, 0, 0, 0);
-                    return eventDate >= today && eventDate <= nextWeek;
-                })
-                .map(e => ({
-                    ...e,
-                    date: e.start,
-                    type: 'event'
-                }));
-
-            // 添加投资计划
-            const upcomingPlans = {{ upcoming_plans | tojson | safe }} || [];
-            const allUpcoming = [...upcomingEvents, ...upcomingPlans]
-                .sort((a, b) => new Date(a.date) - new Date(b.date))
-                .slice(0, 15); // 最多显示15个
-
-            let html = '';
-            if (allUpcoming.length === 0) {
-                html = '<div class="empty-calendar">暂无近期事件</div>';
-            } else {
-                allUpcoming.forEach(item => {
-                    const itemDate = new Date(item.date);
-                    const dateStr = itemDate.toLocaleDateString('zh-CN', {
-                        month: 'short',
-                        day: 'numeric',
-                        weekday: 'short'
+            fetch('/api/calendar/events')
+                .then(r => r.json())
+                .then(events => {
+                    const upcomingEvents = events.map(ev => ({
+                        type: 'event',
+                        id: ev.extendedProps.db_id,
+                        title: ev.title,
+                        date: ev.start,
+                        content: ev.extendedProps.content,
+                        event_category: ev.extendedProps.event_category,
+                    })).filter(e => {
+                        const d = new Date(e.date);
+                        d.setHours(0, 0, 0, 0);
+                        return d >= today && d <= next;
                     });
 
-                    const isPlan = item.type === 'plan';
-                    const icon = isPlan ? '📋' : '📅';
-                    const editUrl = isPlan ? `/plans/edit/${item.id}` : `/calendar/edit/${item.id}`;
-                    const deleteUrl = isPlan ? `/plans/delete/${item.id}` : `/calendar/delete/${item.id}`;
-                    const clickHandler = isPlan ? `window.location.href='/plans/edit/${item.id}'` : `openEvent(${item.id})`;
-
-                    html += `
-                        <div class="event-list-item ${isPlan ? 'plan-item' : ''}" onclick="${clickHandler}">
-                            <div class="event-list-item-header">
-                                <div class="event-list-item-title">
-                                    <span style="margin-right: 0.5rem;">${icon}</span>
-                                    ${item.title}
-                                    ${isPlan && item.status ? `<span style="font-size: 0.75rem; opacity: 0.7; margin-left: 0.5rem;">(${getStatusText(item.status)})</span>` : ''}
-                                </div>
-                                <div class="event-list-item-date">${dateStr}</div>
-                            </div>
-                            ${item.description || item.content ? `<div class="event-list-item-content">${item.description || item.content}</div>` : ''}
-                            <div class="event-actions">
-                                <a href="${editUrl}" class="action-btn" onclick="event.stopPropagation()">编辑</a>
-                                <button class="action-btn" onclick="event.stopPropagation(); if(confirm('确定要删除吗？')) window.location.href='${deleteUrl}'">删除</button>
-                            </div>
-                        </div>
-                    `;
+                    const all = [...upcomingEvents, ...upcomingPlans].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 15);
+                    const box = document.getElementById('events-list');
+                    if (!all.length) {
+                        box.innerHTML = '<div class="empty-calendar">暂无近期事件</div>';
+                        return;
+                    }
+                    box.innerHTML = all.map(item => {
+                        const isPlan = item.type === 'plan';
+                        const dt = new Date(item.date);
+                        const dateStr = dt.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' });
+                        const icon = isPlan ? '📋' : '📅';
+                        const click = isPlan ? `location.href='/plans/edit/${item.id}'` : `window.__openEventById(${item.id})`;
+                        return `<div class="event-list-item ${isPlan ? 'plan-item' : ''}" onclick="${click}">
+                            <strong>${icon} ${escapeHtml(item.title)}</strong>
+                            <div style="color:#888;font-size:0.8rem;margin-top:0.25rem">${dateStr}</div>
+                            ${item.content ? `<div style="color:#aaa;font-size:0.8rem;margin-top:0.35rem">${escapeHtml(item.content).slice(0, 120)}</div>` : ''}
+                        </div>`;
+                    }).join('');
+                })
+                .catch(() => {
+                    document.getElementById('events-list').innerHTML = '<div class="empty-calendar">加载失败</div>';
                 });
-            }
-
-            document.getElementById('events-list').innerHTML = html;
         }
 
-        // 获取状态文本
-        function getStatusText(status) {
-            const statusMap = {
-                'todo': '待开始',
-                'in_progress': '进行中',
-                'done': '已完成',
-                'cancelled': '已取消'
+        function escapeHtml(s) {
+            if (!s) return '';
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        const modal = document.getElementById('event-modal');
+        const fId = document.getElementById('f-id');
+        const fTitle = document.getElementById('f-title');
+        const fCategory = document.getElementById('f-category');
+        const fStart = document.getElementById('f-start');
+        const fEnd = document.getElementById('f-end');
+        const fContent = document.getElementById('f-content');
+        const fStock = document.getElementById('f-stock');
+        const fPlan = document.getElementById('f-plan');
+        const fReminderType = document.getElementById('f-reminder-type');
+        const fReminderTime = document.getElementById('f-reminder-time');
+        const fEventType = document.getElementById('f-event-type');
+        const modalLinks = document.getElementById('modal-links');
+        const btnDelete = document.getElementById('btn-delete');
+        const btnFullEdit = document.getElementById('btn-full-edit');
+
+        let calendar = null;
+
+        function openModal() {
+            modal.classList.add('open');
+        }
+        function closeModal() {
+            modal.classList.remove('open');
+        }
+
+        function updateModalLinks() {
+            const stock = fStock.value.trim();
+            const pid = fPlan.value;
+            let html = '';
+            if (stock) {
+                const u = '/industry_inventory?q=' + encodeURIComponent(stock);
+                html += `<a href="${u}" target="_blank" rel="noopener">打开个股分析（行业库存）</a>`;
+            }
+            if (pid) {
+                html += `<a href="/plans/edit/${encodeURIComponent(pid)}" target="_blank" rel="noopener">打开计划详情</a>`;
+            }
+            modalLinks.innerHTML = html;
+            modalLinks.style.display = html ? 'block' : 'none';
+        }
+
+        fStock.addEventListener('input', updateModalLinks);
+        fPlan.addEventListener('change', updateModalLinks);
+
+        function openCreateFromSelect(startStr, endStrExclusive) {
+            document.getElementById('modal-title').textContent = '新建事件';
+            fId.value = '';
+            fTitle.value = '';
+            fContent.value = '';
+            fStock.value = '';
+            fPlan.value = '';
+            fCategory.value = 'macro';
+            fillPlanSelect(fPlan);
+            fReminderType.value = 'notification';
+            fReminderTime.value = '0';
+            const s = startStr.slice(0, 10);
+            fStart.value = s;
+            const endInc = fcEndExclusiveToInclusive(startStr, endStrExclusive || null);
+            fEnd.value = endInc;
+            fEventType.value = s === endInc ? 'single' : 'multi';
+            btnDelete.style.display = 'none';
+            btnFullEdit.style.display = 'none';
+            updateModalLinks();
+            openModal();
+        }
+
+        function openEditFromEvent(ev) {
+            document.getElementById('modal-title').textContent = '编辑事件';
+            const ep = ev.extendedProps;
+            fillPlanSelect(fPlan);
+            fId.value = String(ep.db_id);
+            fTitle.value = ev.title || '';
+            fContent.value = ep.content || '';
+            fStock.value = ep.related_stock || '';
+            fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
+            fCategory.value = ep.event_category in CATEGORIES ? ep.event_category : 'other';
+            fStart.value = ev.startStr.slice(0, 10);
+            const endInc = fcEndExclusiveToInclusive(ev.startStr, ev.endStr || null);
+            fEnd.value = endInc;
+            fReminderType.value = ep.reminder_type || 'notification';
+            fReminderTime.value = String(ep.reminder_time != null ? ep.reminder_time : 0);
+            fEventType.value = ep.event_type || 'single';
+            btnDelete.style.display = 'inline-block';
+            btnFullEdit.href = '/calendar/edit/' + ep.db_id;
+            btnFullEdit.style.display = 'inline-block';
+            updateModalLinks();
+            openModal();
+        }
+
+        function openEditFromApiPayload(ev) {
+            const ep = ev.extendedProps || {};
+            document.getElementById('modal-title').textContent = '编辑事件';
+            fId.value = String(ep.db_id);
+            fTitle.value = ev.title || '';
+            fContent.value = ep.content || '';
+            fStock.value = ep.related_stock || '';
+            fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
+            fCategory.value = ep.event_category in CATEGORIES ? ep.event_category : 'other';
+            fStart.value = (ev.start || '').slice(0, 10);
+            const endInc = ev.end ? fcEndExclusiveToInclusive(ev.start, ev.end) : fStart.value;
+            fEnd.value = endInc;
+            fReminderType.value = ep.reminder_type || 'notification';
+            fReminderTime.value = String(ep.reminder_time != null ? ep.reminder_time : 0);
+            fEventType.value = ep.event_type || 'single';
+            btnDelete.style.display = 'inline-block';
+            btnFullEdit.href = '/calendar/edit/' + ep.db_id;
+            btnFullEdit.style.display = 'inline-block';
+            fillPlanSelect(fPlan);
+            fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
+            updateModalLinks();
+            openModal();
+        }
+
+        window.__openEventById = function (id) {
+            const calEv = calendar && calendar.getEventById(String(id));
+            if (calEv) {
+                openEditFromEvent(calEv);
+                return;
+            }
+            fetch('/api/calendar/events')
+                .then(r => r.json())
+                .then(list => {
+                    const ev = (list || []).find(e => e.extendedProps && e.extendedProps.db_id === id);
+                    if (ev) openEditFromApiPayload(ev);
+                });
+        };
+
+        function persistFromForm() {
+            const payload = {
+                id: fId.value ? parseInt(fId.value, 10) : null,
+                title: fTitle.value.trim() || '未命名事件',
+                content: fContent.value,
+                start_date: fStart.value,
+                end_date: fEnd.value || fStart.value,
+                reminder_type: fReminderType.value,
+                reminder_time: parseInt(fReminderTime.value, 10),
+                event_type: fEventType.value,
+                event_category: fCategory.value,
+                related_stock: fStock.value.trim(),
+                related_plan_id: fPlan.value ? parseInt(fPlan.value, 10) : null,
             };
-            return statusMap[status] || status;
+            return fetch('/api/calendar/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            }).then(r => r.json());
         }
 
-        // 打开事件
-        function openEvent(id) {
-            window.location.href = `/calendar/edit/${id}`;
-        }
-
-        // 删除事件
-        function deleteEvent(id) {
-            if (confirm('确定要删除这个事件吗？')) {
-                window.location.href = `/calendar/delete/${id}`;
-            }
-        }
-
-        // 导航
-        document.getElementById('prev-month').addEventListener('click', () => {
-            currentDate.setMonth(currentDate.getMonth() - 1);
-            renderCalendar();
+        document.getElementById('btn-save').addEventListener('click', () => {
+            persistFromForm().then(res => {
+                if (!res.success) {
+                    alert(res.error || '保存失败');
+                    return;
+                }
+                closeModal();
+                calendar.refetchEvents();
+                renderSidebar();
+            }).catch(() => alert('网络错误'));
         });
 
-        document.getElementById('next-month').addEventListener('click', () => {
-            currentDate.setMonth(currentDate.getMonth() + 1);
-            renderCalendar();
+        document.getElementById('btn-delete').addEventListener('click', () => {
+            const id = fId.value;
+            if (!id || !confirm('确定删除该事件？')) return;
+            fetch('/api/calendar/events/' + id + '/delete', { method: 'POST' })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) return;
+                    closeModal();
+                    calendar.refetchEvents();
+                    renderSidebar();
+                });
         });
 
-        document.getElementById('today-btn').addEventListener('click', () => {
-            currentDate = new Date();
-            renderCalendar();
-        });
+        document.getElementById('btn-cancel').addEventListener('click', closeModal);
+        document.getElementById('modal-close').addEventListener('click', closeModal);
+        modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-        // 视图切换
-        document.querySelectorAll('.view-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                currentView = this.dataset.view;
-                // 这里可以扩展周视图和日视图
+        document.addEventListener('DOMContentLoaded', () => {
+            fillCategorySelect(fCategory);
+            fillPlanSelect(fPlan);
+            buildLegend();
+
+            const el = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(el, {
+                plugins: ['interaction', 'dayGrid', 'timeGrid', 'list'],
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,listMonth',
+                },
+                buttonText: { today: '今天', month: '月', week: '周', list: '列表' },
+                height: 'auto',
+                editable: true,
+                selectable: true,
+                selectMirror: true,
+                dayMaxEvents: true,
+                navLinks: true,
+                events: (info, successCallback, failureCallback) => {
+                    const u = '/api/calendar/events?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr);
+                    fetch(u).then(r => r.json()).then(successCallback).catch(failureCallback);
+                },
+                select: info => {
+                    openCreateFromSelect(info.startStr, info.endStr);
+                    calendar.unselect();
+                },
+                eventClick: info => {
+                    info.jsEvent.preventDefault();
+                    openEditFromEvent(info.event);
+                },
+                eventDrop: info => saveDragResize(info.event),
+                eventResize: info => saveDragResize(info.event),
             });
+            calendar.render();
+            renderSidebar();
         });
 
-        // 初始化
-        loadEvents();
-        renderCalendar();
-
-        // 定期检查提醒
-        setInterval(async () => {
-            try {
-                const response = await fetch('/api/calendar/check_reminders');
-                const reminders = await response.json();
-                reminders.forEach(reminder => {
-                    showNotification(`提醒: ${reminder.title} - ${reminder.date}`, 'info');
-                });
-            } catch (error) {
-                console.error('检查提醒失败:', error);
-            }
-        }, 60000); // 每分钟检查一次
-
-        // 通知函数
-        function showNotification(message, type = 'success') {
-            const notification = document.createElement('div');
-            const colors = {
-                success: { bg: '#10b981', glow: 'rgba(16, 185, 129, 0.3)' },
-                error: { bg: '#ef4444', glow: 'rgba(239, 68, 68, 0.3)' },
-                info: { bg: '#6366f1', glow: 'rgba(99, 102, 241, 0.3)' }
-            };
-            const color = colors[type] || colors.success;
-            
-            notification.style.cssText = `
-                position: fixed;
-                top: 24px;
-                right: 24px;
-                padding: 1rem 1.5rem;
-                background: ${color.bg};
-                color: white;
-                border-radius: 12px;
-                box-shadow: 0 8px 24px ${color.glow};
-                z-index: 10000;
-                animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-                backdrop-filter: blur(20px);
-                font-weight: 500;
-                max-width: 400px;
-            `;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            setTimeout(() => {
-                notification.style.animation = 'slideOutRight 0.3s ease-out';
-                setTimeout(() => notification.remove(), 300);
-            }, 5000);
+        function saveDragResize(calEvent) {
+            const ep = calEvent.extendedProps;
+            const start = calEvent.startStr.slice(0, 10);
+            const endInc = fcEndExclusiveToInclusive(calEvent.startStr, calEvent.endStr || null);
+            fetch('/api/calendar/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: ep.db_id,
+                    title: calEvent.title,
+                    content: ep.content || '',
+                    start_date: start,
+                    end_date: endInc,
+                    reminder_type: ep.reminder_type || 'notification',
+                    reminder_time: ep.reminder_time != null ? ep.reminder_time : 0,
+                    event_type: ep.event_type || 'single',
+                    event_category: ep.event_category || 'other',
+                    related_stock: ep.related_stock || '',
+                    related_plan_id: ep.related_plan_id || null,
+                }),
+            }).then(r => r.json()).then(res => {
+                if (!res.success) {
+                    alert(res.error || '同步失败');
+                    calEvent.revert();
+                    return;
+                }
+                renderSidebar();
+            }).catch(() => {
+                calEvent.revert();
+            });
         }
 
-        // 添加动画样式
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideInRight {
-                from { transform: translateX(120%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            @keyframes slideOutRight {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(120%); opacity: 0; }
-            }
-        `;
-        document.head.appendChild(style);
+        setInterval(() => {
+            fetch('/api/calendar/check_reminders')
+                .then(r => r.json())
+                .then(reminders => {
+                    reminders.forEach(rem => {
+                        if (typeof showNotification === 'function') showNotification('提醒: ' + rem.title + ' — ' + rem.date, 'info');
+                    });
+                }).catch(() => {});
+        }, 60000);
+
+        function showNotification(message, type) {
+            const n = document.createElement('div');
+            n.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 16px;background:#6366f1;color:#fff;border-radius:8px;z-index:9999;max-width:360px;font-size:0.875rem;';
+            n.textContent = message;
+            document.body.appendChild(n);
+            setTimeout(() => n.remove(), 5000);
+        }
     </script>
 </body>
 </html>
-

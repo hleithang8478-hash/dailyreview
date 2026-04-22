@@ -346,6 +346,32 @@
                           placeholder="详细描述这个事件...">{{ event.content if event else '' }}</textarea>
             </div>
 
+            <div class="form-group">
+                <label for="event_category">投研分类</label>
+                <select name="event_category" id="event_category">
+                    {% for key, meta in calendar_categories.items() %}
+                    <option value="{{ key }}" {% if event and event.event_category == key %}selected{% elif not event and key == 'macro' %}selected{% endif %}>{{ meta.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="related_stock">关联股票代码</label>
+                <input type="text" name="related_stock" id="related_stock"
+                       value="{{ event.related_stock if event else '' }}"
+                       placeholder="如 000001、600519">
+            </div>
+
+            <div class="form-group">
+                <label for="related_plan_id">关联交易计划</label>
+                <select name="related_plan_id" id="related_plan_id">
+                    <option value="">（不关联）</option>
+                    {% for p in plan_options %}
+                    <option value="{{ p.id }}" {% if event and event.related_plan_id == p.id %}selected{% endif %}>{{ p.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label for="start_date">开始日期 *</label>
