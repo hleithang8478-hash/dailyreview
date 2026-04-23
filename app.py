@@ -648,6 +648,8 @@ def _merge_rbac_endpoint_permission_map():
         'api_crawler_dashboard_channel_summary', 'api_crawler_dashboard_wordcloud',
         'api_crawler_wordcloud_blacklist_get', 'api_crawler_wordcloud_blacklist_post', 'api_crawler_wordcloud_blacklist_delete',
         'api_crawler_dashboard_latest', 'api_crawler_dashboard_export',
+        'api_crawler_dashboard_feed_state',
+        'api_crawler_search',
     ):
         m[name] = cr
     for name in (
@@ -1125,6 +1127,13 @@ def init_db():
             logging.info("数据库迁移: 已添加 is_profitable 字段")
         except sqlite3.OperationalError:
             # 字段已存在，忽略错误
+            pass
+        # 投研计划：资讯追踪关键词（逗号分隔，软关联爬虫）
+        try:
+            c.execute("ALTER TABLE investment_plans ADD COLUMN keywords TEXT")
+            conn.commit()
+            logging.info("数据库迁移: 已添加 investment_plans.keywords 字段")
+        except sqlite3.OperationalError:
             pass
         
         # 市场基调表 - 每日市场基调设置
@@ -2910,6 +2919,151 @@ def _event_to_fullcalendar(ev):
     return item
 
 
+CALENDAR_TITLE_MAX = 500
+CALENDAR_CONTENT_MAX = 50000
+CALENDAR_STOCK_MAX = 64
+CALENDAR_REMINDER_TYPES = frozenset({"none", "notification", "email"})
+CALENDAR_EVENT_TYPES = frozenset({"single", "multi", "recurring"})
+
+
+def _parse_iso_date_strict(s):
+    if not s or not str(s).strip():
+        return None
+    t = str(s).strip()[:10]
+    try:
+        return datetime.strptime(t, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _get_calendar_plan_options():
+    plan_rows = query_db(
+        """SELECT id, title FROM investment_plans
+           WHERE status IS NULL OR status != 'cancelled'
+           ORDER BY updated_at DESC LIMIT 500"""
+    )
+    return [{"id": r[0], "title": r[1]} for r in (plan_rows or [])]
+
+
+def _form_to_staged_event(form, event_id=None):
+    """从表单数据构造与 event 模板兼容的字典，用于校验失败后回显。"""
+    rp = (form.get("related_plan_id") or "").strip()
+    try:
+        rtime = int(form.get("reminder_time") or 0)
+    except (TypeError, ValueError):
+        rtime = 0
+    return {
+        "id": event_id,
+        "title": (form.get("title") or "").strip(),
+        "content": form.get("content") or "",
+        "start_date": (form.get("start_date") or "").strip(),
+        "end_date": (form.get("end_date") or "").strip(),
+        "reminder_type": (form.get("reminder_type") or "notification").strip(),
+        "reminder_time": rtime,
+        "event_type": (form.get("event_type") or "single").strip(),
+        "event_category": (form.get("event_category") or "other").strip(),
+        "related_stock": (form.get("related_stock") or "").strip(),
+        "related_plan_id": int(rp) if rp.isdigit() else None,
+        "color": (form.get("color") or "#6366f1").strip(),
+    }
+
+
+def _validate_calendar_payload(data):
+    """
+    规范化并校验事件数据（来自 JSON 或表单扁平字典）。
+    成功: (True, normalized_dict)
+    失败: (False, {"error": str, "field": str|None})
+    """
+    def fail(msg, field=None):
+        return False, {"error": msg, "field": field}
+
+    title = (data.get("title") or "").strip()
+    if not title:
+        return fail("请填写事件标题", "title")
+    if len(title) > CALENDAR_TITLE_MAX:
+        return fail("标题过长", "title")
+
+    content = data.get("content") or ""
+    if len(content) > CALENDAR_CONTENT_MAX:
+        return fail("备注内容过长", "content")
+
+    start_d = _parse_iso_date_strict(data.get("start_date"))
+    end_s = data.get("end_date")
+    end_d = _parse_iso_date_strict(end_s) if end_s else start_d
+    if not start_d:
+        return fail("开始日期无效", "start_date")
+    if not end_d:
+        return fail("结束日期无效", "end_date")
+    if end_d < start_d:
+        return fail("结束日期不能早于开始日期", "end_date")
+
+    rt = (data.get("reminder_type") or "notification").strip()
+    if rt not in CALENDAR_REMINDER_TYPES:
+        rt = "notification"
+
+    try:
+        rtime = int(data.get("reminder_time", 0))
+    except (TypeError, ValueError):
+        return fail("提醒提前量无效", "reminder_time")
+    if rtime < 0 or rtime > 10 * 365 * 24 * 60:
+        return fail("提醒提前量超出范围", "reminder_time")
+
+    et = (data.get("event_type") or "single").strip()
+    if et not in CALENDAR_EVENT_TYPES:
+        et = "single"
+
+    cat = (data.get("event_category") or "other").strip()
+    if cat not in CALENDAR_EVENT_CATEGORIES:
+        cat = "other"
+
+    stock = (data.get("related_stock") or "").strip()
+    if len(stock) > CALENDAR_STOCK_MAX:
+        return fail("股票代码过长", "related_stock")
+    if stock and not re.match(r"^[\d\w\.\s\-\u4e00-\u9fff]{1,64}$", stock, re.U):
+        return fail("股票代码仅支持数字、字母、中文与常见符号", "related_stock")
+
+    rp = data.get("related_plan_id")
+    plan_id = None
+    if rp not in (None, "", 0, "0"):
+        try:
+            plan_id = int(rp)
+        except (TypeError, ValueError):
+            return fail("投资计划选择无效", "related_plan_id")
+        found = query_db("SELECT 1 FROM investment_plans WHERE id = ?", (plan_id,), one=True)
+        if not found:
+            return fail("所选投资计划不存在", "related_plan_id")
+
+    eid = data.get("id")
+    if eid not in (None, "", 0, "0"):
+        try:
+            eid = int(eid)
+        except (TypeError, ValueError):
+            return fail("事件 ID 无效", "id")
+        if eid < 1:
+            return fail("事件 ID 无效", "id")
+        ex = query_db("SELECT 1 FROM investment_calendar WHERE id = ?", (eid,), one=True)
+        if not ex:
+            return fail("要更新的事件不存在", "id")
+    else:
+        eid = None
+
+    color = _category_display_color(cat, data.get("color", "#6366f1"))
+    return True, {
+        "id": eid,
+        "title": title,
+        "content": content,
+        "start_date": start_d.strftime("%Y-%m-%d"),
+        "end_date": end_d.strftime("%Y-%m-%d"),
+        "reminder_type": rt,
+        "reminder_time": rtime,
+        "event_type": et,
+        "event_category": cat,
+        "related_stock": stock,
+        "related_plan_id": plan_id,
+        "color": color,
+    }
+
+
 # 日历主页
 @app.route('/calendar')
 @login_required
@@ -2942,12 +3096,7 @@ def calendar():
             'type': 'plan'
         })
 
-    plan_rows = query_db(
-        """SELECT id, title FROM investment_plans 
-           WHERE status IS NULL OR status != 'cancelled' 
-           ORDER BY updated_at DESC LIMIT 500"""
-    )
-    plan_options = [{'id': r[0], 'title': r[1]} for r in (plan_rows or [])]
+    plan_options = _get_calendar_plan_options()
     
     return render_template(
         'calendar.html',
@@ -2970,8 +3119,14 @@ def get_calendar_events():
                   LEFT JOIN investment_plans p ON c.related_plan_id = p.id """
 
     if fc_start and fc_end:
-        first_day = _cal_date(fc_start)
-        last_day = (datetime.strptime(_cal_date(fc_end), '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+        try:
+            first_day = _cal_date(fc_start)
+            excl = _cal_date(fc_end)
+            if not excl or len(excl) < 8:
+                return jsonify({"success": False, "error": "无效的 end 参数"}), 400
+            last_day = (datetime.strptime(excl, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "error": "日期范围参数无效"}), 400
         events = query_db(
             base_sql + """ WHERE c.start_date <= ? 
                            AND coalesce(nullif(trim(c.end_date), ''), c.start_date) >= ?
@@ -2988,8 +3143,38 @@ def get_calendar_events():
 @app.route('/api/calendar/events/<int:id>/delete', methods=['POST'])
 @login_required
 def api_delete_calendar_event(id):
+    row = query_db("SELECT 1 FROM investment_calendar WHERE id = ?", (id,), one=True)
+    if not row:
+        return jsonify({"success": False, "error": "事件不存在或已删除"}), 404
     delete_db("DELETE FROM investment_calendar WHERE id = ?", (id,))
-    return jsonify({'success': True})
+    return jsonify({"success": True})
+
+
+# 跨页预填（爬虫→日历/计划）的「返回 / 取消 / 保存后」目标，仅白名单防开放重定向
+_UI_RETURN_KEYS = frozenset({"calendar", "crawler", "plans", "index"})
+
+
+def _ui_return_key_from_request(*, is_post=False, default="calendar"):
+    if is_post:
+        raw = request.form.get("return_to") or request.form.get("back")
+    else:
+        raw = request.args.get("return_to") or request.args.get("back")
+    k = (raw or default).strip().lower()
+    return k if k in _UI_RETURN_KEYS else default
+
+
+def _url_for_ui_return(k):
+    key = (k or "calendar").strip().lower()
+    if key not in _UI_RETURN_KEYS:
+        key = "calendar"
+    if key == "crawler":
+        return url_for("crawler_dashboard")
+    if key == "plans":
+        return url_for("plans")
+    if key == "index":
+        return url_for("index")
+    return url_for("calendar")
+
 
 # 添加/编辑日历事件
 @app.route('/calendar/add', methods=['GET', 'POST'])
@@ -2997,41 +3182,69 @@ def api_delete_calendar_event(id):
 @login_required
 def add_calendar_event(id=None):
     if request.method == 'POST':
-        title = request.form.get('title', '')
-        content = request.form.get('content', '')
-        start_date = request.form.get('start_date', '')
-        end_date = request.form.get('end_date', '') or start_date
-        reminder_type = request.form.get('reminder_type', 'notification')
-        reminder_time = int(request.form.get('reminder_time', 0))
-        event_type = request.form.get('event_type', 'single')
-        event_category = request.form.get('event_category', 'other') or 'other'
-        if event_category not in CALENDAR_EVENT_CATEGORIES:
-            event_category = 'other'
-        related_stock = (request.form.get('related_stock') or '').strip()
-        rp = request.form.get('related_plan_id', '').strip()
-        related_plan_id = int(rp) if rp.isdigit() else None
-        color = _category_display_color(event_category, request.form.get('color', '#6366f1'))
-        
-        if id:
-            update_db("""UPDATE investment_calendar 
-                        SET title=?, content=?, start_date=?, end_date=?, 
-                        reminder_type=?, reminder_time=?, color=?, event_type=?,
-                        event_category=?, related_stock=?, related_plan_id=?,
-                        updated_at=CURRENT_TIMESTAMP 
-                        WHERE id=?""",
-                     (title, content, start_date, end_date, reminder_type, 
-                      reminder_time, color, event_type, event_category, related_stock, related_plan_id, id))
+        return_key = _ui_return_key_from_request(is_post=True, default="calendar")
+        raw = {**request.form}
+        if id is not None:
+            raw['id'] = id
+        ok, vres = _validate_calendar_payload(raw)
+        if not ok:
+            return render_template(
+                'add_calendar_event.html',
+                event=_form_to_staged_event(request.form, id),
+                form_error=vres['error'],
+                plan_options=_get_calendar_plan_options(),
+                calendar_categories=CALENDAR_EVENT_CATEGORIES,
+                return_key=return_key,
+                back_url=_url_for_ui_return(return_key),
+            )
+        d = vres
+        if id is not None:
+            update_db(
+                """UPDATE investment_calendar 
+                SET title=?, content=?, start_date=?, end_date=?, 
+                reminder_type=?, reminder_time=?, color=?, event_type=?,
+                event_category=?, related_stock=?, related_plan_id=?,
+                updated_at=CURRENT_TIMESTAMP 
+                WHERE id=?""",
+                (
+                    d['title'],
+                    d['content'],
+                    d['start_date'],
+                    d['end_date'],
+                    d['reminder_type'],
+                    d['reminder_time'],
+                    d['color'],
+                    d['event_type'],
+                    d['event_category'],
+                    d['related_stock'],
+                    d['related_plan_id'],
+                    id,
+                ),
+            )
         else:
-            insert_db("""INSERT INTO investment_calendar 
-                        (title, content, start_date, end_date, reminder_type, 
-                         reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                     (title, content, start_date, end_date, reminder_type, 
-                      reminder_time, color, event_type, event_category, related_stock, related_plan_id))
-        
-        return redirect(url_for('calendar'))
+            insert_db(
+                """INSERT INTO investment_calendar 
+                (title, content, start_date, end_date, reminder_type, 
+                 reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    d['title'],
+                    d['content'],
+                    d['start_date'],
+                    d['end_date'],
+                    d['reminder_type'],
+                    d['reminder_time'],
+                    d['color'],
+                    d['event_type'],
+                    d['event_category'],
+                    d['related_stock'],
+                    d['related_plan_id'],
+                ),
+            )
+        return redirect(_url_for_ui_return(return_key))
     
     # GET请求
+    return_key = _ui_return_key_from_request(is_post=False, default="calendar")
     event = None
     if id:
         row = query_db(
@@ -3060,18 +3273,37 @@ def add_calendar_event(id=None):
                 'related_stock': d['related_stock'],
                 'related_plan_id': d['related_plan_id'],
             }
+    elif not id:
+        t = (request.args.get('title') or '').strip()
+        d_arg = (request.args.get('date') or request.args.get('start_date') or '').strip()
+        su = (request.args.get('source_url') or '').strip()
+        if t or d_arg or su:
+            today = datetime.now().date().isoformat()
+            start_d = d_arg[:10] if len(d_arg) >= 10 else today
+            content = f"来源链接：{su}\n" if su else ""
+            event = {
+                'id': None,
+                'title': t,
+                'content': content,
+                'start_date': start_d,
+                'end_date': start_d,
+                'reminder_type': 'notification',
+                'reminder_time': 0,
+                'color': '#6366f1',
+                'event_type': 'single',
+                'event_category': 'other',
+                'related_stock': '',
+                'related_plan_id': None,
+            }
     
-    plan_rows = query_db(
-        """SELECT id, title FROM investment_plans 
-           WHERE status IS NULL OR status != 'cancelled' 
-           ORDER BY updated_at DESC LIMIT 500"""
-    )
-    plan_options = [{'id': r[0], 'title': r[1]} for r in (plan_rows or [])]
+    plan_options = _get_calendar_plan_options()
     return render_template(
         'add_calendar_event.html',
         event=event,
         plan_options=plan_options,
         calendar_categories=CALENDAR_EVENT_CATEGORIES,
+        return_key=return_key,
+        back_url=_url_for_ui_return(return_key),
     )
 
 # 删除日历事件
@@ -3085,52 +3317,59 @@ def delete_calendar_event(id):
 @app.route('/api/calendar/save', methods=['POST'])
 @login_required
 def save_calendar_event():
+    data = request.get_json() or {}
+    ok, vres = _validate_calendar_payload(data)
+    if not ok:
+        return jsonify({"success": False, "error": vres["error"], "field": vres.get("field")}), 400
+    d = vres
     try:
-        data = request.get_json() or {}
-        event_id = data.get('id')
-        if event_id is not None and str(event_id).isdigit():
-            event_id = int(event_id)
-        else:
-            event_id = None
-        title = (data.get('title') or '').strip() or '未命名事件'
-        content = data.get('content', '') or ''
-        start_date = _cal_date(data.get('start_date', ''))
-        end_date = _cal_date(data.get('end_date', '')) or start_date
-        reminder_type = data.get('reminder_type', 'notification')
-        reminder_time = int(data.get('reminder_time', 0))
-        event_type = data.get('event_type', 'single')
-        event_category = data.get('event_category', 'other') or 'other'
-        if event_category not in CALENDAR_EVENT_CATEGORIES:
-            event_category = 'other'
-        related_stock = (data.get('related_stock') or '').strip()
-        rp = data.get('related_plan_id')
-        if rp in (None, '', 0, '0'):
-            related_plan_id = None
-        else:
-            related_plan_id = int(rp)
-        color = _category_display_color(event_category, data.get('color', '#6366f1'))
-        
-        if event_id:
-            update_db("""UPDATE investment_calendar 
-                        SET title=?, content=?, start_date=?, end_date=?, 
-                        reminder_type=?, reminder_time=?, color=?, event_type=?,
-                        event_category=?, related_stock=?, related_plan_id=?,
-                        updated_at=CURRENT_TIMESTAMP 
-                        WHERE id=?""",
-                     (title, content, start_date, end_date, reminder_type, 
-                      reminder_time, color, event_type, event_category, related_stock, related_plan_id, event_id))
-            return jsonify({'success': True, 'id': event_id})
+        if d["id"]:
+            update_db(
+                """UPDATE investment_calendar 
+                SET title=?, content=?, start_date=?, end_date=?, 
+                reminder_type=?, reminder_time=?, color=?, event_type=?,
+                event_category=?, related_stock=?, related_plan_id=?,
+                updated_at=CURRENT_TIMESTAMP 
+                WHERE id=?""",
+                (
+                    d['title'],
+                    d['content'],
+                    d['start_date'],
+                    d['end_date'],
+                    d['reminder_type'],
+                    d['reminder_time'],
+                    d['color'],
+                    d['event_type'],
+                    d['event_category'],
+                    d['related_stock'],
+                    d['related_plan_id'],
+                    d['id'],
+                ),
+            )
+            return jsonify({"success": True, "id": d["id"]})
         new_id = insert_db_return_id(
             """INSERT INTO investment_calendar 
-               (title, content, start_date, end_date, reminder_type, 
-                reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (title, content, start_date, end_date, reminder_type, 
-             reminder_time, color, event_type, event_category, related_stock, related_plan_id),
+            reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                d['title'],
+                d['content'],
+                d['start_date'],
+                d['end_date'],
+                d['reminder_type'],
+                d['reminder_time'],
+                d['color'],
+                d['event_type'],
+                d['event_category'],
+                d['related_stock'],
+                d['related_plan_id'],
+            ),
         )
-        return jsonify({'success': True, 'id': new_id})
+        return jsonify({"success": True, "id": new_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        logging.error("保存日历事件失败: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": "保存失败，请稍后再试"}), 500
 
 # 农历转换功能
 def solar_to_lunar(year, month, day):
@@ -3311,8 +3550,9 @@ def plans():
             'progress': plan[8] or 0,
             'color': plan[9] or '#f59e0b',
             'is_profitable': plan[10] if len(plan) > 10 else None,
-            'created_at': plan[11] if len(plan) > 11 else plan[10],
-            'updated_at': plan[12] if len(plan) > 12 else plan[11]
+            'created_at': plan[11] if len(plan) > 11 else None,
+            'updated_at': plan[12] if len(plan) > 12 else None,
+            'keywords': (plan[13] or '') if len(plan) > 13 else '',
         })
     
     # 获取所有分类和标签（用于筛选）
@@ -3331,6 +3571,7 @@ def plans():
 @login_required
 def add_plan(id=None):
     if request.method == 'POST':
+        return_key = _ui_return_key_from_request(is_post=True, default="plans")
         title = request.form.get('title', '')
         description = request.form.get('description', '')
         status = request.form.get('status', 'todo')
@@ -3343,28 +3584,30 @@ def add_plan(id=None):
         is_profitable = request.form.get('is_profitable')
         # 将字符串转换为整数：'1' -> 1, '0' -> 0, '' -> None
         is_profitable = int(is_profitable) if is_profitable in ['0', '1'] else None
+        keywords = (request.form.get('keywords') or '').strip()
         
         if id:
             # 更新
             update_db("""UPDATE investment_plans 
                         SET title=?, description=?, status=?, priority=?, 
                         category=?, tags=?, target_date=?, progress=?, color=?, is_profitable=?,
-                        updated_at=CURRENT_TIMESTAMP 
+                        keywords=?, updated_at=CURRENT_TIMESTAMP 
                         WHERE id=?""",
                      (title, description, status, priority, category, tags, 
-                      target_date, progress, color, is_profitable, id))
+                      target_date, progress, color, is_profitable, keywords, id))
         else:
             # 新增
             insert_db("""INSERT INTO investment_plans 
                         (title, description, status, priority, category, tags, 
-                         target_date, progress, color, is_profitable) 
-                        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                         target_date, progress, color, is_profitable, keywords) 
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                      (title, description, status, priority, category, tags, 
-                      target_date, progress, color, is_profitable))
+                      target_date, progress, color, is_profitable, keywords))
         
-        return redirect(url_for('plans'))
+        return redirect(_url_for_ui_return(return_key))
     
     # GET请求
+    return_key = _ui_return_key_from_request(is_post=False, default="plans")
     plan = None
     if id:
         plan_data = query_db("SELECT * FROM investment_plans WHERE id =?", (id,), one=True)
@@ -3380,10 +3623,34 @@ def add_plan(id=None):
                 'target_date': plan_data[7],
                 'progress': plan_data[8] or 0,
                 'color': plan_data[9] or '#f59e0b',
-                'is_profitable': plan_data[10] if len(plan_data) > 10 else None
+                'is_profitable': plan_data[10] if len(plan_data) > 10 else None,
+                'keywords': (plan_data[13] or '') if len(plan_data) > 13 else '',
             }
+    elif (request.args.get('title') or '').strip() or (request.args.get('description') or '').strip():
+        t = (request.args.get('title') or '').strip()
+        desc = (request.args.get('description') or '').strip()
+        # id 显式为 None，避免模板中「if plan」把预填当编辑，去访问不存在的 plan.id
+        plan = {
+            'id': None,
+            'title': t,
+            'description': desc,
+            'status': 'todo',
+            'priority': 'medium',
+            'category': '',
+            'tags': '',
+            'target_date': '',
+            'progress': 0,
+            'color': '#f59e0b',
+            'is_profitable': None,
+            'keywords': (request.args.get('keywords') or '').strip(),
+        }
     
-    return render_template('add_plan.html', plan=plan)
+    return render_template(
+        'add_plan.html',
+        plan=plan,
+        return_key=return_key,
+        back_url=_url_for_ui_return(return_key),
+    )
 
 # 删除投资计划
 @app.route('/plans/delete/<int:id>')
@@ -8958,7 +9225,9 @@ def _crawler_news_effective_time_sql():
 @app.route('/crawler_dashboard')
 @login_required
 def crawler_dashboard():
-    return render_template('crawler_dashboard.html')
+    # 与 admin_rbac 一致：用 url_for 生成前缀，避免反代 SCRIPT_NAME 下写死 /api/... 导致 404
+    crawler_api_base = url_for('api_crawler_dashboard_latest', _external=False).rsplit('/', 1)[0]
+    return render_template('crawler_dashboard.html', crawler_api_base=crawler_api_base)
 
 
 @app.route('/crawler_dashboard/wordcloud')
@@ -9063,6 +9332,19 @@ def api_crawler_dashboard_channel_summary():
         return jsonify({'success': False, 'error': str(e)})
 
 
+def _crawler_feed_state_revision(total, max_eff):
+    """与列表排序一致的「条数 + 最新有效时间」指纹；不依赖自增 id（部分库无 id 列）。"""
+    try:
+        n = int(total or 0)
+    except (TypeError, ValueError):
+        n = 0
+    if max_eff is None:
+        s = ''
+    else:
+        s = str(max_eff).strip()
+    return '%s|%s' % (n, s)
+
+
 def _build_crawler_where(source, keyword, start_time, end_time, has_link):
     clauses = []
     params = []
@@ -9092,6 +9374,26 @@ def _build_crawler_where(source, keyword, start_time, end_time, has_link):
 
     where_sql = " WHERE " + " AND ".join(clauses) if clauses else ""
     return where_sql, params
+
+
+def _crawler_search_where_clauses(keyword, start_time, end_time, has_link=""):
+    """时间窗 + 可选关键词；关键词支持英文逗号分隔，多词 OR 匹配标题/链接。"""
+    where_sql, params = _build_crawler_where("", "", start_time, end_time, has_link)
+    raw = (keyword or "").strip()
+    if not raw:
+        return where_sql, params
+    parts = [p.strip() for p in raw.split(",") if p.strip()][:8]
+    if not parts:
+        return where_sql, params
+    ors, extra = [], []
+    for p in parts:
+        ors.append("(title LIKE %s OR url LIKE %s)")
+        k = f"%{p}%"
+        extra.extend([k, k])
+    kw_sql = "(" + " OR ".join(ors) + ")"
+    if where_sql:
+        return f"{where_sql} AND {kw_sql}", list(params) + extra
+    return f" WHERE {kw_sql}", extra
 
 
 # ---------------------------------------------------------------------------
@@ -9645,6 +9947,123 @@ def api_crawler_dashboard_latest():
     except Exception as e:
         logging.error(f'爬虫最新数据查询失败: {e}', exc_info=True)
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/crawler_dashboard/feed_state', methods=['GET'])
+@login_required
+def api_crawler_dashboard_feed_state():
+    """
+    轻量指纹：与 latest 同筛选、同有效时间口径（COALESCE(publish_time, crawl_time)）。
+    返回 filter_revision / global_revision（条数|max_eff），不依赖 news_items.id（部分库无该列）。
+    """
+    try:
+        source = (request.args.get('source') or '').strip()
+        keyword = (request.args.get('q') or '').strip()
+        start_time = (request.args.get('start_time') or '').strip()
+        end_time = (request.args.get('end_time') or '').strip()
+        has_link = (request.args.get('has_link') or '').strip()
+        where_sql, params = _build_crawler_where(source, keyword, start_time, end_time, has_link)
+        eff = _crawler_news_effective_time_sql()
+        conn = get_crawler_mysql_connection(dict_cursor=True)
+        c = conn.cursor()
+        c.execute(
+            (
+                "SELECT COUNT(*) AS total, COALESCE(MAX({eff}), '1970-01-01 00:00:00') AS max_eff "
+                'FROM news_items{where}'
+            ).format(eff=eff, where=where_sql),
+            params,
+        )
+        fr = c.fetchone() or {}
+        c.execute(
+            (
+                "SELECT COUNT(*) AS total, COALESCE(MAX({eff}), '1970-01-01 00:00:00') AS max_eff "
+                'FROM news_items'
+            ).format(eff=eff),
+        )
+        gr = c.fetchone() or {}
+        c.close()
+        conn.close()
+        filter_revision = _crawler_feed_state_revision(fr.get('total'), fr.get('max_eff'))
+        global_revision = _crawler_feed_state_revision(gr.get('total'), gr.get('max_eff'))
+        return jsonify(
+            {
+                'success': True,
+                'filter_revision': filter_revision,
+                'global_revision': global_revision,
+                'filter_total': int(fr.get('total') or 0),
+                'global_total': int(gr.get('total') or 0),
+            }
+        )
+    except Exception as e:
+        logging.error('feed_state: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/crawler/search', methods=['GET'])
+@login_required
+def api_crawler_search():
+    """日历/计划侧栏与「计划关键词」用：轻量资讯搜索（MySQL news_items）。"""
+    try:
+        keyword = (request.args.get('keyword') or request.args.get('q') or '').strip()
+        limit = int(request.args.get('limit', 10))
+        limit = max(1, min(limit, 30))
+        days = int(request.args.get('days', 30))
+        days = max(1, min(days, 365))
+        has_link = (request.args.get('has_link') or '').strip()
+
+        end_dt = datetime.now()
+        start_dt = end_dt - timedelta(days=days)
+        start_time = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+        end_time = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+        where_sql, params = _crawler_search_where_clauses(
+            keyword, start_time, end_time, has_link
+        )
+        conn = get_crawler_mysql_connection(dict_cursor=True)
+        c = conn.cursor()
+        eff = _crawler_news_effective_time_sql()
+        c.execute(
+            f"""
+            SELECT source, title, url, publish_time, crawl_time
+            FROM news_items
+            {where_sql}
+            ORDER BY {eff} DESC, crawl_time DESC
+            LIMIT %s
+            """,
+            (*params, limit),
+        )
+        rows = c.fetchall()
+        c.close()
+        conn.close()
+        items = []
+        for r in rows:
+            title = (r.get('title') or '').strip().replace('\n', ' ')
+            if len(title) > 120:
+                title = title[:120] + '...'
+            pub = r.get('publish_time')
+            cr = r.get('crawl_time')
+            pub_str = str(pub or '').strip()
+            cr_str = str(cr or '').strip()
+            items.append(
+                {
+                    'source': r.get('source') or '-',
+                    'title': title or '(空标题)',
+                    'url': r.get('url') or '',
+                    'publish_time': str(pub or ''),
+                    'crawl_time': str(cr or ''),
+                    'publish_time_display': pub_str if pub_str else cr_str,
+                }
+            )
+        return jsonify(
+            {
+                'success': True,
+                'items': items,
+                'keyword': keyword,
+                'limit': limit,
+            }
+        )
+    except Exception as e:
+        logging.error('爬虫 /api/crawler/search 失败: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/crawler_dashboard/export')

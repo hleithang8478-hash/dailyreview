@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ReviewsDaily{% endblock %}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body{% block body_attrs %}{% endblock %}>
+    {% block content %}{% endblock %}
+    {% include 'crawler_drawer.html' %}
+    {% block page_scripts %}{% endblock %}
+</body>
+</html>

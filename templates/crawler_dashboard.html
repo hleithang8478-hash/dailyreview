@@ -1,9 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>爬虫数据看板</title>
+{% extends 'base.html' %}
+{% block title %}爬虫数据看板 · ReviewsDaily{% endblock %}
+{% block head_extra %}
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
     <style>
         :root {
@@ -49,6 +46,23 @@
             box-shadow: 0 0 18px rgba(34, 211, 238, 0.3);
         }
         .topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .auto-refresh {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .auto-refresh label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+        .auto-refresh select {
+            border: 1px solid var(--border);
+            background: rgba(10, 15, 27, 0.85);
+            color: var(--text);
+            padding: 6px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            outline: none;
+        }
         .back {
             color: var(--text); text-decoration: none; border: 1px solid var(--border);
             padding: 8px 14px; border-radius: 999px; background: rgba(10, 15, 27, 0.7);
@@ -157,6 +171,12 @@
         }
         .item-title { color: #dce9ff; text-decoration: none; font-size: 14px; }
         .item-meta { color: var(--muted); font-size: 12px; margin-top: 5px; }
+        .item-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .item-actions a {
+            font-size: 11px; padding: 4px 8px; border-radius: 6px; text-decoration: none;
+            border: 1px solid rgba(99, 102, 241, 0.45); color: #a5b4fc; background: rgba(99, 102, 241, 0.12);
+        }
+        .item-actions a:hover { background: rgba(99, 102, 241, 0.22); color: #e0e7ff; }
 
         .terminal {
             background: #020409;
@@ -177,12 +197,26 @@
             .cards { grid-template-columns: 1fr; }
         }
     </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
 <div class="wrap">
     <div class="topbar">
         <div class="title">爬虫数据看板</div>
         <div class="topbar-right">
+            <div class="auto-refresh" title="按间隔重新请求列表与渠道统计（不依赖 feed_state，定时必刷新）">
+                <label>
+                    <input type="checkbox" id="autoRefreshToggle" checked>
+                    自动刷新
+                </label>
+                <select id="autoRefreshInterval" aria-label="自动刷新间隔">
+                    <option value="15">每 15 秒</option>
+                    <option value="30">每 30 秒</option>
+                    <option value="60" selected>每 1 分钟</option>
+                    <option value="120">每 2 分钟</option>
+                    <option value="180">每 3 分钟</option>
+                </select>
+                <span id="lastAutoRefreshAt" style="color:var(--cyan);font-variant-numeric:tabular-nums;">上次刷新：—</span>
+            </div>
             <nav class="nav-pills" aria-label="爬虫看板子页面">
                 <a class="nav-pill active" href="{{ url_for('crawler_dashboard') }}">资讯流</a>
                 <a class="nav-pill" href="{{ url_for('crawler_dashboard_wordcloud') }}">标题词云</a>
@@ -233,6 +267,34 @@
 </div>
 
 <script>
+    const CRAWLER_API_BASE = {{ crawler_api_base | tojson }};
+    function crawlerApi(suffix) {
+        const s = (suffix || '').replace(/^\//, '');
+        return CRAWLER_API_BASE + '/' + s;
+    }
+    /** 避免 404 HTML 被 res.json() 解析时报 Unexpected token '<' */
+    async function crawlerFetchJson(url) {
+        const res = await fetch(url);
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok) {
+            if (ct.includes('application/json')) {
+                try {
+                    return await res.json();
+                } catch (e) {
+                    return { success: false, error: 'HTTP ' + res.status };
+                }
+            }
+            const hint = res.status === 404
+                ? '（404：进程可能仍为旧版 app，请重启服务以加载 /api/crawler_dashboard/feed_state；若在子路径部署请检查反代）'
+                : '';
+            return { success: false, error: 'HTTP ' + res.status + hint };
+        }
+        if (!ct.includes('application/json')) {
+            return { success: false, error: '响应非 JSON，可能未登录跳转到了 HTML 页面' };
+        }
+        return res.json();
+    }
+
     let offset = 0;
     const pageSize = 10;
     let hasMore = true;
@@ -241,6 +303,37 @@
     let currentStartTime = '';
     let currentEndTime = '';
     let currentHasLink = '';
+
+    /** 与 /latest 共用的筛选项 query（不含 ?） */
+    function getFilterQuery() {
+        const p = [];
+        if (currentSource) p.push('source=' + encodeURIComponent(currentSource));
+        if (currentQuery) p.push('q=' + encodeURIComponent(currentQuery));
+        if (currentStartTime) p.push('start_time=' + encodeURIComponent(currentStartTime.replace('T', ' ')));
+        if (currentEndTime) p.push('end_time=' + encodeURIComponent(currentEndTime.replace('T', ' ')));
+        if (currentHasLink) p.push('has_link=' + encodeURIComponent(currentHasLink));
+        return p.join('&');
+    }
+
+    let feedPollTimer = null;
+    let autoRefreshBusy = false;
+
+    /** 定时自动刷新：直接重拉第一页列表 + 渠道统计（与 feed_state 无关，到点必执行） */
+    async function autoRefreshTick() {
+        if (autoRefreshBusy) return;
+        autoRefreshBusy = true;
+        try {
+            const ok = await loadLatest(true, { silent: true });
+            if (ok) {
+                await loadChannelSummary({ silent: true });
+                const el = document.getElementById('lastAutoRefreshAt');
+                if (el) el.textContent = '上次刷新：' + new Date().toLocaleTimeString();
+                appendLog('[自动刷新] 已更新列表与渠道统计');
+            }
+        } finally {
+            autoRefreshBusy = false;
+        }
+    }
 
     function appendLog(message) {
         const el = document.getElementById('terminalLog');
@@ -261,9 +354,9 @@
         return minTime || maxTime || '-';
     }
 
-    async function loadChannelSummary() {
-        const res = await fetch('/api/crawler_dashboard/channel_summary');
-        const data = await res.json();
+    async function loadChannelSummary(opts) {
+        const silent = opts && opts.silent;
+        const data = await crawlerFetchJson(crawlerApi('channel_summary'));
         if (!data.success) return;
 
         const box = document.getElementById('channelSummary');
@@ -306,7 +399,7 @@
             });
         }
 
-        appendLog('渠道统计已更新');
+        if (!silent) appendLog('渠道统计已更新');
     }
 
     function updateFilterLabel() {
@@ -320,22 +413,24 @@
         document.getElementById('currentFilter').textContent = `当前筛选：${parts.join(' ｜ ')}`;
     }
 
-    async function loadLatest(reset = false) {
+    async function loadLatest(reset = false, opts) {
+        const silent = opts && opts.silent;
         if (reset) {
             offset = 0;
             hasMore = true;
             document.getElementById('latestList').innerHTML = '';
         }
-        if (!hasMore) return;
+        if (!hasMore) return false;
 
-        const sourceParam = currentSource ? `&source=${encodeURIComponent(currentSource)}` : '';
-        const qParam = currentQuery ? `&q=${encodeURIComponent(currentQuery)}` : '';
-        const startParam = currentStartTime ? `&start_time=${encodeURIComponent(currentStartTime.replace('T', ' '))}` : '';
-        const endParam = currentEndTime ? `&end_time=${encodeURIComponent(currentEndTime.replace('T', ' '))}` : '';
-        const linkParam = currentHasLink ? `&has_link=${encodeURIComponent(currentHasLink)}` : '';
-        const res = await fetch(`/api/crawler_dashboard/latest?limit=${pageSize}&offset=${offset}${sourceParam}${qParam}${startParam}${endParam}${linkParam}`);
-        const data = await res.json();
-        if (!data.success) return;
+        const f = getFilterQuery();
+        const sep = f ? '&' : '';
+        const data = await crawlerFetchJson(
+            crawlerApi(`latest?limit=${pageSize}&offset=${offset}${sep}${f}`)
+        );
+        if (!data.success) {
+            if (silent) appendLog('[自动刷新] 列表请求失败，请检查网络或登录状态');
+            return false;
+        }
 
         const box = document.getElementById('latestList');
         (data.items || []).forEach(item => {
@@ -349,14 +444,23 @@
                 ? `<a class="item-title" href="${item.url}" target="_blank">${item.title}</a>`
                 : `<span class="item-title">${item.title}</span>`;
             const pubDisp = (item.publish_time_display || item.publish_time || item.crawl_time || '-');
-            div.innerHTML = `${titleHtml}<div class="item-meta">${linkTag} ｜ 来源：${item.source} ｜ 发布时间：${pubDisp} ｜ 抓取时间：${item.crawl_time || '-'}</div>`;
+            let day = '';
+            const rawT = (item.publish_time || item.crawl_time || '').toString();
+            if (rawT.length >= 10) day = rawT.slice(0, 10);
+            if (!day) day = new Date().toISOString().slice(0, 10);
+            const calHref = '/calendar/add?title=' + encodeURIComponent(item.title || '') + '&date=' + encodeURIComponent(day) + '&source_url=' + encodeURIComponent(item.url || '') + '&return_to=crawler';
+            const planDesc = (item.url || '').trim() ? ('来源链接：' + String(item.url).trim()) : (item.title || '');
+            const planHref = '/plans/add?title=' + encodeURIComponent(item.title || '') + '&description=' + encodeURIComponent(planDesc) + '&return_to=crawler';
+            div.innerHTML = `${titleHtml}<div class="item-meta">${linkTag} ｜ 来源：${item.source} ｜ 发布时间：${pubDisp} ｜ 抓取时间：${item.crawl_time || '-'}</div>` +
+                `<div class="item-actions"><a href="${calHref}">+ 记入日历</a><a href="${planHref}">+ 转为计划</a></div>`;
             box.appendChild(div);
         });
 
         offset += (data.items || []).length;
         hasMore = !!data.has_more;
         document.getElementById('moreBtn').style.display = hasMore ? 'inline-block' : 'none';
-        appendLog(`最新数据加载 ${data.items ? data.items.length : 0} 条`);
+        if (!silent) appendLog(`最新数据加载 ${data.items ? data.items.length : 0} 条`);
+        return true;
     }
 
     async function refreshAll() {
@@ -396,12 +500,6 @@
     });
 
     document.getElementById('exportBtn').addEventListener('click', () => {
-        const sourceParam = currentSource ? `source=${encodeURIComponent(currentSource)}&` : '';
-        const qParam = currentQuery ? `q=${encodeURIComponent(currentQuery)}&` : '';
-        const startParam = currentStartTime ? `start_time=${encodeURIComponent(currentStartTime.replace('T', ' '))}&` : '';
-        const endParam = currentEndTime ? `end_time=${encodeURIComponent(currentEndTime.replace('T', ' '))}&` : '';
-        const linkParam = currentHasLink ? `has_link=${encodeURIComponent(currentHasLink)}&` : '';
-
         const now = new Date();
         const y = now.getFullYear();
         const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -411,10 +509,10 @@
         const ss = String(now.getSeconds()).padStart(2, '0');
         const sourceName = currentSource ? currentSource.replace(/\s+/g, '_') : 'all';
         const exportName = `crawler_news_${sourceName}_${y}${m}${d}_${hh}${mm}${ss}`;
-        const exportParam = `export_name=${encodeURIComponent(exportName)}&`;
-
-        const qs = `${sourceParam}${qParam}${startParam}${endParam}${linkParam}${exportParam}`;
-        window.open(`/api/crawler_dashboard/export?${qs}`, '_blank');
+        const f = getFilterQuery();
+        const exportParam = 'export_name=' + encodeURIComponent(exportName);
+        const qs = f ? f + '&' + exportParam : exportParam;
+        window.open(crawlerApi('export?' + qs), '_blank');
         appendLog(`已触发 Excel 导出：${exportName}.xlsx`);
     });
 
@@ -429,14 +527,30 @@
         });
     });
 
-    updateFilterLabel();
-    loadLatest(true);
-    refreshAll();
+    function scheduleFeedPoll(runImmediate) {
+        if (feedPollTimer) {
+            clearInterval(feedPollTimer);
+            feedPollTimer = null;
+        }
+        const toggle = document.getElementById('autoRefreshToggle');
+        const sel = document.getElementById('autoRefreshInterval');
+        if (!toggle || !sel || !toggle.checked) return;
+        const sec = parseInt(sel.value, 10);
+        if (!sec || sec < 1) return;
+        feedPollTimer = setInterval(autoRefreshTick, sec * 1000);
+        if (runImmediate) autoRefreshTick();
+    }
 
-    setInterval(refreshAll, 15000);
-    setInterval(async () => {
+    document.getElementById('autoRefreshToggle').addEventListener('change', () => scheduleFeedPoll(true));
+    document.getElementById('autoRefreshInterval').addEventListener('change', () => scheduleFeedPoll(true));
+
+    (async function boot() {
+        updateFilterLabel();
         await loadLatest(true);
-    }, 30000);
+        await refreshAll();
+        const el = document.getElementById('lastAutoRefreshAt');
+        if (el) el.textContent = '上次刷新：' + new Date().toLocaleTimeString();
+        scheduleFeedPoll(false);
+    })();
 </script>
-</body>
-</html>
+{% endblock %}

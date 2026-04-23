@@ -1,0 +1,162 @@
+{# 右侧「爬虫资讯」侧栏；由 base.html 通过 {% include 'crawler_drawer.html' %} 全局引入 #}
+<style>
+#crawler-drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 10040;
+  opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s;
+}
+#crawler-drawer-overlay.is-open { opacity: 1; visibility: visible; }
+#crawler-drawer-panel {
+  position: fixed; top: 0; right: 0; width: min(100vw, 22rem);
+  height: 100dvh; max-height: 100vh; background: #0c0c0e; color: #e5e5e5;
+  border-left: 1px solid #2a2a2c; z-index: 10050;
+  display: flex; flex-direction: column; box-shadow: -8px 0 32px rgba(0,0,0,.45);
+  transform: translateX(100%); transition: transform .25s ease;
+}
+#crawler-drawer-panel.is-open { transform: translateX(0); }
+#crawler-drawer-header {
+  display: flex; align-items: center; gap: .5rem; padding: .75rem 1rem;
+  border-bottom: 1px solid #2a2a2c; flex-shrink: 0;
+}
+#crawler-drawer-header h2 { font-size: .95rem; font-weight: 600; margin: 0; flex: 1; }
+#crawler-drawer-header button {
+  background: #1a1a1d; border: 1px solid #3f3f46; color: #a1a1aa;
+  border-radius: 6px; width: 2rem; height: 2rem; cursor: pointer; font-size: 1.1rem; line-height: 1;
+}
+#crawler-drawer-header button:hover { color: #fff; border-color: #6366f1; }
+#crawler-drawer-search { flex: 1; min-width: 0; }
+#crawler-drawer-input {
+  width: 100%; padding: .45rem .6rem; border-radius: 6px; border: 1px solid #2a2a2c;
+  background: #08080a; color: #fafafa; font-size: .85rem; outline: none;
+}
+#crawler-drawer-input:focus { border-color: #6366f1; }
+#crawler-drawer-go {
+  padding: .45rem .7rem; border-radius: 6px; border: 1px solid #6366f1;
+  background: #3730a3; color: #fff; font-size: .8rem; cursor: pointer; flex-shrink: 0;
+}
+#crawler-drawer-list {
+  flex: 1; overflow-y: auto; padding: .5rem 1rem 1.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+#crawler-drawer-list .crawler-drawer-hint, #crawler-drawer-list .crawler-drawer-err {
+  font-size: .8rem; color: #a1a1aa; line-height: 1.5; margin: .5rem 0;
+}
+#crawler-drawer-list .crawler-drawer-err { color: #f87171; }
+#crawler-drawer-list article {
+  border: 1px solid #262626; border-radius: 8px; padding: .65rem .75rem; margin-bottom: .5rem;
+  background: #111113;
+}
+#crawler-drawer-list a.title {
+  color: #93c5fd; font-size: .82rem; text-decoration: none; font-weight: 500; line-height: 1.4;
+  display: block; word-break: break-word;
+}
+#crawler-drawer-list a.title:hover { text-decoration: underline; }
+#crawler-drawer-list .meta {
+  font-size: .7rem; color: #737373; margin-top: .35rem; line-height: 1.4;
+}
+</style>
+<div id="crawler-drawer-overlay" aria-hidden="true"></div>
+<aside id="crawler-drawer-panel" role="complementary" aria-label="相关爬虫资讯" aria-hidden="true">
+  <div id="crawler-drawer-header">
+    <h2>资讯</h2>
+    <div id="crawler-drawer-search" style="display:flex;align-items:center;gap:.35rem;">
+      <input type="search" id="crawler-drawer-input" placeholder="搜索标题/链接" autocomplete="off" />
+      <button type="button" id="crawler-drawer-go">搜</button>
+    </div>
+    <button type="button" id="crawler-drawer-close" aria-label="关闭">×</button>
+  </div>
+  <div id="crawler-drawer-list" role="feed"></div>
+</aside>
+<script>
+(function () {
+  var overlay = document.getElementById('crawler-drawer-overlay');
+  var panel = document.getElementById('crawler-drawer-panel');
+  var input = document.getElementById('crawler-drawer-input');
+  var listEl = document.getElementById('crawler-drawer-list');
+  var btnClose = document.getElementById('crawler-drawer-close');
+  var btnGo = document.getElementById('crawler-drawer-go');
+  if (!overlay || !panel || !listEl) return;
+
+  function setOpen(open) {
+    if (open) {
+      overlay.classList.add('is-open');
+      panel.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      panel.setAttribute('aria-hidden', 'false');
+      setTimeout(function () { if (input) input.focus(); }, 200);
+    } else {
+      overlay.classList.remove('is-open');
+      panel.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+      panel.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function renderHint(msg, isErr) {
+    listEl.innerHTML = '<p class="' + (isErr ? 'crawler-drawer-err' : 'crawler-drawer-hint') + '">' + msg + '</p>';
+  }
+
+  function escAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  }
+  function renderItems(items) {
+    if (!items || !items.length) {
+      renderHint('暂无匹配资讯，可改关键词后重试。', false);
+      return;
+    }
+    listEl.innerHTML = items.map(function (it) {
+      var t = (it.title || '(无标题)').replace(/</g, '&lt;').replace(/&/g, '&amp;');
+      var href = (it.url || '').trim();
+      var link = href
+        ? '<a class="title" href="' + escAttr(href) + '" target="_blank" rel="noopener">' + t + '</a>'
+        : '<span class="title" style="color:#d4d4d8;">' + t + '</span>';
+      var pub = (it.publish_time_display || it.publish_time || it.crawl_time || '—') + '';
+      return '<article>' + link
+        + '<div class="meta">来源：' + (it.source || '—') + ' ｜ ' + pub + '</div></article>';
+    }).join('');
+  }
+
+  function load() {
+    var q = (input && input.value) ? String(input.value).trim() : '';
+    renderHint('加载中…', false);
+    var url = '/api/crawler/search?limit=10&keyword=' + encodeURIComponent(q);
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.success) {
+          renderHint((data && data.error) ? data.error : '请求失败', true);
+          return;
+        }
+        renderItems(data.items);
+      })
+      .catch(function () { renderHint('网络错误', true); });
+  }
+
+  window.openCrawlerDrawer = function (keyword) {
+    if (input) {
+      if (keyword != null && String(keyword) !== 'undefined') {
+        input.value = String(keyword);
+      } else {
+        input.value = '';
+      }
+    }
+    setOpen(true);
+    load();
+  };
+  window.closeCrawlerDrawer = function () { setOpen(false); };
+
+  btnClose.addEventListener('click', function () { setOpen(false); });
+  overlay.addEventListener('click', function () { setOpen(false); });
+  if (btnGo) btnGo.addEventListener('click', function () { load(); });
+  if (input) {
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); load(); }
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && panel.classList.contains('is-open')) {
+      e.preventDefault();
+      setOpen(false);
+    }
+  });
+})();
+</script>

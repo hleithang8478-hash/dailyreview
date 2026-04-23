@@ -1,11 +1,7 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投资计划</title>
+{% extends 'base.html' %}
+{% block title %}投资计划{% endblock %}
+{% block head_extra %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -287,6 +283,29 @@
             margin-bottom: 0.75rem;
         }
 
+        .plan-card-header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .btn-plan-news {
+            padding: 0.2rem 0.45rem;
+            font-size: 0.7rem;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 4px;
+            background: rgba(99, 102, 241, 0.12);
+            color: #a5b4fc;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .btn-plan-news:hover {
+            background: rgba(99, 102, 241, 0.25);
+            color: #e0e7ff;
+        }
+
         .plan-card-title {
             font-weight: 600;
             color: var(--text-primary);
@@ -369,12 +388,13 @@
             font-size: 0.875rem;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
     <div class="top-bar">
         <h1>📋 投资计划</h1>
         <div class="top-actions">
             <a href="{{ url_for('index') }}" class="btn">← 返回</a>
+            <button type="button" class="btn" id="plans-open-crawler" title="不离开本页，侧栏浏览资讯">搜资讯</button>
             <a href="{{ url_for('add_plan') }}" class="btn btn-primary">➕ 新建计划</a>
         </div>
     </div>
@@ -421,7 +441,10 @@
                         <div class="plan-card" onclick="window.location.href='/plans/edit/{{ plan.id }}'">
                             <div class="plan-card-header">
                                 <div class="plan-card-title">{{ plan.title }}</div>
-                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                                <div class="plan-card-header-right">
+                                    <button type="button" class="btn-plan-news" data-kw={{ plan.title|tojson }} onclick="event.stopPropagation(); if (typeof openCrawlerDrawer === 'function') openCrawlerDrawer(this.getAttribute('data-kw') || '投资');">资讯</button>
+                                    <div class="plan-card-priority {{ plan.priority }}"></div>
+                                </div>
                             </div>
                             {% if plan.description %}
                             <div class="plan-card-description">{{ plan.description }}</div>
@@ -464,7 +487,10 @@
                         <div class="plan-card" onclick="window.location.href='/plans/edit/{{ plan.id }}'">
                             <div class="plan-card-header">
                                 <div class="plan-card-title">{{ plan.title }}</div>
-                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                                <div class="plan-card-header-right">
+                                    <button type="button" class="btn-plan-news" data-kw={{ plan.title|tojson }} onclick="event.stopPropagation(); if (typeof openCrawlerDrawer === 'function') openCrawlerDrawer(this.getAttribute('data-kw') || '投资');">资讯</button>
+                                    <div class="plan-card-priority {{ plan.priority }}"></div>
+                                </div>
                             </div>
                             {% if plan.description %}
                             <div class="plan-card-description">{{ plan.description }}</div>
@@ -509,7 +535,10 @@
                              style="{% if plan.is_profitable == 1 %}border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.1);{% elif plan.is_profitable == 0 %}border-left: 4px solid #6b7280; background: rgba(107, 114, 128, 0.1);{% endif %}">
                             <div class="plan-card-header">
                                 <div class="plan-card-title">{{ plan.title }}</div>
-                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                                <div class="plan-card-header-right">
+                                    <button type="button" class="btn-plan-news" data-kw={{ plan.title|tojson }} onclick="event.stopPropagation(); if (typeof openCrawlerDrawer === 'function') openCrawlerDrawer(this.getAttribute('data-kw') || '投资');">资讯</button>
+                                    <div class="plan-card-priority {{ plan.priority }}"></div>
+                                </div>
                             </div>
                             {% if plan.description %}
                             <div class="plan-card-description">{{ plan.description }}</div>
@@ -557,7 +586,10 @@
                         <div class="plan-card" onclick="window.location.href='/plans/edit/{{ plan.id }}'">
                             <div class="plan-card-header">
                                 <div class="plan-card-title">{{ plan.title }}</div>
-                                <div class="plan-card-priority {{ plan.priority }}"></div>
+                                <div class="plan-card-header-right">
+                                    <button type="button" class="btn-plan-news" data-kw={{ plan.title|tojson }} onclick="event.stopPropagation(); if (typeof openCrawlerDrawer === 'function') openCrawlerDrawer(this.getAttribute('data-kw') || '投资');">资讯</button>
+                                    <div class="plan-card-priority {{ plan.priority }}"></div>
+                                </div>
                             </div>
                             {% if plan.description %}
                             <div class="plan-card-description">{{ plan.description }}</div>
@@ -592,6 +624,15 @@
             window.location.href = url.slice(0, -1); // 移除最后的&或?
         }
     </script>
-</body>
-</html>
+{% endblock %}
+{% block page_scripts %}
+    <script>
+    (function () {
+        var b = document.getElementById('plans-open-crawler');
+        if (b) b.addEventListener('click', function () {
+            if (typeof openCrawlerDrawer === 'function') openCrawlerDrawer('投资');
+        });
+    })();
+    </script>
+{% endblock %}
 

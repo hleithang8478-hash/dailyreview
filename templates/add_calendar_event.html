@@ -1,510 +1,306 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ '编辑事件' if event else '新建事件' }}</title>
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+{% extends 'base.html' %}
+{% block title %}{{ '编辑事件' if event and event.id else '新建事件' }} · 投研日历{% endblock %}
+{% block head_extra %}
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
-            --bg-primary: #0a0a0a;
-            --bg-secondary: #111111;
-            --bg-card: rgba(255, 255, 255, 0.03);
-            --bg-card-hover: rgba(255, 255, 255, 0.06);
-            --bg-glass: rgba(255, 255, 255, 0.08);
-            --bg-glass-hover: rgba(255, 255, 255, 0.12);
-            
-            --text-primary: #ffffff;
-            --text-secondary: rgba(255, 255, 255, 0.7);
-            --text-tertiary: rgba(255, 255, 255, 0.5);
-            
-            --border: rgba(255, 255, 255, 0.1);
-            --border-hover: rgba(255, 255, 255, 0.2);
-            
+            --page-bg: #080808;
+            --surface: #101010;
+            --surface-2: #161616;
+            --border: #2a2a2a;
+            --text: #f5f5f5;
+            --text-dim: #a3a3a3;
             --accent: #6366f1;
-            --accent-hover: #818cf8;
-            --accent-glow: rgba(99, 102, 241, 0.3);
-            
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --danger: #dc2626;
+            --radius: 10px;
+            --font: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
         }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            background: var(--bg-primary);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
-            color: var(--text-primary);
+            font-family: var(--font);
+            background: var(--page-bg);
+            color: var(--text);
             min-height: 100vh;
-            padding: 2rem;
             -webkit-font-smoothing: antialiased;
         }
-
-        .container {
-            max-width: 900px;
+        .wrap {
+            max-width: 40rem;
             margin: 0 auto;
-            animation: fadeInUp 0.5s ease-out;
+            padding: 1.25rem 1rem 2.5rem;
         }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .header {
-            background: rgba(10, 10, 10, 0.8);
-            backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 1.5rem 2rem;
-            margin-bottom: 2rem;
+        .top {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-        }
-
-        .header h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -0.5px;
-        }
-
-        .back-btn {
-            padding: 0.625rem 1.25rem;
-            background: var(--bg-glass);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            text-decoration: none;
-            color: var(--text-primary);
-            transition: var(--transition);
-            backdrop-filter: blur(10px);
-        }
-
-        .back-btn:hover {
-            background: var(--bg-glass-hover);
-            border-color: var(--border-hover);
-            transform: translateX(-4px);
-        }
-
-        .form-card {
-            background: var(--bg-card);
-            backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 2.5rem;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-        }
-
-        .form-group {
-            margin-bottom: 2rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.75rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            font-size: 0.9375rem;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 1rem 1.25rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 1rem;
-            transition: var(--transition);
-            background: var(--bg-glass);
-            background-color: rgba(17, 17, 17, 0.9);
-            color: var(--text-primary);
-            backdrop-filter: blur(10px);
-            font-family: inherit;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            background: var(--bg-glass-hover);
-            background-color: rgba(17, 17, 17, 0.95);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        .form-group select option {
-            background: #ffffff;
-            background-color: #ffffff;
-            color: #000000;
-            padding: 0.75rem;
-        }
-
-        .form-group textarea {
-            min-height: 200px;
-            resize: vertical;
-            line-height: 1.8;
-        }
-
-        .form-group textarea::placeholder {
-            color: var(--text-tertiary);
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-        }
-
-        @media (max-width: 768px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .color-picker {
-            display: flex;
-            gap: 0.75rem;
             flex-wrap: wrap;
-            margin-top: 0.75rem;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
         }
-
-        .color-option {
-            width: 48px;
-            height: 48px;
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            border: 3px solid transparent;
-            transition: var(--transition);
-            position: relative;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        .color-option:hover {
-            transform: scale(1.1);
-        }
-
-        .color-option.selected {
-            border-color: var(--text-primary);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        .color-option::after {
-            content: '✓';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-weight: bold;
-            font-size: 1.25rem;
-            opacity: 0;
-            transition: var(--transition);
-        }
-
-        .color-option.selected::after {
-            opacity: 1;
-        }
-
-        .actions {
-            display: flex;
-            gap: 1rem;
-            justify-content: flex-end;
-            padding-top: 2rem;
-            border-top: 1px solid var(--border);
-        }
-
-        .btn {
-            padding: 0.875rem 2rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 500;
-            transition: var(--transition);
+        .top h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+        .top p { color: var(--text-dim); font-size: 0.8rem; margin-top: 0.35rem; }
+        .link {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
+            padding: 0.45rem 0.85rem;
+            font-size: 0.875rem;
+            color: var(--text);
             text-decoration: none;
-            backdrop-filter: blur(10px);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-            border-color: var(--accent);
-            color: white;
-            box-shadow: 0 4px 12px var(--accent-glow);
-        }
-
-        .btn-primary:hover {
-            box-shadow: 0 6px 20px var(--accent-glow);
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: var(--bg-glass);
-            color: var(--text-primary);
-        }
-
-        .btn-secondary:hover {
-            background: var(--bg-glass-hover);
-            border-color: var(--border-hover);
-        }
-
-        .hint {
-            margin-top: 1.5rem;
-            padding: 1rem 1.25rem;
-            background: var(--bg-glass);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            backdrop-filter: blur(10px);
-            line-height: 1.6;
-        }
-
-        .event-type-tabs {
-            display: flex;
-            gap: 0.75rem;
-            background: var(--bg-glass);
-            padding: 0.5rem;
-            border-radius: var(--radius-md);
-            border: 1px solid var(--border);
-        }
-
-        .event-type-tab {
-            flex: 1;
-            padding: 0.75rem;
-            text-align: center;
             border-radius: 8px;
-            cursor: pointer;
-            transition: var(--transition);
-            color: var(--text-secondary);
-            font-weight: 500;
+            background: var(--surface-2);
+        }
+        .link:hover { background: #1c1c1c; }
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius);
+            background: rgba(220, 38, 38, 0.12);
+            border: 1px solid rgba(220, 38, 38, 0.35);
+            color: #fecaca;
             font-size: 0.875rem;
+            margin-bottom: 1rem;
         }
-
-        .event-type-tab.active {
-            background: var(--accent);
-            color: white;
-            box-shadow: 0 2px 8px var(--accent-glow);
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem 1.15rem 1.5rem;
         }
-
-        .reminder-options {
+        .section {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin: 1.25rem 0 0.75rem;
+        }
+        .section:first-of-type { margin-top: 0.25rem; }
+        .field { margin-bottom: 1rem; }
+        .field label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.35rem;
+        }
+        .field input, .field select, .field textarea {
+            width: 100%;
+            padding: 0.55rem 0.65rem;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #0c0c0c;
+            color: var(--text);
+        }
+        .field input:focus, .field select:focus, .field textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+        .field textarea { min-height: 6rem; resize: vertical; line-height: 1.5; }
+        .field-hint { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.3rem; }
+        .row2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
+            gap: 0.75rem;
         }
+        @media (max-width: 500px) { .row2 { grid-template-columns: 1fr; } }
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+        .tab {
+            flex: 1;
+            min-width: 4rem;
+            padding: 0.5rem 0.6rem;
+            text-align: center;
+            font-size: 0.8rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #141414;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .tab.is-on {
+            background: #3730a3;
+            color: #fff;
+            border-color: #4f46e5;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+        .btn {
+            display: inline-flex;
+            padding: 0.55rem 1.1rem;
+            font-size: 0.875rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .btn:hover { background: #1a1a1a; }
+        .btn--primary { background: #4f46e5; border-color: #6366f1; }
+        .btn--primary:hover { filter: brightness(1.06); }
     </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{{ '📅 编辑事件' if event else '📅 新建事件' }}</h1>
-            <a href="{{ url_for('calendar') }}" class="back-btn">← 返回日历</a>
+{% endblock %}
+{% block content %}
+    <div class="wrap">
+        <div class="top">
+            <div>
+                <h1>{{ '编辑事件' if event and event.id else '新建事件' }}</h1>
+                <p>颜色由「投研分类」自动决定，与主日历色块一致。</p>
+            </div>
+            <a class="link" href="{{ back_url|default(url_for('calendar'), true) }}">← {% if (return_key|default('calendar')) == 'crawler' %}返回爬虫看板{% elif (return_key|default('calendar')) == 'plans' %}返回计划看板{% elif (return_key|default('calendar')) == 'index' %}返回首页{% else %}返回日历{% endif %}</a>
         </div>
 
-        <form method="post" class="form-card">
-            {% if event %}
+        {% if form_error is defined and form_error %}
+        <div class="alert" role="alert">{{ form_error }}</div>
+        {% endif %}
+
+        <form method="post" class="card" novalidate>
+            <input type="hidden" name="return_to" value="{{ return_key|default('calendar') }}">
+            {% if event and event.id %}
             <input type="hidden" name="id" value="{{ event.id }}">
             {% endif %}
 
-            <div class="form-group">
-                <label for="title">事件标题 *</label>
-                <input type="text" name="title" id="title" 
-                       value="{{ event.title if event else '' }}" 
-                       placeholder="例如：重要财报发布时间" required>
+            <div class="section">基本信息</div>
+            <div class="field">
+                <label for="title">标题 <span style="color:#f87171">*</span></label>
+                <input type="text" name="title" id="title" required maxlength="500"
+                       value="{{ event.title if event else '' }}"
+                       placeholder="例：美国 CPI、业绩发布会">
             </div>
-
-            <div class="form-group">
-                <label for="content">事件描述</label>
-                <textarea name="content" id="content" 
-                          placeholder="详细描述这个事件...">{{ event.content if event else '' }}</textarea>
+            <div class="field">
+                <label for="content">备注</label>
+                <textarea name="content" id="content" maxlength="50000" placeholder="可选：要点、链接、结论">{{ event.content if event else '' }}</textarea>
             </div>
-
-            <div class="form-group">
+            <div class="field">
                 <label for="event_category">投研分类</label>
                 <select name="event_category" id="event_category">
                     {% for key, meta in calendar_categories.items() %}
                     <option value="{{ key }}" {% if event and event.event_category == key %}selected{% elif not event and key == 'macro' %}selected{% endif %}>{{ meta.label }}</option>
                     {% endfor %}
                 </select>
+                <p class="field-hint">保存时自动匹配对应色块，无需再选手动颜色。</p>
             </div>
 
-            <div class="form-group">
-                <label for="related_stock">关联股票代码</label>
-                <input type="text" name="related_stock" id="related_stock"
+            <div class="section">日期与跨度</div>
+            <div class="row2">
+                <div class="field">
+                    <label for="start_date">开始日期 *</label>
+                    <input type="date" name="start_date" id="start_date" required
+                           value="{{ event.start_date if event else '' }}">
+                </div>
+                <div class="field">
+                    <label for="end_date">结束日期（含） *</label>
+                    <input type="date" name="end_date" id="end_date" required
+                           value="{{ event.end_date if event else '' }}">
+                </div>
+            </div>
+            <div class="field">
+                <span class="field-hint" style="margin-bottom:0.5rem;display:block">事件类型</span>
+                <div class="tabs" id="type-tabs" role="group" aria-label="事件类型">
+                    <button type="button" class="tab" data-type="single">单日</button>
+                    <button type="button" class="tab" data-type="multi">多日</button>
+                    <button type="button" class="tab" data-type="recurring">周期</button>
+                </div>
+                <input type="hidden" name="event_type" id="event_type" value="{{ event.event_type if event else 'single' }}">
+            </div>
+
+            <div class="section">关联</div>
+            <div class="field">
+                <label for="related_stock">股票代码</label>
+                <input type="text" name="related_stock" id="related_stock" maxlength="64" autocomplete="off"
                        value="{{ event.related_stock if event else '' }}"
                        placeholder="如 000001、600519">
             </div>
-
-            <div class="form-group">
-                <label for="related_plan_id">关联交易计划</label>
+            <div class="field">
+                <label for="related_plan_id">投资计划</label>
                 <select name="related_plan_id" id="related_plan_id">
-                    <option value="">（不关联）</option>
+                    <option value="">不关联</option>
                     {% for p in plan_options %}
                     <option value="{{ p.id }}" {% if event and event.related_plan_id == p.id %}selected{% endif %}>{{ p.title }}</option>
                     {% endfor %}
                 </select>
             </div>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="start_date">开始日期 *</label>
-                    <input type="date" name="start_date" id="start_date" 
-                           value="{{ event.start_date if event else '' }}" required>
+            <div class="section">提醒</div>
+            <div class="row2">
+                <div class="field">
+                    <label for="reminder_type">方式</label>
+                    <select name="reminder_type" id="reminder_type">
+                        <option value="none" {{ 'selected' if event and event.reminder_type == 'none' else '' }}>不提醒</option>
+                        <option value="notification" {{ 'selected' if (not event) or (event and event.reminder_type == 'notification') else '' }}>浏览器提醒</option>
+                        <option value="email" {{ 'selected' if event and event.reminder_type == 'email' else '' }}>邮件（占位）</option>
+                    </select>
                 </div>
-                <div class="form-group">
-                    <label for="end_date">结束日期</label>
-                    <input type="date" name="end_date" id="end_date" 
-                           value="{{ event.end_date if event else '' }}">
+                <div class="field">
+                    <label for="reminder_time">提前量</label>
+                    <select name="reminder_time" id="reminder_time">
+                        <option value="0" {{ 'selected' if (not event) or event.reminder_time == 0 else '' }}>当天</option>
+                        <option value="1440" {{ 'selected' if event and event.reminder_time == 1440 else '' }}>提前 1 天</option>
+                        <option value="2880" {{ 'selected' if event and event.reminder_time == 2880 else '' }}>提前 2 天</option>
+                        <option value="10080" {{ 'selected' if event and event.reminder_time == 10080 else '' }}>提前 1 周</option>
+                    </select>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label>事件类型</label>
-                <div class="event-type-tabs">
-                    <div class="event-type-tab active" data-type="single">单日</div>
-                    <div class="event-type-tab" data-type="multi">多日</div>
-                    <div class="event-type-tab" data-type="recurring">周期</div>
-                </div>
-                <input type="hidden" name="event_type" id="event_type" value="{{ event.event_type if event else 'single' }}">
-            </div>
-
-            <div class="form-group">
-                <label>颜色标签</label>
-                <div class="color-picker" id="color-picker">
-                    <div class="color-option selected" data-color="#6366f1" style="background: #6366f1;"></div>
-                    <div class="color-option" data-color="#10b981" style="background: #10b981;"></div>
-                    <div class="color-option" data-color="#f59e0b" style="background: #f59e0b;"></div>
-                    <div class="color-option" data-color="#ef4444" style="background: #ef4444;"></div>
-                    <div class="color-option" data-color="#8b5cf6" style="background: #8b5cf6;"></div>
-                    <div class="color-option" data-color="#ec4899" style="background: #ec4899;"></div>
-                    <div class="color-option" data-color="#06b6d4" style="background: #06b6d4;"></div>
-                    <div class="color-option" data-color="#84cc16" style="background: #84cc16;"></div>
-                </div>
-                <input type="hidden" name="color" id="color" value="{{ event.color if event else '#6366f1' }}">
-            </div>
-
-            <div class="form-group">
-                <label>提醒设置</label>
-                <div class="reminder-options">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <select name="reminder_type" id="reminder_type">
-                            <option value="none" {{ 'selected' if event and event.reminder_type == 'none' else '' }}>不提醒</option>
-                            <option value="notification" {{ 'selected' if (not event) or event.reminder_type == 'notification' else '' }}>浏览器通知</option>
-                            <option value="email" {{ 'selected' if event and event.reminder_type == 'email' else '' }}>邮件提醒（待实现）</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <select name="reminder_time" id="reminder_time">
-                            <option value="0" {{ 'selected' if (not event) or event.reminder_time == 0 else '' }}>事件当天</option>
-                            <option value="1440" {{ 'selected' if event and event.reminder_time == 1440 else '' }}>提前1天</option>
-                            <option value="2880" {{ 'selected' if event and event.reminder_time == 2880 else '' }}>提前2天</option>
-                            <option value="10080" {{ 'selected' if event and event.reminder_time == 10080 else '' }}>提前1周</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
+            <input type="hidden" name="color" id="color" value="{{ event.color if event else '#6366f1' }}">
 
             <div class="actions">
-                <a href="{{ url_for('calendar') }}" class="btn btn-secondary">取消</a>
-                <button type="submit" class="btn btn-primary">💾 {{ '更新' if event else '创建' }}</button>
-            </div>
-
-            <div class="hint">
-                💡 提示：投资日历可以帮助你记录重要事件，如财报发布时间、重要会议、关键日期等。设置提醒后，系统会在指定时间通知你。
+                <a href="{{ back_url|default(url_for('calendar'), true) }}" class="btn">取消</a>
+                <button type="submit" class="btn btn--primary">保存</button>
             </div>
         </form>
     </div>
 
     <script>
-        // 颜色选择器
-        const colorOptions = document.querySelectorAll('.color-option');
-        const colorInput = document.getElementById('color');
-        const selectedColor = '{{ event.color if event else "#6366f1" }}';
+    (function () {
+        const etInput = document.getElementById('event_type');
+        const tabs = document.querySelectorAll('#type-tabs .tab');
+        const startEl = document.getElementById('start_date');
+        const endEl = document.getElementById('end_date');
+        const cur = etInput.value || 'single';
 
-        colorOptions.forEach(option => {
-            if (option.dataset.color === selectedColor) {
-                option.classList.add('selected');
-            }
-            option.addEventListener('click', function() {
-                colorOptions.forEach(opt => opt.classList.remove('selected'));
-                this.classList.add('selected');
-                colorInput.value = this.dataset.color;
+        function syncTabs() {
+            tabs.forEach(function (t) {
+                t.classList.toggle('is-on', t.getAttribute('data-type') === etInput.value);
             });
-        });
-
-        // 事件类型切换
-        const eventTypeTabs = document.querySelectorAll('.event-type-tab');
-        const eventTypeInput = document.getElementById('event_type');
-        const currentType = '{{ event.event_type if event else "single" }}';
-
-        eventTypeTabs.forEach(tab => {
-            if (tab.dataset.type === currentType) {
-                tab.classList.add('active');
-            }
-            tab.addEventListener('click', function() {
-                eventTypeTabs.forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-                eventTypeInput.value = this.dataset.type;
-                
-                // 如果是单日事件，自动设置结束日期
-                if (this.dataset.type === 'single') {
-                    const startDate = document.getElementById('start_date').value;
-                    document.getElementById('end_date').value = startDate;
+        }
+        tabs.forEach(function (t) {
+            t.addEventListener('click', function () {
+                etInput.value = t.getAttribute('data-type');
+                if (etInput.value === 'single' && startEl.value) {
+                    endEl.value = startEl.value;
                 }
+                syncTabs();
             });
         });
+        etInput.value = cur;
+        syncTabs();
 
-        // 开始日期改变时，如果是单日事件，自动更新结束日期
-        document.getElementById('start_date').addEventListener('change', function() {
-            if (eventTypeInput.value === 'single') {
-                document.getElementById('end_date').value = this.value;
-            }
+        startEl.addEventListener('change', function () {
+            if (etInput.value === 'single') endEl.value = startEl.value;
         });
 
-        // 如果是新事件，设置默认日期为今天
         {% if not event %}
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('start_date').value = today;
-        document.getElementById('end_date').value = today;
+        var t = new Date().toISOString().slice(0, 10);
+        if (!startEl.value) { startEl.value = t; endEl.value = t; }
         {% endif %}
 
-        // 如果URL中有date参数，设置日期
-        const urlParams = new URLSearchParams(window.location.search);
-        const dateParam = urlParams.get('date');
-        if (dateParam) {
-            document.getElementById('start_date').value = dateParam;
-            document.getElementById('end_date').value = dateParam;
+        var dp = new URLSearchParams(window.location.search).get('date');
+        if (dp) {
+            startEl.value = dp;
+            endEl.value = dp;
         }
-
         document.getElementById('title').focus();
+    })();
     </script>
-</body>
-</html>
-
+{% endblock %}

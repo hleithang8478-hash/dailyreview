@@ -344,9 +344,10 @@
                     <button class="btn-secondary" id="refresh-trading-date-btn">🔄 刷新交易日</button>
                     <button class="btn-secondary" id="toggle-filter-btn">🔍 筛选</button>
                 </div>
-                <div class="controls-group">
-                    <span class="tag" id="current-date-tag">当前日期：--</span>
-                    <span class="tag" id="latest-trading-date-tag" style="margin-left: 8px; display: none;">数据库最新交易日：--</span>
+                <div class="controls-group" style="flex-wrap: wrap; align-items: center;">
+                    <span class="tag" id="current-date-tag" title="本机 momentum_scores 里已有跑分结果的最新日期，下方表格即此日的数据">本机已存动量日：--</span>
+                    <span id="list-lag-hint" style="display: none; margin-left: 8px; font-size: 12px; color: #94a3b8; max-width: 420px; line-height: 1.4;"></span>
+                    <span class="tag" id="latest-trading-date-tag" style="margin-left: 8px; display: none;">聚源最新交易日：--</span>
                 </div>
             </div>
 
@@ -588,6 +589,26 @@
         }
 
         let currentDate = null;
+        /** 聚源行情最新日（与「本机表内展示日」可能不同，用于提示是否可补算） */
+        let juyuanLatestTradingDate = null;
+
+        function updateListDateTag(listDate) {
+            const el = document.getElementById('current-date-tag');
+            const hint = document.getElementById('list-lag-hint');
+            if (!listDate) {
+                el.textContent = '本机已存动量日：--';
+                if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
+                return;
+            }
+            el.textContent = `本机已存动量日：${listDate}`;
+            if (hint && juyuanLatestTradingDate && listDate < juyuanLatestTradingDate) {
+                hint.textContent = `（表格为历史保存；聚源行情已到 ${juyuanLatestTradingDate}，可点「运行动量打分」用上方「评分日期」补算至最新日）`;
+                hint.style.display = 'inline-block';
+            } else if (hint) {
+                hint.style.display = 'none';
+                hint.textContent = '';
+            }
+        }
         let currentPage = 1;
         const pageSize = 100;
         let allItems = [];  // 存储所有数据用于排序和筛选
@@ -958,7 +979,12 @@
             setStatus(`已加载动量评分结果：共 ${total} 只股票${filteredTotal !== total ? `（筛选后 ${filteredTotal} 只）` : ''}，当前显示第 ${currentPage} 页。`);
         }
 
-        async function loadMomentum(dateStr, page = 1) {
+        /**
+         * @param {string} dateStr 要加载的动量数据日期
+         * @param {number} page
+         * @param {boolean} syncPicker 为 true 时，将 #momentum-date 同步为接口返回的日期；首次进入页面为 false，以便「评分日期」保持聚源最新交易日
+         */
+        async function loadMomentum(dateStr, page = 1, syncPicker = true) {
             if (!dateStr) {
                 setStatus('请选择日期');
                 return;
@@ -989,8 +1015,10 @@
                 }
 
                 currentDate = data.date;
-                document.getElementById('current-date-tag').textContent = `当前日期：${currentDate}`;
-                document.getElementById('momentum-date').value = currentDate;
+                updateListDateTag(currentDate);
+                if (syncPicker) {
+                    document.getElementById('momentum-date').value = currentDate;
+                }
 
                 // 存储所有数据
                 allItems = data.items || [];
@@ -1098,7 +1126,7 @@
                     if (data.success && data.latest_trading_date) {
                         dateStr = data.latest_trading_date;
                         dateInput.value = dateStr;
-                        setStatus(`未选择日期，使用数据库最新交易日：${dateStr}`);
+                        setStatus(`未选择日期，使用聚源最新交易日：${dateStr}`);
                     } else {
                         // 如果数据库为空，使用今天
                         dateStr = new Date().toISOString().slice(0, 10);
@@ -1119,10 +1147,10 @@
                     if (data.success && data.latest_trading_date) {
                         const latestDate = data.latest_trading_date;
                         if (dateStr > latestDate) {
-                            // 选择的日期比数据库最新日期新，使用数据库最新日期
+                            // 选择的日期比聚源最新交易日新，回退
                             dateStr = latestDate;
                             dateInput.value = dateStr;
-                            setStatus(`选择的日期比数据库最新日期新，已自动调整为数据库最新交易日：${dateStr}`);
+                            setStatus(`选择的日期比聚源最新交易日新，已自动调整为：${dateStr}`);
                         }
                     }
                 } catch (e) {
@@ -1246,10 +1274,13 @@
                     const data = await resp.json();
                     if (data.success) {
                         const date = data.latest_trading_date;
-                        tag.textContent = `数据库最新交易日：${date}`;
+                        juyuanLatestTradingDate = date;
+                        tag.textContent = `聚源最新交易日：${date}`;
                         tag.style.display = 'inline-flex';
-                        // 如果评分日期为空或比最新交易日早，自动更新评分日期
                         const dateInput = document.getElementById('momentum-date');
+                        if (currentDate) {
+                            updateListDateTag(currentDate);
+                        }
                         if (!dateInput.value || dateInput.value < date) {
                             dateInput.value = date;
                         }
@@ -1345,45 +1376,43 @@
                 }
             });
 
-            // 页面加载时：先获取数据库最新交易日，再尝试加载最新有结果的日期
+            // 聚源最新交易日（与跑数数据源一致）与「本地已保存动量」最新日可能不同；评分日期默认用聚源日，列表默认展示已存最新
             (async () => {
+                const dateInput = document.getElementById('momentum-date');
+                const juyuanTag = document.getElementById('latest-trading-date-tag');
+                let juyuanStr = null;
                 try {
-                    const resp = await fetch('/api/momentum_scores/latest_trading_date');
-                    const data = await resp.json();
-                    if (data.success) {
-                        const tag = document.getElementById('latest-trading-date-tag');
-                        tag.textContent = `数据库最新交易日：${data.latest_trading_date}`;
-                        tag.style.display = 'inline-flex';
+                    const [jResp, mResp] = await Promise.all([
+                        fetch('/api/momentum_scores/latest_trading_date'),
+                        fetch('/api/momentum_scores')
+                    ]);
+                    const jData = await jResp.json();
+                    const mData = await mResp.json();
+                    if (jData.success && jData.latest_trading_date) {
+                        juyuanStr = jData.latest_trading_date;
+                        juyuanLatestTradingDate = juyuanStr;
+                        juyuanTag.textContent = `聚源最新交易日：${juyuanStr}`;
+                        juyuanTag.style.display = 'inline-flex';
+                        dateInput.value = juyuanStr;
                     }
-                } catch (e) {
-                    // 忽略错误
-                }
-            })();
-
-            // 尝试加载最新日期的结果（优先使用数据库中最新的日期）
-            (async () => {
-                try {
-                    // 先获取数据库中最新的日期（不传date参数，后端会自动返回最新日期）
-                    const resp = await fetch('/api/momentum_scores');
-                    const data = await resp.json();
-                    if (data.success && data.date) {
-                        currentDate = data.date;
-                        // 设置日期选择器为数据库中最新的日期
-                        document.getElementById('momentum-date').value = currentDate;
-                        document.getElementById('current-date-tag').textContent = `当前日期：${currentDate}`;
-                        // 加载该日期的数据
-                        await loadMomentum(currentDate, 1);
+                    if (mData.success && mData.date) {
+                        if (!juyuanStr) {
+                            dateInput.value = mData.date;
+                        }
+                        await loadMomentum(mData.date, 1, false);
                     } else {
-                        // 如果没有数据，设置为今天
-                        const today = new Date().toISOString().slice(0, 10);
-                        document.getElementById('momentum-date').value = today;
+                        if (!juyuanStr) {
+                            const today = new Date().toISOString().slice(0, 10);
+                            dateInput.value = today;
+                        }
                         setStatus('暂无动量评分数据，请先运行打分。');
                     }
                 } catch (e) {
                     console.error('Failed to load momentum scores on page load:', e);
-                    // 出错时设置为今天
                     const today = new Date().toISOString().slice(0, 10);
-                    document.getElementById('momentum-date').value = today;
+                    if (!dateInput.value) {
+                        dateInput.value = today;
+                    }
                     setStatus('加载失败：' + (e.message || e));
                 }
             })();

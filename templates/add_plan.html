@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ '编辑计划' if plan else '新建计划' }}</title>
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+{% extends 'base.html' %}
+{% block title %}{{ '编辑计划' if plan and plan.id else '新建计划' }} · ReviewsDaily{% endblock %}
+{% block head_extra %}
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -406,16 +402,17 @@
             line-height: 1.6;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
     <div class="container">
         <div class="header">
-            <h1>{{ '📋 编辑计划' if plan else '📋 新建计划' }}</h1>
-            <a href="{{ url_for('plans') }}" class="back-btn">← 返回计划</a>
+            <h1>{{ '📋 编辑计划' if plan and plan.id else '📋 新建计划' }}</h1>
+            <a href="{{ back_url|default(url_for('plans'), true) }}" class="back-btn">← {% if (return_key|default('plans')) == 'crawler' %}返回爬虫看板{% elif (return_key|default('plans')) == 'calendar' %}返回日历{% elif (return_key|default('plans')) == 'index' %}返回首页{% else %}返回计划{% endif %}</a>
         </div>
 
         <form method="post" class="form-card" onsubmit="return checkBeforeSubmit(event)">
-            {% if plan %}
+            <input type="hidden" name="return_to" value="{{ return_key|default('plans') }}">
+            {% if plan and plan.id %}
             <input type="hidden" name="id" value="{{ plan.id }}">
             {% endif %}
 
@@ -467,6 +464,13 @@
             </div>
 
             <div class="form-group">
+                <label for="keywords">追踪关键词</label>
+                <input type="text" name="keywords" id="keywords"
+                       value="{{ plan.keywords if plan else '' }}"
+                       placeholder="如：宁德时代, 固态电池（逗号分隔，用于相关资讯与侧栏搜索）">
+            </div>
+
+            <div class="form-group">
                 <label for="progress">
                     进度: <span id="progress-value">{{ plan.progress if plan else 0 }}%</span>
                     <span id="status-display" class="status-badge">{{ '⏳ 待开始' if (not plan) or plan.status == 'todo' else ('🚀 进行中' if plan.status == 'in_progress' else ('✅ 已完成' if plan.status == 'done' else '❌ 已取消')) }}</span>
@@ -480,7 +484,7 @@
                 </div>
             </div>
 
-            {% if plan %}
+            {% if plan and plan.id %}
             <div class="form-group">
                 <label>快捷操作</label>
                 <div class="quick-actions">
@@ -505,25 +509,36 @@
                 <input type="hidden" name="color" id="color" value="{{ plan.color if plan else '#f59e0b' }}">
             </div>
             
-            {% if plan %}
+            {% if plan and plan.id %}
             <input type="hidden" name="is_profitable" id="is_profitable" value="{{ plan.is_profitable if plan.is_profitable is not none else '' }}">
             {% else %}
             <input type="hidden" name="is_profitable" id="is_profitable" value="">
             {% endif %}
 
             <div class="actions">
-                {% if plan %}
+                {% if plan and plan.id %}
                 <a href="{{ url_for('delete_plan', id=plan.id) }}" class="btn btn-danger" 
                    onclick="return confirm('确定要删除这个计划吗？')">🗑️ 删除</a>
                 {% endif %}
-                <a href="{{ url_for('plans') }}" class="btn btn-secondary">取消</a>
-                <button type="submit" class="btn btn-primary">💾 {{ '更新' if plan else '创建' }}</button>
+                <a href="{{ back_url|default(url_for('plans'), true) }}" class="btn btn-secondary">取消</a>
+                <button type="submit" class="btn btn-primary">💾 {{ '更新' if plan and plan.id else '创建' }}</button>
             </div>
 
             <div class="hint">
                 💡 提示：投资计划可以帮助你系统地管理和跟踪投资目标。使用看板视图可以清晰地看到每个计划的进度和状态。
             </div>
         </form>
+
+        {% if plan and plan.id %}
+        <div class="form-card" id="plan-related-news-wrap" style="margin-top: 2rem;">
+            <h2 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 0.75rem;">相关实时资讯</h2>
+            <p class="hint" style="margin-bottom: 1rem;">根据「追踪关键词」从爬虫库拉取最近 5 条（可修改关键词后点刷新）。</p>
+            <p style="margin-bottom: 0.75rem;">
+                <button type="button" class="btn btn-secondary" id="plan-refresh-crawler" style="font-size: 0.875rem; padding: 0.5rem 1rem;">刷新资讯</button>
+            </p>
+            <div id="plan-related-list" style="min-height: 2rem; font-size: 0.9rem; color: var(--text-secondary);">加载中…</div>
+        </div>
+        {% endif %}
     </div>
 
     <script>
@@ -734,8 +749,43 @@
             return true;
         }
         
+        (function loadPlanCrawlerFeed() {
+            var list = document.getElementById('plan-related-list');
+            var kw = document.getElementById('keywords');
+            if (!list || !kw) return;
+            function render() {
+                var q = (kw.value || '').trim();
+                if (!q) {
+                    list.innerHTML = '<p class="hint" style="margin:0">请填写「追踪关键词」后点击刷新资讯。</p>';
+                    return;
+                }
+                list.textContent = '加载中…';
+                fetch('/api/crawler/search?limit=5&keyword=' + encodeURIComponent(q), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.success) {
+                            list.textContent = (data && data.error) ? data.error : '加载失败';
+                            return;
+                        }
+                        var items = data.items || [];
+                        if (!items.length) { list.textContent = '暂无匹配，可换关键词。'; return; }
+                        list.innerHTML = items.map(function (it) {
+                            var t = (it.title || '').replace(/</g, '&lt;');
+                            var href = (it.url || '');
+                            var esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); };
+                            var a = href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener" style="color:#93c5fd">' + t + '</a>' : t;
+                            return '<div style="border:1px solid var(--border);border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.5rem;">' + a +
+                                '<div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:0.35rem;">' + (it.source || '—') + ' ｜ ' + (it.publish_time_display || it.publish_time || '—') + '</div></div>';
+                        }).join('');
+                    })
+                    .catch(function () { list.textContent = '网络错误'; });
+            }
+            var btn = document.getElementById('plan-refresh-crawler');
+            if (btn) btn.addEventListener('click', render);
+            render();
+        })();
+
         document.getElementById('title').focus();
     </script>
-</body>
-</html>
+{% endblock %}
 
