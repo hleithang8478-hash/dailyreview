@@ -177,6 +177,44 @@
             border: 1px solid rgba(99, 102, 241, 0.45); color: #a5b4fc; background: rgba(99, 102, 241, 0.12);
         }
         .item-actions a:hover { background: rgba(99, 102, 241, 0.22); color: #e0e7ff; }
+        .item-actions .btn-timeline-add {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid rgba(52, 211, 153, 0.55);
+            color: #6ee7b7;
+            background: rgba(52, 211, 153, 0.14);
+        }
+        .item-actions .btn-timeline-add:hover {
+            background: rgba(52, 211, 153, 0.26);
+            color: #a7f3d0;
+            box-shadow: 0 0 10px rgba(52, 211, 153, 0.25);
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-16px);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10001;
+            padding: 11px 22px;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 14px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+            transition: opacity 0.28s ease, transform 0.28s ease;
+            max-width: min(420px, 92vw);
+            text-align: center;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
 
         .terminal {
             background: #020409;
@@ -220,6 +258,7 @@
             <nav class="nav-pills" aria-label="爬虫看板子页面">
                 <a class="nav-pill active" href="{{ url_for('crawler_dashboard') }}">资讯流</a>
                 <a class="nav-pill" href="{{ url_for('crawler_dashboard_wordcloud') }}">标题词云</a>
+                <a class="nav-pill" href="{{ url_for('timeline_page') }}">🕒 历史时间轴</a>
             </nav>
             <a class="back" href="{{ url_for('index') }}">返回主页</a>
         </div>
@@ -266,6 +305,8 @@
     </div>
 </div>
 
+<div id="toastMsg" class="toast" role="status" aria-live="polite"></div>
+
 <script>
     const CRAWLER_API_BASE = {{ crawler_api_base | tojson }};
     function crawlerApi(suffix) {
@@ -293,6 +334,80 @@
             return { success: false, error: '响应非 JSON，可能未登录跳转到了 HTML 页面' };
         }
         return res.json();
+    }
+
+    async function timelineApiFetchJson(url, fetchOpts) {
+        const res = await fetch(url, fetchOpts || {});
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok) {
+            if (ct.includes('application/json')) {
+                try {
+                    return await res.json();
+                } catch (e) {
+                    return { success: false, error: 'HTTP ' + res.status };
+                }
+            }
+            return { success: false, error: 'HTTP ' + res.status };
+        }
+        if (!ct.includes('application/json')) {
+            return { success: false, error: '响应非 JSON' };
+        }
+        return res.json();
+    }
+
+    function timelineTodayDateStr() {
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    let toastHideTimer = null;
+    function showToast(msg) {
+        const el = document.getElementById('toastMsg');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.classList.add('show');
+        clearTimeout(toastHideTimer);
+        toastHideTimer = setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    /**
+     * 从资讯发布时间解析 YYYY-MM-DD 与 HH:MM（缺时间则 POST 时由后端填当前时刻）。
+     * 使用 DOM 按钮 + 闭包传参，避免 onclick 拼接 title 引号导致 JS 语法错误。
+     */
+    function extractTimelineDateTime(pubDisp, item) {
+        const raw = (item.publish_time || item.crawl_time || '').toString().trim();
+        let dateStr = '';
+        const dm = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (dm) dateStr = dm[1];
+        if (!dateStr && raw.length >= 10) dateStr = raw.slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) dateStr = timelineTodayDateStr();
+        let timeStr = '';
+        const tm = raw.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
+        if (tm) timeStr = String(tm[1]).padStart(2, '0') + ':' + tm[2];
+        if (!timeStr && pubDisp && pubDisp !== '-') {
+            const tm2 = String(pubDisp).match(/(\d{1,2}):(\d{2})/);
+            if (tm2) timeStr = String(tm2[1]).padStart(2, '0') + ':' + tm2[2];
+        }
+        return { dateStr, timeStr };
+    }
+
+    async function addToTimeline(date, time, title, url) {
+        const body = {
+            date: date || timelineTodayDateStr(),
+            title: title || '',
+            url: url || '',
+            remark: '',
+        };
+        if (time) body.time = time;
+        const data = await timelineApiFetchJson('/api/timeline/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (data.success) {
+            showToast('已成功加入该日时间轴');
+        } else {
+            showToast(data.error || '加入时间轴失败');
+        }
     }
 
     let offset = 0;
@@ -451,8 +566,27 @@
             const calHref = '/calendar/add?title=' + encodeURIComponent(item.title || '') + '&date=' + encodeURIComponent(day) + '&source_url=' + encodeURIComponent(item.url || '') + '&return_to=crawler';
             const planDesc = (item.url || '').trim() ? ('来源链接：' + String(item.url).trim()) : (item.title || '');
             const planHref = '/plans/add?title=' + encodeURIComponent(item.title || '') + '&description=' + encodeURIComponent(planDesc) + '&return_to=crawler';
-            div.innerHTML = `${titleHtml}<div class="item-meta">${linkTag} ｜ 来源：${item.source} ｜ 发布时间：${pubDisp} ｜ 抓取时间：${item.crawl_time || '-'}</div>` +
-                `<div class="item-actions"><a href="${calHref}">+ 记入日历</a><a href="${planHref}">+ 转为计划</a></div>`;
+            div.innerHTML = `${titleHtml}<div class="item-meta">${linkTag} ｜ 来源：${item.source} ｜ 发布时间：${pubDisp} ｜ 抓取时间：${item.crawl_time || '-'}</div>`;
+            const actions = document.createElement('div');
+            actions.className = 'item-actions';
+            const aCal = document.createElement('a');
+            aCal.href = calHref;
+            aCal.textContent = '+ 记入日历';
+            const aPlan = document.createElement('a');
+            aPlan.href = planHref;
+            aPlan.textContent = '+ 转为计划';
+            const tlBtn = document.createElement('button');
+            tlBtn.type = 'button';
+            tlBtn.className = 'btn-timeline-add';
+            tlBtn.textContent = '+ 加入时间轴';
+            const tlDt = extractTimelineDateTime(pubDisp, item);
+            tlBtn.addEventListener('click', () => {
+                addToTimeline(tlDt.dateStr, tlDt.timeStr, item.title || '', (item.url || '').trim());
+            });
+            actions.appendChild(aCal);
+            actions.appendChild(aPlan);
+            actions.appendChild(tlBtn);
+            div.appendChild(actions);
             box.appendChild(div);
         });
 

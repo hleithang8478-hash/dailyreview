@@ -46,9 +46,9 @@ error_logger = logging.getLogger('error')  # 错误日志（详细输出）
 # 设置查询日志器为WARNING级别，减少正常查询的日志输出
 query_logger.setLevel(logging.WARNING)
 
-# DeepSeek API 配置
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"  # 替换为实际的API地址
-DEEPSEEK_API_KEY = "sk-ccde4a29c7a44f6486854d96a80c8f26"  # 替换为您的API密钥
+# DeepSeek API 配置（优先环境变量 DEEPSEEK_API_KEY）
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-ccde4a29c7a44f6486854d96a80c8f26")
 
 def generate_prompt_for_day(row):
     """
@@ -176,6 +176,489 @@ def call_deepseek_api(prompt):
                 raise Exception(f"API 请求失败: {str(e)}")
     
     raise Exception("API 请求失败，已达到最大重试次数")
+
+
+def _extract_json_object_string(text):
+    """从模型输出中取出 JSON 字符串（兼容 ```json 包裹）。"""
+    if not text or not str(text).strip():
+        raise ValueError("模型返回为空")
+    s = str(text).strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.IGNORECASE)
+        s = re.sub(r"\s*```$", "", s)
+    return s.strip()
+
+
+def call_deepseek_json_chat(messages, temperature=0.2, max_tokens=2500, timeout=90):
+    """
+    调用 DeepSeek Chat，要求返回 JSON 对象（response_format=json_object）。
+    返回已解析的 dict。
+    """
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "deepseek-chat",
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "response_format": {"type": "json_object"},
+    }
+    last_err = None
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                DEEPSEEK_API_URL, headers=headers, json=payload, timeout=timeout
+            )
+            if response.status_code == 200:
+                result = response.json()
+                content = (
+                    result.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )
+                blob = _extract_json_object_string(content)
+                return json.loads(blob)
+            if response.status_code == 401:
+                raise ValueError("DeepSeek API 密钥无效，请检查 DEEPSEEK_API_KEY")
+            last_err = f"HTTP {response.status_code}: {response.text[:500]}"
+        except json.JSONDecodeError as e:
+            last_err = f"JSON 解析失败: {e}"
+        except requests.exceptions.Timeout:
+            last_err = "请求超时"
+        except requests.exceptions.RequestException as e:
+            last_err = str(e)
+        time.sleep(2 ** attempt)
+    raise ValueError(last_err or "DeepSeek 调用失败")
+
+
+_INVESTMENT_PLAN_AI_SYSTEM = """你是投研笔记结构化助手。用户会给出一段自然语言投研笔记。
+你必须只输出一个 JSON 对象（不要 markdown、不要解释）。用户消息里会包含「今天是 YYYY-MM-DD（公历）」，用于换算相对日期。
+
+【必须先识别的三项】
+1) instruments (string): 投资标的（股票/ETF/指数/可转债/期货主力等）。中文简称、全名、代码（如 宁德时代、300750）。多项英文逗号分隔。也可用 investment_targets 字段名（与 instruments 二选一，内容相同）。无则 ""。
+2) tracking_items (array): 跟踪事项。每条为 {"title":"简短标题","date":"YYYY-MM-DD 或 null","detail":"需关注的变化、催化剂、风险、验证点等"}。凡原文提到的关键事件（财报、会议、数据发布、政策窗口、技术验证等）尽量拆成多条；有明确日期则填 date，否则 null。至少一条时 title 不可为空。无任何可拆事项则 []。
+3) target_date (string 或 null): 本计划层面的目标/复盘/观察截止日 YYYY-MM-DD（与单条 tracking_items 可并存）。相对日期结合「今天是…」换算；2026Q1末等季度末按：Q1→03-31，Q2→06-30，Q3→09-30，Q4→12-31；H1末→06-30；H2末→12-31。
+
+【其余字段】
+- title (string, 必填): 计划标题，点出核心标的或主题。
+- description (string): 完整说明；逻辑与观察点写清楚。
+- status (string): todo、in_progress、done、cancelled；未提及则 todo
+- priority (string): low、medium、high；默认 medium
+- category (string): 如 股票投资；无则 ""
+- tags (string): 英文逗号分隔；无则 ""
+- keywords (string): 资讯爬虫用补充词（题材、行业关键词等）；系统会把 instruments 与 keywords 合并去重，缺省可 ""。
+- progress (number): 0-100；未提及则 0
+- color (string 或 null): #RRGGBB；无法判断则 null
+- is_profitable (number 或 null): 仅已了结且明确盈/亏时为 1 或 0
+
+除 target_date、color、is_profitable、tracking_items 内外层 date 外，字符串缺省用 ""；tracking_items 无事项时用 []。"""
+
+
+def _coerce_comma_separated_text(val):
+    if val is None:
+        return ""
+    if isinstance(val, list):
+        parts = []
+        for x in val:
+            s = str(x).strip()
+            if s:
+                parts.append(s)
+        return ",".join(parts)
+    return str(val).strip()
+
+
+def _split_and_merge_keywords(*chunks):
+    """按中英文逗号/顿号拆分，去重（大小写不敏感），保持先出现的顺序。"""
+    parts = []
+    for ch in chunks:
+        if ch is None:
+            continue
+        if isinstance(ch, list):
+            for x in ch:
+                s = str(x).strip()
+                if s:
+                    parts.extend(re.split(r"[,，、;；]+", s))
+        else:
+            s = str(ch).strip()
+            if s:
+                parts.extend(re.split(r"[,，、;；]+", s))
+    seen = set()
+    out = []
+    for raw in parts:
+        t = (raw or "").strip()
+        if not t:
+            continue
+        k = t.casefold()
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(t)
+    return ",".join(out)
+
+
+def _quarter_end_iso(year, quarter):
+    """公历季度末日 YYYY-MM-DD。"""
+    last_m = {1: 3, 2: 6, 3: 9, 4: 12}[quarter]
+    last_d = cal_lib.monthrange(year, last_m)[1]
+    return f"{year:04d}-{last_m:02d}-{last_d:02d}"
+
+
+def _month_end_iso(year, month):
+    if not (1 <= month <= 12):
+        return ""
+    last_d = cal_lib.monthrange(year, month)[1]
+    return f"{year:04d}-{month:02d}-{last_d:02d}"
+
+
+def _infer_target_date_from_notes(text, ref_date=None):
+    """
+    从笔记中启发式提取目标日期（不调用模型）。用于「2026Q1末」等模型常返回 null 的情况。
+    命中则返回 YYYY-MM-DD，否则 ""。
+    """
+    if not text or not str(text).strip():
+        return ""
+    ref = ref_date or datetime.now().date()
+    ref_y = ref.year
+    s = str(text)
+    cn_q = r"[一二三四1-4]"
+
+    def _year_from_context():
+        y_m = re.search(r"(20\d{2}|19\d{2})", s)
+        return int(y_m.group(1)) if y_m else ref_y
+
+    # 2026Q1末 / (2026Q1末) / 2026年Q1末 / 2026-Q1末
+    m = re.search(
+        r"(?P<y>20\d{2}|19\d{2})\s*年?\s*[-]?\s*[Qq](?P<q>[1-4])\s*末?",
+        s,
+    )
+    if m:
+        return _quarter_end_iso(int(m.group("y")), int(m.group("q")))
+
+    # 2026年第1季度末 / 2026年一季度末
+    qmap = {"一": 1, "二": 2, "三": 3, "四": 4, "1": 1, "2": 2, "3": 3, "4": 4}
+    m = re.search(
+        rf"(?P<y>20\d{{2}}|19\d{{2}})\s*年\s*第?\s*(?P<q>{cn_q})\s*季度\s*末",
+        s,
+    )
+    if m:
+        q = qmap.get(m.group("q"))
+        if q:
+            return _quarter_end_iso(int(m.group("y")), q)
+
+    # 2026H1末 / 2026h2末
+    m = re.search(r"(?P<y>20\d{2}|19\d{2})\s*[Hh](?P<h>[12])\s*末?", s)
+    if m:
+        y = int(m.group("y"))
+        return f"{y:04d}-06-30" if m.group("h") == "1" else f"{y:04d}-12-31"
+
+    # 上半年末 / 下半年末（优先取文中四位年份，否则当年）
+    if re.search(r"上半年\s*末", s):
+        return f"{_year_from_context():04d}-06-30"
+    if re.search(r"下半年\s*末", s):
+        return f"{_year_from_context():04d}-12-31"
+
+    # 一季度末（无「年」时：取文中年份，否则当年）
+    m = re.search(rf"第?\s*(?P<q>{cn_q})\s*季度\s*末", s)
+    if m:
+        q = qmap.get(m.group("q"))
+        if q:
+            y = _year_from_context()
+            return _quarter_end_iso(y, q)
+
+    # 2026年3月底 / 2026年03月末
+    m = re.search(
+        r"(?P<y>20\d{2}|19\d{2})\s*年\s*(?P<mo>\d{1,2})\s*月\s*(底|末)",
+        s,
+    )
+    if m:
+        y, mo = int(m.group("y")), int(m.group("mo"))
+        iso = _month_end_iso(y, mo)
+        if iso:
+            return iso
+
+    return ""
+
+
+def _normalize_tracking_items_list(raw):
+    """统一为 [{title, date, detail}, ...]，date 为 YYYY-MM-DD 或 None。"""
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        s = raw.strip()
+        if not s:
+            return []
+        try:
+            raw = json.loads(s)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        title = (item.get("title") or item.get("name") or "").strip()
+        if not title:
+            continue
+        date = item.get("date") or item.get("event_date")
+        ds = None
+        if date is not None and str(date).strip():
+            tds = str(date).strip()[:32]
+            if re.match(r"^\d{4}-\d{2}-\d{2}$", tds):
+                ds = tds
+        detail = (item.get("detail") or item.get("note") or item.get("description") or "").strip()
+        out.append({"title": title, "date": ds, "detail": detail})
+    return out
+
+
+def _tracking_items_form_to_json(text):
+    """表单文本 → tracking_items JSON 字符串入库。支持 JSON 数组，或「YYYY-MM-DD 事项」逐行。"""
+    s = (text or "").strip()
+    if not s:
+        return "[]"
+    try:
+        data = json.loads(s)
+        normalized = _normalize_tracking_items_list(data)
+        return json.dumps(normalized, ensure_ascii=False)
+    except json.JSONDecodeError:
+        pass
+    items = []
+    for line in s.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})[：:\s]+\s*(.+)$", line)
+        if m:
+            items.append({"title": m.group(2).strip(), "date": m.group(1), "detail": ""})
+            continue
+        m2 = re.match(r"^(\d{4}-\d{2}-\d{2})\s+(.+)$", line)
+        if m2:
+            items.append({"title": m2.group(2).strip(), "date": m2.group(1), "detail": ""})
+            continue
+        items.append({"title": line, "date": None, "detail": ""})
+    return json.dumps(items, ensure_ascii=False)
+
+
+def _tracking_items_json_to_list(stored):
+    if not stored or not str(stored).strip():
+        return []
+    try:
+        return _normalize_tracking_items_list(json.loads(stored))
+    except json.JSONDecodeError:
+        return []
+
+
+def _plan_tuple_to_dict(plan):
+    """SELECT * FROM investment_plans 一行 → dict（兼容列数）。"""
+    if not plan:
+        return None
+    return {
+        "id": plan[0],
+        "title": plan[1],
+        "description": plan[2] or "",
+        "status": plan[3] or "todo",
+        "priority": plan[4] or "medium",
+        "category": plan[5],
+        "tags": plan[6],
+        "target_date": plan[7],
+        "progress": plan[8] or 0,
+        "color": plan[9] or "#f59e0b",
+        "is_profitable": plan[10] if len(plan) > 10 else None,
+        "created_at": plan[11] if len(plan) > 11 else None,
+        "updated_at": plan[12] if len(plan) > 12 else None,
+        "keywords": (plan[13] or "") if len(plan) > 13 else "",
+        "instruments": (plan[14] or "") if len(plan) > 14 else "",
+        "tracking_items": (plan[15] or "") if len(plan) > 15 else "",
+    }
+
+
+def _insert_plan_calendar_events(plan_id, row, sync_calendar=True):
+    """
+    为计划写入日历：计划 target_date 一条 + 每条带日期的 tracking_item 一条。
+    row 须含 target_date、title、description、color、tracking_items（list[dict]）。
+    返回新建事件 id 列表。
+    """
+    if not sync_calendar or not plan_id:
+        return []
+    ids = []
+    color = (row.get("color") or "#6366f1")[:32]
+    title_base = (row.get("title") or "投资计划")[:180]
+    td = (row.get("target_date") or "").strip()
+    if td and re.match(r"^\d{4}-\d{2}-\d{2}$", td):
+        try:
+            ev_title = ("计划节点 · " + title_base)[:200]
+            snippet = (row.get("description") or "")[:2000]
+            ids.append(
+                insert_db_return_id(
+                    """INSERT INTO investment_calendar
+                    (title, content, start_date, end_date, reminder_type,
+                     reminder_time, color, event_type, event_category, related_stock, related_plan_id)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        ev_title,
+                        snippet,
+                        td,
+                        td,
+                        "notification",
+                        0,
+                        color,
+                        "single",
+                        "other",
+                        "",
+                        plan_id,
+                    ),
+                )
+            )
+        except Exception as e:
+            logging.warning("计划 target_date 同步日历失败 plan_id=%s: %s", plan_id, e)
+
+    for it in row.get("tracking_items") or []:
+        if not isinstance(it, dict):
+            continue
+        d = (it.get("date") or "") or ""
+        d = str(d).strip() if d else ""
+        tit = (it.get("title") or "").strip()
+        det = (it.get("detail") or "").strip()
+        if not tit or not d or not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+            continue
+        try:
+            ev_title = ("跟踪 · " + tit)[:200]
+            content = (det or tit)[:2000]
+            ids.append(
+                insert_db_return_id(
+                    """INSERT INTO investment_calendar
+                    (title, content, start_date, end_date, reminder_type,
+                     reminder_time, color, event_type, event_category, related_stock, related_plan_id)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        ev_title,
+                        content,
+                        d,
+                        d,
+                        "notification",
+                        0,
+                        color,
+                        "single",
+                        "other",
+                        "",
+                        plan_id,
+                    ),
+                )
+            )
+        except Exception as e:
+            logging.warning("跟踪事项同步日历失败 plan_id=%s title=%s: %s", plan_id, tit, e)
+    return ids
+
+
+def _normalize_ai_investment_plan(d):
+    """将模型 JSON 规范为 investment_plans 一行字段（dict，便于 API 与前端）。"""
+    if not isinstance(d, dict):
+        raise ValueError("模型返回不是 JSON 对象")
+    title = (d.get("title") or "").strip()
+    if not title:
+        raise ValueError("解析结果缺少标题 title")
+    description = (d.get("description") or "").strip()
+    category = (d.get("category") or "").strip()
+    tags = _coerce_comma_separated_text(d.get("tags"))
+    inst_raw = d.get("instruments") if d.get("instruments") not in (None, "") else d.get("investment_targets")
+    instruments = _coerce_comma_separated_text(inst_raw)
+    keywords = _split_and_merge_keywords(instruments, d.get("keywords"))
+    if not keywords.strip():
+        keywords = instruments
+    tracking_items = _normalize_tracking_items_list(d.get("tracking_items"))
+
+    praw = (d.get("priority") or "medium").strip().lower()
+    if praw not in ("low", "medium", "high"):
+        praw = "medium"
+
+    raw_status = (d.get("status") or "todo").strip().lower()
+    if raw_status not in ("todo", "in_progress", "done", "cancelled"):
+        raw_status = "todo"
+
+    prog = d.get("progress")
+    try:
+        progress = int(prog)
+    except (TypeError, ValueError):
+        progress = 0
+    progress = max(0, min(100, progress))
+    if raw_status == "done":
+        progress = max(progress, 100)
+
+    if raw_status == "cancelled":
+        st = "cancelled"
+    elif progress >= 100:
+        st = "done"
+        progress = 100
+    elif progress == 0:
+        st = "todo"
+    else:
+        st = "in_progress"
+
+    td = d.get("target_date")
+    target_date = ""
+    if td is not None and str(td).strip():
+        tds = str(td).strip()[:32]
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", tds):
+            target_date = tds
+
+    color = (d.get("color") or "").strip()
+    if not re.match(r"^#[0-9A-Fa-f]{6}$", color):
+        color = "#f59e0b"
+
+    is_profitable = d.get("is_profitable")
+    ip = None
+    if is_profitable is not None and is_profitable != "":
+        try:
+            ip = int(is_profitable)
+        except (TypeError, ValueError):
+            ip = None
+    if ip is not None and ip not in (0, 1):
+        ip = None
+    if st != "done":
+        ip = None
+
+    return {
+        "title": title,
+        "description": description,
+        "status": st,
+        "priority": praw,
+        "category": category,
+        "tags": tags,
+        "instruments": instruments,
+        "keywords": keywords,
+        "tracking_items": tracking_items,
+        "target_date": target_date,
+        "progress": progress,
+        "color": color,
+        "is_profitable": ip,
+    }
+
+
+def ai_parse_investment_plan_from_text(user_notes):
+    """调用 DeepSeek 将自然语言转为投资计划字段 dict（已规范化）。"""
+    notes = (user_notes or "").strip()
+    if len(notes) < 8:
+        raise ValueError("描述过短，请补充时间、标的或逻辑等信息")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    messages = [
+        {"role": "system", "content": _INVESTMENT_PLAN_AI_SYSTEM},
+        {
+            "role": "user",
+            "content": f"今天是 {today_str}（公历）。\n\n用户笔记：\n{notes}",
+        },
+    ]
+    raw = call_deepseek_json_chat(messages)
+    row = _normalize_ai_investment_plan(raw)
+    if not (row.get("target_date") or "").strip():
+        inferred = _infer_target_date_from_notes(
+            notes, ref_date=datetime.strptime(today_str, "%Y-%m-%d").date()
+        )
+        if inferred:
+            row["target_date"] = inferred
+    return row
+
 
 app = Flask(__name__)
 # 数据库与密钥相对 app.py 目录，避免从不同工作目录启动时读写「另一个」database.db（典型症状：登录成功立刻回登录页）
@@ -650,6 +1133,7 @@ def _merge_rbac_endpoint_permission_map():
         'api_crawler_dashboard_latest', 'api_crawler_dashboard_export',
         'api_crawler_dashboard_feed_state',
         'api_crawler_search',
+        'timeline_page', 'api_timeline_add', 'api_timeline_list', 'api_timeline_delete',
     ):
         m[name] = cr
     for name in (
@@ -1049,6 +1533,17 @@ def init_db():
                      UNIQUE(username, word))''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_cwb_username ON crawler_wordcloud_blacklist(username)')
 
+        # 盘中异动 / 历史复盘时间轴（SQLite，与爬虫看板联动）
+        c.execute('''CREATE TABLE IF NOT EXISTS market_timeline (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     date TEXT NOT NULL,
+                     time TEXT NOT NULL,
+                     title TEXT NOT NULL,
+                     url TEXT,
+                     remark TEXT,
+                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_market_timeline_date ON market_timeline(date)')
+
         try:
             c.execute('ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1')
         except sqlite3.OperationalError:
@@ -1133,6 +1628,18 @@ def init_db():
             c.execute("ALTER TABLE investment_plans ADD COLUMN keywords TEXT")
             conn.commit()
             logging.info("数据库迁移: 已添加 investment_plans.keywords 字段")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            c.execute("ALTER TABLE investment_plans ADD COLUMN instruments TEXT")
+            conn.commit()
+            logging.info("数据库迁移: 已添加 investment_plans.instruments 字段")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            c.execute("ALTER TABLE investment_plans ADD COLUMN tracking_items TEXT")
+            conn.commit()
+            logging.info("数据库迁移: 已添加 investment_plans.tracking_items 字段")
         except sqlite3.OperationalError:
             pass
         
@@ -3537,23 +4044,9 @@ def plans():
     }
     
     for plan in all_plans:
-        status = plan[3] or 'todo'
-        plans_by_status[status].append({
-            'id': plan[0],
-            'title': plan[1],
-            'description': plan[2],
-            'status': plan[3] or 'todo',
-            'priority': plan[4] or 'medium',
-            'category': plan[5],
-            'tags': plan[6],
-            'target_date': plan[7],
-            'progress': plan[8] or 0,
-            'color': plan[9] or '#f59e0b',
-            'is_profitable': plan[10] if len(plan) > 10 else None,
-            'created_at': plan[11] if len(plan) > 11 else None,
-            'updated_at': plan[12] if len(plan) > 12 else None,
-            'keywords': (plan[13] or '') if len(plan) > 13 else '',
-        })
+        pd = _plan_tuple_to_dict(plan)
+        status = pd["status"]
+        plans_by_status[status].append(pd)
     
     # 获取所有分类和标签（用于筛选）
     all_categories = query_db("SELECT DISTINCT category FROM investment_plans WHERE category IS NOT NULL AND category != ''")
@@ -3585,24 +4078,40 @@ def add_plan(id=None):
         # 将字符串转换为整数：'1' -> 1, '0' -> 0, '' -> None
         is_profitable = int(is_profitable) if is_profitable in ['0', '1'] else None
         keywords = (request.form.get('keywords') or '').strip()
+        instruments = (request.form.get('instruments') or '').strip()
+        tracking_items_json = _tracking_items_form_to_json(request.form.get("tracking_items"))
+        if not keywords and instruments:
+            keywords = instruments
         
         if id:
             # 更新
             update_db("""UPDATE investment_plans 
                         SET title=?, description=?, status=?, priority=?, 
                         category=?, tags=?, target_date=?, progress=?, color=?, is_profitable=?,
-                        keywords=?, updated_at=CURRENT_TIMESTAMP 
+                        keywords=?, instruments=?, tracking_items=?, updated_at=CURRENT_TIMESTAMP 
                         WHERE id=?""",
                      (title, description, status, priority, category, tags, 
-                      target_date, progress, color, is_profitable, keywords, id))
+                      target_date, progress, color, is_profitable, keywords, instruments,
+                      tracking_items_json, id))
         else:
             # 新增
-            insert_db("""INSERT INTO investment_plans 
-                        (title, description, status, priority, category, tags, 
-                         target_date, progress, color, is_profitable, keywords) 
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                     (title, description, status, priority, category, tags, 
-                      target_date, progress, color, is_profitable, keywords))
+            new_pid = insert_db_return_id(
+                """INSERT INTO investment_plans 
+                (title, description, status, priority, category, tags, 
+                 target_date, progress, color, is_profitable, keywords, instruments, tracking_items) 
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (title, description, status, priority, category, tags,
+                 target_date, progress, color, is_profitable, keywords, instruments,
+                 tracking_items_json),
+            )
+            cal_row = {
+                "title": title,
+                "description": description,
+                "target_date": target_date,
+                "color": color,
+                "tracking_items": _tracking_items_json_to_list(tracking_items_json),
+            }
+            _insert_plan_calendar_events(new_pid, cal_row, True)
         
         return redirect(_url_for_ui_return(return_key))
     
@@ -3612,20 +4121,11 @@ def add_plan(id=None):
     if id:
         plan_data = query_db("SELECT * FROM investment_plans WHERE id =?", (id,), one=True)
         if plan_data:
-            plan = {
-                'id': plan_data[0],
-                'title': plan_data[1],
-                'description': plan_data[2],
-                'status': plan_data[3] or 'todo',
-                'priority': plan_data[4] or 'medium',
-                'category': plan_data[5],
-                'tags': plan_data[6],
-                'target_date': plan_data[7],
-                'progress': plan_data[8] or 0,
-                'color': plan_data[9] or '#f59e0b',
-                'is_profitable': plan_data[10] if len(plan_data) > 10 else None,
-                'keywords': (plan_data[13] or '') if len(plan_data) > 13 else '',
-            }
+            plan = _plan_tuple_to_dict(plan_data)
+            tl = _tracking_items_json_to_list(plan.get("tracking_items"))
+            plan["tracking_items"] = (
+                json.dumps(tl, ensure_ascii=False, indent=2) if tl else ""
+            )
     elif (request.args.get('title') or '').strip() or (request.args.get('description') or '').strip():
         t = (request.args.get('title') or '').strip()
         desc = (request.args.get('description') or '').strip()
@@ -3643,6 +4143,8 @@ def add_plan(id=None):
             'color': '#f59e0b',
             'is_profitable': None,
             'keywords': (request.args.get('keywords') or '').strip(),
+            'instruments': (request.args.get('instruments') or '').strip(),
+            'tracking_items': '',
         }
     
     return render_template(
@@ -3651,6 +4153,79 @@ def add_plan(id=None):
         return_key=return_key,
         back_url=_url_for_ui_return(return_key),
     )
+
+
+@app.route("/api/plans/ai_from_text", methods=["POST"])
+@login_required
+def api_plans_ai_from_text():
+    """
+    将自然语言笔记交给 DeepSeek 解析为 investment_plans 字段。
+    JSON 体: { "text": "...", "commit": false, "sync_calendar": true }
+    commit 为 true 时写入数据库并返回 id。
+    sync_calendar 默认 true：在 commit 时，为 target_date 与每条带日期的 tracking_items 写入 investment_calendar（均关联本计划）。
+    """
+    data = request.get_json() or {}
+    text = (data.get("text") or "").strip()
+    commit = bool(data.get("commit"))
+    sync_calendar = data.get("sync_calendar")
+    if sync_calendar is None:
+        sync_calendar = True
+    else:
+        sync_calendar = bool(sync_calendar)
+    try:
+        row = ai_parse_investment_plan_from_text(text)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        logging.error("AI 解析投资计划失败: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 502
+
+    if not commit:
+        return jsonify({"success": True, "plan": row})
+
+    try:
+        ti_store = json.dumps(row.get("tracking_items") or [], ensure_ascii=False)
+        new_id = insert_db_return_id(
+            """INSERT INTO investment_plans
+            (title, description, status, priority, category, tags,
+             target_date, progress, color, is_profitable, keywords, instruments, tracking_items)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                row["title"],
+                row["description"],
+                row["status"],
+                row["priority"],
+                row["category"],
+                row["tags"],
+                row["target_date"],
+                row["progress"],
+                row["color"],
+                row["is_profitable"],
+                row["keywords"],
+                row.get("instruments") or "",
+                ti_store,
+            ),
+        )
+    except Exception as e:
+        logging.error("AI 投资计划入库失败: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    calendar_event_ids = []
+    if sync_calendar:
+        try:
+            calendar_event_ids = _insert_plan_calendar_events(new_id, row, True)
+        except Exception as e:
+            logging.warning("AI 计划已保存但同步日历失败: %s", e, exc_info=True)
+
+    return jsonify(
+        {
+            "success": True,
+            "id": new_id,
+            "plan": row,
+            "calendar_event_ids": calendar_event_ids,
+        }
+    )
+
 
 # 删除投资计划
 @app.route('/plans/delete/<int:id>')
@@ -9236,6 +9811,13 @@ def crawler_dashboard_wordcloud():
     return render_template('crawler_dashboard_wordcloud.html')
 
 
+@app.route('/timeline')
+@login_required
+def timeline_page():
+    """独立历史复盘时间轴页面。"""
+    return render_template('timeline.html')
+
+
 @app.route('/api/crawler_dashboard/overview')
 @login_required
 def api_crawler_dashboard_overview():
@@ -9996,6 +10578,99 @@ def api_crawler_dashboard_feed_state():
         )
     except Exception as e:
         logging.error('feed_state: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)})
+
+
+def _timeline_normalize_hhmm(s):
+    s = (s or '').strip()
+    if not s:
+        return ''
+    m = re.match(r'^(\d{1,2})[:：](\d{1,2})', s)
+    if not m:
+        return s
+    try:
+        h = max(0, min(23, int(m.group(1))))
+        mm = max(0, min(59, int(m.group(2))))
+        return f'{h:02d}:{mm:02d}'
+    except (TypeError, ValueError):
+        return s
+
+
+@app.route('/api/timeline/add', methods=['POST'])
+@login_required
+def api_timeline_add():
+    try:
+        payload = request.get_json(silent=True) or {}
+        date_str = (payload.get('date') or '').strip()
+        if not date_str:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        time_str = (payload.get('time') or '').strip()
+        if not time_str:
+            time_str = datetime.now().strftime('%H:%M')
+        else:
+            time_str = _timeline_normalize_hhmm(time_str)
+        title = (payload.get('title') or '').strip()
+        if not title:
+            return jsonify({'success': False, 'error': '标题不能为空'}), 400
+        url = (payload.get('url') or '').strip() or None
+        remark = (payload.get('remark') or '').strip() or None
+
+        conn = sqlite3.connect(DATABASE_FILE)
+        c = conn.cursor()
+        c.execute(
+            '''INSERT INTO market_timeline (date, time, title, url, remark)
+               VALUES (?, ?, ?, ?, ?)''',
+            (date_str, time_str, title, url, remark),
+        )
+        new_id = c.lastrowid
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'id': new_id, 'date': date_str})
+    except Exception as e:
+        logging.error('timeline add: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/timeline/list', methods=['GET'])
+@login_required
+def api_timeline_list():
+    try:
+        date_raw = (request.args.get('date') or '').strip()
+        if not date_raw:
+            date_raw = datetime.now().strftime('%Y-%m-%d')
+        conn = sqlite3.connect(DATABASE_FILE)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute(
+            '''SELECT id, date, time, title, url, remark, created_at
+               FROM market_timeline WHERE date = ?
+               ORDER BY time ASC, id ASC''',
+            (date_raw,),
+        )
+        rows = c.fetchall()
+        conn.close()
+        items = [dict(r) for r in rows]
+        return jsonify({'success': True, 'date': date_raw, 'items': items})
+    except Exception as e:
+        logging.error('timeline list: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/timeline/delete/<int:entry_id>', methods=['DELETE'])
+@login_required
+def api_timeline_delete(entry_id):
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        c = conn.cursor()
+        c.execute('DELETE FROM market_timeline WHERE id = ?', (entry_id,))
+        deleted = c.rowcount
+        conn.commit()
+        conn.close()
+        if not deleted:
+            return jsonify({'success': False, 'error': '记录不存在'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error('timeline delete: %s', e, exc_info=True)
         return jsonify({'success': False, 'error': str(e)})
 
 

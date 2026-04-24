@@ -1,0 +1,355 @@
+{% extends 'base.html' %}
+{% block title %}盘中异动时间轴 · ReviewsDaily{% endblock %}
+{% block head_extra %}
+<style>
+    :root {
+        --bg: #05070f;
+        --card: rgba(16, 22, 36, 0.75);
+        --border: rgba(103, 232, 249, 0.18);
+        --text: #e6edf7;
+        --muted: #8fa3bf;
+        --cyan: #22d3ee;
+        --green: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        font-family: "Segoe UI", "PingFang SC", sans-serif;
+        background: radial-gradient(circle at 20% 0%, #12203d 0%, var(--bg) 42%), var(--bg);
+        color: var(--text);
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 20px; }
+    .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+    .title {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: #a7f3d0;
+    }
+    .sub { font-size: 13px; color: var(--muted); margin-top: 6px; max-width: 420px; line-height: 1.5; }
+    .topbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .nav-pills {
+        display: inline-flex;
+        padding: 4px;
+        border-radius: 999px;
+        background: rgba(8, 12, 24, 0.65);
+        border: 1px solid var(--border);
+    }
+    .nav-pill {
+        color: var(--muted);
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .nav-pill:hover { color: var(--text); background: rgba(52, 211, 153, 0.1); }
+    .controls {
+        background: var(--card);
+        border: 1px solid rgba(52, 211, 153, 0.22);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+    }
+    .controls label { font-size: 13px; color: var(--muted); }
+    .controls input[type="date"] {
+        border: 1px solid var(--border);
+        background: rgba(10, 15, 27, 0.85);
+        color: var(--text);
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+    }
+    .btn {
+        border: 1px solid var(--border);
+        background: rgba(15, 20, 33, 0.8);
+        color: var(--text);
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .btn-primary {
+        border-color: rgba(52, 211, 153, 0.5);
+        color: #6ee7b7;
+        background: rgba(52, 211, 153, 0.12);
+    }
+    .btn-primary:hover {
+        background: rgba(52, 211, 153, 0.22);
+        box-shadow: 0 0 14px rgba(52, 211, 153, 0.2);
+    }
+    .panel-main {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        min-height: 280px;
+    }
+    .timeline-wrap {
+        position: relative;
+        margin-left: 6px;
+        padding: 4px 8px 8px 26px;
+    }
+    .timeline-wrap::before {
+        content: '';
+        position: absolute;
+        left: 5px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: linear-gradient(180deg, #34d399, rgba(52, 211, 153, 0.25));
+        border-radius: 2px;
+    }
+    .timeline-node {
+        position: relative;
+        padding-bottom: 22px;
+    }
+    .timeline-node:last-child { padding-bottom: 4px; }
+    .timeline-dot {
+        position: absolute;
+        left: -22px;
+        top: 5px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 12px rgba(52, 211, 153, 0.85);
+        border: 2px solid rgba(6, 20, 14, 0.9);
+    }
+    .timeline-time {
+        font-size: 13px;
+        font-weight: 700;
+        color: #6ee7b7;
+        font-variant-numeric: tabular-nums;
+        margin-bottom: 8px;
+    }
+    .timeline-content {
+        font-size: 13px;
+        color: var(--text);
+        line-height: 1.5;
+        background: rgba(8, 12, 22, 0.65);
+        border: 1px solid rgba(52, 211, 153, 0.18);
+        border-radius: 12px;
+        padding: 12px 14px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .timeline-content:hover {
+        border-color: rgba(52, 211, 153, 0.45);
+        box-shadow: 0 0 18px rgba(52, 211, 153, 0.12);
+    }
+    .timeline-del-btn {
+        margin-top: 10px;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid rgba(248, 113, 113, 0.45);
+        background: rgba(248, 113, 113, 0.12);
+        color: #fca5a5;
+    }
+    .timeline-del-btn:hover {
+        background: rgba(248, 113, 113, 0.22);
+        color: #fecaca;
+    }
+    .timeline-empty {
+        color: var(--muted);
+        font-size: 14px;
+        text-align: center;
+        padding: 48px 20px;
+        line-height: 1.7;
+    }
+    .toast {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-16px);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 10001;
+        padding: 11px 22px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(52, 211, 153, 0.35);
+        border-radius: 12px;
+        color: var(--text);
+        font-size: 14px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+        transition: opacity 0.28s ease, transform 0.28s ease;
+        max-width: min(420px, 92vw);
+        text-align: center;
+    }
+    .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+    <div class="topbar">
+        <div>
+            <div class="title">盘中异动时间轴</div>
+            <p class="sub">按交易日筛选历史记录，复盘盘中重要资讯与异动节点。在爬虫看板可一键加入条目。</p>
+        </div>
+        <div class="topbar-actions">
+            <nav class="nav-pills" aria-label="相关页面">
+                <a class="nav-pill" href="{{ url_for('crawler_dashboard') }}">爬虫看板</a>
+                <a class="nav-pill" href="{{ url_for('index') }}">主页</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="controls">
+        <label for="datePicker">选择日期</label>
+        <input type="date" id="datePicker" name="date">
+        <button type="button" class="btn btn-primary" id="btnToday">回到今天</button>
+    </div>
+
+    <div class="panel-main">
+        <div id="timelineContainer" aria-live="polite"></div>
+    </div>
+</div>
+
+<div id="toastMsg" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const datePicker = document.getElementById('datePicker');
+    const container = document.getElementById('timelineContainer');
+    const btnToday = document.getElementById('btnToday');
+    let toastTimer = null;
+
+    function showToast(msg) {
+        const el = document.getElementById('toastMsg');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    async function apiJson(url, opts) {
+        const res = await fetch(url, opts || {});
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok) {
+            if (ct.includes('application/json')) {
+                try { return await res.json(); } catch (e) { return { success: false, error: 'HTTP ' + res.status }; }
+            }
+            return { success: false, error: 'HTTP ' + res.status };
+        }
+        if (!ct.includes('application/json')) {
+            return { success: false, error: '响应非 JSON' };
+        }
+        return res.json();
+    }
+
+    function selectedDate() {
+        return (datePicker && datePicker.value) ? datePicker.value : todayStr;
+    }
+
+    async function loadTimeline(date) {
+        const d = date || selectedDate();
+        const data = await apiJson('/api/timeline/list?date=' + encodeURIComponent(d));
+        if (!container) return;
+        if (!data.success) {
+            container.innerHTML = '<p class="timeline-empty">加载失败：' + (data.error || '未知错误') + '</p>';
+            return;
+        }
+        const items = data.items || [];
+        if (!items.length) {
+            container.innerHTML = '<p class="timeline-empty">这天没有复盘记录。<br>前往 <a href="' +
+                '{{ url_for("crawler_dashboard") }}' + '" style="color:#6ee7b7;">爬虫数据看板</a>，在资讯卡片上点击「+ 加入时间轴」即可添加。</p>';
+            return;
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'timeline-wrap';
+        items.forEach(function (it) {
+            const node = document.createElement('div');
+            node.className = 'timeline-node';
+            const dot = document.createElement('div');
+            dot.className = 'timeline-dot';
+            const tEl = document.createElement('div');
+            tEl.className = 'timeline-time';
+            tEl.textContent = it.time || '--:--';
+            const content = document.createElement('div');
+            content.className = 'timeline-content';
+            const titleEl = document.createElement('div');
+            titleEl.style.fontWeight = '600';
+            titleEl.style.marginBottom = '6px';
+            const t = (it.title || '').trim();
+            const u = (it.url || '').trim();
+            if (u) {
+                const a = document.createElement('a');
+                a.href = u;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.style.color = '#7dd3fc';
+                a.textContent = t || '(无标题)';
+                titleEl.appendChild(a);
+            } else {
+                titleEl.textContent = t || '(无标题)';
+            }
+            content.appendChild(titleEl);
+            const remark = (it.remark || '').trim();
+            if (remark) {
+                const rEl = document.createElement('div');
+                rEl.style.fontSize = '12px';
+                rEl.style.color = 'var(--muted)';
+                rEl.style.marginTop = '4px';
+                rEl.textContent = remark;
+                content.appendChild(rEl);
+            }
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'timeline-del-btn';
+            del.textContent = '删除';
+            del.addEventListener('click', function () {
+                deleteTimelineItem(it.id, data.date || d);
+            });
+            content.appendChild(del);
+            node.appendChild(dot);
+            node.appendChild(tEl);
+            node.appendChild(content);
+            wrap.appendChild(node);
+        });
+        container.innerHTML = '';
+        container.appendChild(wrap);
+    }
+
+    async function deleteTimelineItem(id, currentDate) {
+        if (!window.confirm('确定删除这条时间轴记录？')) return;
+        const res = await apiJson('/api/timeline/delete/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (res.success) {
+            showToast('已删除');
+            loadTimeline(currentDate || selectedDate());
+        } else {
+            showToast(res.error || '删除失败');
+        }
+    }
+
+    datePicker.value = todayStr;
+    datePicker.addEventListener('change', function () {
+        loadTimeline(datePicker.value);
+    });
+    btnToday.addEventListener('click', function () {
+        datePicker.value = todayStr;
+        loadTimeline(todayStr);
+    });
+
+    loadTimeline(todayStr);
+})();
+</script>
+{% endblock %}

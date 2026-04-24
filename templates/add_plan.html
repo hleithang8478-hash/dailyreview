@@ -401,6 +401,170 @@
             backdrop-filter: blur(10px);
             line-height: 1.6;
         }
+
+        .ai-ingest {
+            margin-bottom: 2rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            background:
+                linear-gradient(145deg, rgba(99, 102, 241, 0.14) 0%, rgba(17, 17, 17, 0.92) 42%, rgba(10, 10, 10, 0.98) 100%);
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+                0 12px 40px rgba(0, 0, 0, 0.45);
+            overflow: hidden;
+        }
+
+        .ai-ingest-inner {
+            padding: 1.375rem 1.5rem 1.5rem;
+        }
+
+        .ai-ingest-head {
+            margin-bottom: 1rem;
+        }
+
+        .ai-ingest h2 {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin: 0 0 0.5rem 0;
+            color: var(--text-primary);
+        }
+
+        .ai-ingest-badge {
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(199, 210, 254, 0.95);
+            background: rgba(79, 70, 229, 0.35);
+            border: 1px solid rgba(129, 140, 248, 0.45);
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+        }
+
+        .ai-ingest-lead {
+            margin: 0;
+            font-size: 0.8125rem;
+            line-height: 1.65;
+            color: var(--text-secondary);
+            max-width: 52rem;
+        }
+
+        .ai-ingest-lead strong {
+            color: rgba(255, 255, 255, 0.88);
+            font-weight: 600;
+        }
+
+        .ai-ingest-input,
+        .ai-ingest textarea.ai-ingest-input {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 148px;
+            margin: 0 0 1rem 0;
+            padding: 1rem 1.125rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 0.9375rem;
+            line-height: 1.75;
+            font-family: inherit;
+            resize: vertical;
+            color: var(--text-primary);
+            background: rgba(10, 10, 10, 0.75);
+            background-color: rgba(17, 17, 17, 0.88);
+            backdrop-filter: blur(10px);
+            -webkit-appearance: none;
+            appearance: none;
+            transition: var(--transition);
+        }
+
+        .ai-ingest-input::placeholder {
+            color: rgba(255, 255, 255, 0.32);
+        }
+
+        .ai-ingest-input:hover {
+            border-color: rgba(129, 140, 248, 0.35);
+            background-color: rgba(20, 20, 24, 0.92);
+        }
+
+        .ai-ingest-input:focus {
+            outline: none;
+            border-color: rgba(99, 102, 241, 0.75);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+            background-color: rgba(22, 22, 28, 0.95);
+        }
+
+        .ai-ingest-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.625rem;
+        }
+
+        @media (max-width: 560px) {
+            .ai-ingest-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ai-ingest-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.65rem 1rem;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            font-family: inherit;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+
+        .ai-ingest-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .ai-ingest-btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--border);
+            color: var(--text-primary);
+        }
+
+        .ai-ingest-btn-secondary:hover:not(:disabled) {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .ai-ingest-btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border-color: rgba(99, 102, 241, 0.6);
+            color: #fff;
+            box-shadow: 0 2px 12px rgba(99, 102, 241, 0.35);
+        }
+
+        .ai-ingest-btn-primary:hover:not(:disabled) {
+            box-shadow: 0 4px 18px rgba(99, 102, 241, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .ai-ingest-status {
+            font-size: 0.8125rem;
+            color: var(--text-tertiary);
+            margin-top: 0.75rem;
+            min-height: 1.25rem;
+            line-height: 1.5;
+        }
+
+        .ai-ingest-status.error {
+            color: #fca5a5;
+        }
     </style>
 {% endblock %}
 {% block content %}
@@ -414,6 +578,23 @@
             <input type="hidden" name="return_to" value="{{ return_key|default('plans') }}">
             {% if plan and plan.id %}
             <input type="hidden" name="id" value="{{ plan.id }}">
+            {% endif %}
+
+            {% if not plan or not plan.id %}
+            <div class="ai-ingest">
+                <div class="ai-ingest-inner">
+                    <div class="ai-ingest-head">
+                        <h2>AI 智能录入<span class="ai-ingest-badge">DeepSeek</span></h2>
+                        <p class="ai-ingest-lead">粘贴一段话。<strong>直接保存</strong>时会写入「标的」「跟踪事项」，并把<strong>计划目标日</strong>与<strong>带日期的跟踪事项</strong>同步到<strong>投研日历</strong>。也可先<strong>填入表单</strong>再点「创建」（新建保存时同样会同步日历）。</p>
+                    </div>
+                    <textarea id="ai-plan-notes" class="ai-ingest-input" autocomplete="off" spellcheck="false" placeholder="示例：2026-04-24 关注宁德时代，固态电池产业化进度；观察点：二季度排产与材料厂验证；逻辑：龙头受益集中度提升，先跟踪不建仓。"></textarea>
+                    <div class="ai-ingest-actions">
+                        <button type="button" class="ai-ingest-btn ai-ingest-btn-secondary" id="ai-plan-fill">填入表单</button>
+                        <button type="button" class="ai-ingest-btn ai-ingest-btn-primary" id="ai-plan-save">直接保存</button>
+                    </div>
+                    <div class="ai-ingest-status" id="ai-plan-status" aria-live="polite"></div>
+                </div>
+            </div>
             {% endif %}
 
             <div class="form-group">
@@ -464,10 +645,24 @@
             </div>
 
             <div class="form-group">
-                <label for="keywords">追踪关键词</label>
+                <label for="instruments">标的</label>
+                <input type="text" name="instruments" id="instruments"
+                       value="{{ plan.instruments if plan else '' }}"
+                       placeholder="涉及的股票、ETF、指数、期货等，逗号分隔（如：牧原股份, 豆粕ETF）">
+            </div>
+
+            <div class="form-group">
+                <label for="tracking_items">跟踪事项</label>
+                <textarea name="tracking_items" id="tracking_items"
+                          placeholder="可粘贴 AI 生成的 JSON 数组；或每行一条。有日期时写：2026-05-20 美联储议息（到日期的条目会进入日历）">{{ plan.tracking_items if plan else '' }}</textarea>
+                <p class="hint" style="margin-top:0.5rem;margin-bottom:0;">每条建议含：关注什么、可能的变化。有明确日期请写在行首 <code style="font-size:0.8em;">YYYY-MM-DD</code>。</p>
+            </div>
+
+            <div class="form-group">
+                <label for="keywords">资讯关键词（可选）</label>
                 <input type="text" name="keywords" id="keywords"
                        value="{{ plan.keywords if plan else '' }}"
-                       placeholder="如：宁德时代, 固态电池（逗号分隔，用于相关资讯与侧栏搜索）">
+                       placeholder="爬虫检索补充词（题材、行业等）；留空则默认用「标的」参与检索">
             </div>
 
             <div class="form-group">
@@ -532,7 +727,7 @@
         {% if plan and plan.id %}
         <div class="form-card" id="plan-related-news-wrap" style="margin-top: 2rem;">
             <h2 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 0.75rem;">相关实时资讯</h2>
-            <p class="hint" style="margin-bottom: 1rem;">根据「追踪关键词」从爬虫库拉取最近 5 条（可修改关键词后点刷新）。</p>
+            <p class="hint" style="margin-bottom: 1rem;">根据「资讯关键词」或「标的」从爬虫库拉取最近 5 条（可修改后点刷新）。</p>
             <p style="margin-bottom: 0.75rem;">
                 <button type="button" class="btn btn-secondary" id="plan-refresh-crawler" style="font-size: 0.875rem; padding: 0.5rem 1rem;">刷新资讯</button>
             </p>
@@ -749,12 +944,87 @@
             return true;
         }
         
+        function applyPlanRowToForm(row) {
+            if (!row) return;
+            document.getElementById('title').value = row.title || '';
+            document.getElementById('description').value = row.description || '';
+            document.getElementById('priority').value = row.priority || 'medium';
+            document.getElementById('category').value = row.category || '';
+            document.getElementById('tags').value = row.tags || '';
+            document.getElementById('instruments').value = row.instruments || '';
+            var ti = row.tracking_items;
+            var tiEl = document.getElementById('tracking_items');
+            if (tiEl) {
+                tiEl.value = (ti && typeof ti === 'object') ? JSON.stringify(ti, null, 2) : (typeof ti === 'string' ? ti : '');
+            }
+            document.getElementById('keywords').value = row.keywords || '';
+            document.getElementById('target_date').value = row.target_date || '';
+            var ip = row.is_profitable;
+            document.getElementById('is_profitable').value = (ip === 0 || ip === 1) ? String(ip) : '';
+            document.getElementById('progress').value = row.progress != null ? row.progress : 0;
+            updateProgress(String(row.progress != null ? row.progress : 0));
+            var col = row.color || '#f59e0b';
+            document.getElementById('color').value = col;
+            document.querySelectorAll('.color-option').forEach(function (opt) {
+                opt.classList.toggle('selected', opt.dataset.color === col);
+            });
+        }
+
+        (function setupAiPlanIngest() {
+            var notesEl = document.getElementById('ai-plan-notes');
+            var statusEl = document.getElementById('ai-plan-status');
+            var fillBtn = document.getElementById('ai-plan-fill');
+            var saveBtn = document.getElementById('ai-plan-save');
+            if (!notesEl || !fillBtn || !saveBtn) return;
+
+            function setStatus(msg, isErr) {
+                statusEl.textContent = msg || '';
+                statusEl.classList.toggle('error', !!isErr);
+            }
+
+            function run(commit) {
+                var text = (notesEl.value || '').trim();
+                if (text.length < 8) {
+                    setStatus('请至少输入一小段描述（约 8 字以上）。', true);
+                    return;
+                }
+                setStatus(commit ? '正在解析并保存…' : '正在解析…', false);
+                fillBtn.disabled = saveBtn.disabled = true;
+                fetch('/api/plans/ai_from_text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ text: text, commit: commit })
+                })
+                    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                    .then(function (res) {
+                        if (!res.ok || !res.j.success) {
+                            setStatus((res.j && res.j.error) ? res.j.error : '请求失败', true);
+                            return;
+                        }
+                        if (commit) {
+                            setStatus('已保存，正在跳转…', false);
+                            window.location.href = '{{ url_for("plans") }}';
+                            return;
+                        }
+                        applyPlanRowToForm(res.j.plan);
+                        setStatus('已填入表单，请核对后点击「创建」。', false);
+                    })
+                    .catch(function () { setStatus('网络错误', true); })
+                    .finally(function () { fillBtn.disabled = saveBtn.disabled = false; });
+            }
+
+            fillBtn.addEventListener('click', function () { run(false); });
+            saveBtn.addEventListener('click', function () { run(true); });
+        })();
+
         (function loadPlanCrawlerFeed() {
             var list = document.getElementById('plan-related-list');
             var kw = document.getElementById('keywords');
-            if (!list || !kw) return;
+            var inst = document.getElementById('instruments');
+            if (!list) return;
             function render() {
-                var q = (kw.value || '').trim();
+                var q = (kw && (kw.value || '').trim()) || (inst && (inst.value || '').trim()) || '';
                 if (!q) {
                     list.innerHTML = '<p class="hint" style="margin:0">请填写「追踪关键词」后点击刷新资讯。</p>';
                     return;

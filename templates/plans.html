@@ -456,6 +456,9 @@
                                 {% if plan.target_date %}
                                 <span class="plan-card-date">📅 {{ plan.target_date }}</span>
                                 {% endif %}
+                                {% if plan.instruments %}
+                                <span class="plan-card-date" title="标的">🎯 {{ plan.instruments[:72] }}{% if plan.instruments|length > 72 %}…{% endif %}</span>
+                                {% endif %}
                             </div>
                             {% if plan.progress > 0 %}
                             <div class="plan-card-progress">
@@ -501,6 +504,9 @@
                                 {% endif %}
                                 {% if plan.target_date %}
                                 <span class="plan-card-date">📅 {{ plan.target_date }}</span>
+                                {% endif %}
+                                {% if plan.instruments %}
+                                <span class="plan-card-date" title="标的">🎯 {{ plan.instruments[:72] }}{% if plan.instruments|length > 72 %}…{% endif %}</span>
                                 {% endif %}
                             </div>
                             {% if plan.progress > 0 %}
@@ -549,6 +555,9 @@
                                 {% endif %}
                                 {% if plan.target_date %}
                                 <span class="plan-card-date">📅 {{ plan.target_date }}</span>
+                                {% endif %}
+                                {% if plan.instruments %}
+                                <span class="plan-card-date" title="标的">🎯 {{ plan.instruments[:72] }}{% if plan.instruments|length > 72 %}…{% endif %}</span>
                                 {% endif %}
                                 {% if plan.is_profitable == 1 %}
                                 <span class="plan-card-tag" style="background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981;">💰 盈利</span>
@@ -600,6 +609,9 @@
                                 {% endif %}
                                 {% if plan.target_date %}
                                 <span class="plan-card-date">📅 {{ plan.target_date }}</span>
+                                {% endif %}
+                                {% if plan.instruments %}
+                                <span class="plan-card-date" title="标的">🎯 {{ plan.instruments[:72] }}{% if plan.instruments|length > 72 %}…{% endif %}</span>
                                 {% endif %}
                             </div>
                         </div>
