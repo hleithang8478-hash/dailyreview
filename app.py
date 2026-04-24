@@ -3571,6 +3571,33 @@ def _validate_calendar_payload(data):
     }
 
 
+def _sync_plan_target_date_from_plan_node_calendar(d):
+    """
+    「计划节点 · …」单日事件被拖拽/改期后，同步 investment_plans.target_date。
+    与 _insert_plan_calendar_events 写入的主节点标题前缀一致。
+    """
+    pid = d.get("related_plan_id")
+    if not pid:
+        return
+    title = (d.get("title") or "").strip()
+    if not title.startswith("计划节点"):
+        return
+    if d.get("event_type") != "single":
+        return
+    sd = (d.get("start_date") or "").strip()
+    ed = (d.get("end_date") or "").strip()
+    if not sd or sd != ed:
+        return
+    try:
+        update_db(
+            """UPDATE investment_plans SET target_date=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (sd, pid),
+        )
+    except Exception as e:
+        logging.warning("拖拽同步计划目标日失败 plan_id=%s: %s", pid, e)
+
+
 # 日历主页
 @app.route('/calendar')
 @login_required
@@ -3645,6 +3672,459 @@ def get_calendar_events():
 
     events_list = [_event_to_fullcalendar(_calendar_row_to_dict(row)) for row in (events or [])]
     return jsonify(events_list)
+
+
+@app.route("/api/calendar/month_context")
+@login_required
+def api_calendar_month_context():
+    """
+    日历月视图：一次性返回区间内每日市场基调、指数趋势、是否有计划/复盘/深度报告。
+    参数 start、end 均为 YYYY-MM-DD，且 end 为「含尾日」（与 FullCalendar datesSet 配合时，
+    前端可将 info.end 减一天后传入）。
+    """
+    start_s = _cal_date(request.args.get("start", ""))
+    end_s = _cal_date(request.args.get("end", ""))
+    ds = _parse_iso_date_strict(start_s)
+    de = _parse_iso_date_strict(end_s)
+    if not ds or not de:
+        return jsonify({"success": False, "error": "需要 start、end 为 YYYY-MM-DD"}), 400
+    if de < ds:
+        return jsonify({"success": False, "error": "end 不可早于 start"}), 400
+
+    start_iso = ds.strftime("%Y-%m-%d")
+    end_iso = de.strftime("%Y-%m-%d")
+    compact_lo = start_iso.replace("-", "")
+    compact_hi = end_iso.replace("-", "")
+
+    def _trunc_preview(val, n=480):
+        if val is None:
+            return None
+        s = str(val)
+        return s if len(s) <= n else s[:n] + "…"
+
+    prows = query_db(
+        """SELECT DISTINCT TRIM(target_date) FROM investment_plans
+           WHERE target_date IS NOT NULL AND TRIM(COALESCE(target_date,'')) != ''
+             AND (
+               (LENGTH(TRIM(target_date)) >= 10 AND SUBSTR(TRIM(target_date), 1, 10) BETWEEN ? AND ?)
+               OR (LENGTH(TRIM(target_date)) = 8 AND TRIM(target_date) GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+                   AND TRIM(target_date) BETWEEN ? AND ?)
+             )""",
+        (start_iso, end_iso, compact_lo, compact_hi),
+    ) or []
+    plan_dates = set()
+    for (td,) in prows:
+        t = str(td).strip()
+        if len(t) >= 10 and t[4] == "-":
+            plan_dates.add(t[:10])
+        elif len(t) == 8 and t.isdigit():
+            plan_dates.add(normalize_date(t, "standard"))
+
+    rrows = query_db(
+        "SELECT DISTINCT date FROM reviews WHERE date BETWEEN ? AND ?",
+        (start_iso, end_iso),
+    ) or []
+    review_dates = {str(r[0]).strip()[:10] for r in rrows if r and r[0]}
+
+    dprows = query_db(
+        """SELECT DISTINCT SUBSTR(TRIM(date), 1, 10) AS d FROM deep_reports
+           WHERE date IS NOT NULL AND TRIM(COALESCE(date,'')) != ''
+             AND LENGTH(TRIM(date)) >= 10
+             AND SUBSTR(TRIM(date), 1, 10) BETWEEN ? AND ?""",
+        (start_iso, end_iso),
+    ) or []
+    report_dates = {str(r[0]).strip()[:10] for r in dprows if r and r[0]}
+
+    by_date = {}
+    cur = ds
+    while cur <= de:
+        k = cur.strftime("%Y-%m-%d")
+        by_date[k] = {
+            "market_tone": None,
+            "index_trend": None,
+            "has_plan": k in plan_dates,
+            "has_review": k in review_dates,
+            "has_deep_report": k in report_dates,
+        }
+        cur += timedelta(days=1)
+
+    for row in query_db(
+        """SELECT date, volume_status, emotion_status, divergence_status
+           FROM market_tone WHERE date BETWEEN ? AND ?""",
+        (start_iso, end_iso),
+    ) or []:
+        dkey = str(row[0]).strip()[:10]
+        if dkey in by_date:
+            by_date[dkey]["market_tone"] = {
+                "volume_status": row[1],
+                "emotion_status": row[2],
+                "divergence_status": row[3],
+            }
+
+    for row in query_db(
+        """SELECT date, shanghai_trend, shenzhen_trend, chinext_trend
+           FROM index_trend WHERE date BETWEEN ? AND ?""",
+        (start_iso, end_iso),
+    ) or []:
+        dkey = str(row[0]).strip()[:10]
+        if dkey in by_date:
+            by_date[dkey]["index_trend"] = {
+                "shanghai_trend": _trunc_preview(row[1]),
+                "shenzhen_trend": _trunc_preview(row[2]),
+                "chinext_trend": _trunc_preview(row[3]),
+            }
+
+    return jsonify(
+        {
+            "success": True,
+            "start": start_iso,
+            "end": end_iso,
+            "by_date": by_date,
+        }
+    )
+
+
+def _deep_report_row_to_dict(row):
+    """deep_reports 表一行（SELECT *）→ dict。"""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "title": row[1],
+        "content": row[2],
+        "summary": row[3],
+        "category": row[4],
+        "tags": row[5],
+        "related_plan_id": row[6],
+        "date": row[7],
+        "sheet_types": row[8] if len(row) > 8 else None,
+        "stock_codes": row[9] if len(row) > 9 else None,
+        "concept_ids": row[10] if len(row) > 10 else None,
+        "industry_names": row[11] if len(row) > 11 else None,
+        "created_at": row[12] if len(row) > 12 else None,
+        "updated_at": row[13] if len(row) > 13 else None,
+    }
+
+
+def _review_row_to_dict(row):
+    """reviews 表一行（SELECT *）→ dict。"""
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "date": row[1],
+        "market_emotion": row[2],
+        "sectors": row[3],
+        "themes": row[4],
+        "market_cap_performance": row[5],
+        "investment_style": row[6],
+        "major_events": row[7],
+        "created_at": row[8] if len(row) > 8 else None,
+        "updated_at": row[9] if len(row) > 9 else None,
+    }
+
+
+def _market_tone_row_to_dict(row):
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "date": row[1],
+        "volume_status": row[2],
+        "emotion_status": row[3],
+        "divergence_status": row[4],
+        "investment_strategies": row[5],
+        "investment_styles": row[6],
+        "created_at": row[7] if len(row) > 7 else None,
+        "updated_at": row[8] if len(row) > 8 else None,
+    }
+
+
+def _index_trend_row_to_dict(row):
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "date": row[1],
+        "shanghai_trend": row[2],
+        "shenzhen_trend": row[3],
+        "chinext_trend": row[4],
+        "created_at": row[5] if len(row) > 5 else None,
+        "updated_at": row[6] if len(row) > 6 else None,
+    }
+
+
+def _screening_execution_row_to_dict(row):
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "task_type": row[1],
+        "task_name": row[2],
+        "status": row[3],
+        "output_file_path": row[4],
+        "execution_params": row[5],
+        "start_time": row[6],
+        "end_time": row[7],
+        "duration_seconds": row[8],
+        "error_message": row[9],
+        "result_summary": row[10],
+        "created_by": row[11],
+        "created_at": row[12],
+    }
+
+
+def _collect_plans_for_dashboard_day(iso_date):
+    """
+    当日相关交易计划：target_date 落在当日，或当日日历事件关联的 related_plan_id。
+    iso_date: YYYY-MM-DD
+    """
+    compact = normalize_date(iso_date, target_format="compact")
+    candidates = []
+    seen = {}
+    for dval in {iso_date, compact}:
+        if not dval:
+            continue
+        for row in query_db(
+            "SELECT * FROM investment_plans WHERE target_date = ?", (dval,)
+        ) or []:
+            seen[row[0]] = row
+    plan_ids = [
+        r[0]
+        for r in query_db(
+            """SELECT DISTINCT related_plan_id FROM investment_calendar
+               WHERE related_plan_id IS NOT NULL
+                 AND start_date <= ?
+                 AND coalesce(nullif(trim(end_date), ''), start_date) >= ?""",
+            (iso_date, iso_date),
+        )
+        or []
+    ]
+    if plan_ids:
+        placeholders = ",".join("?" * len(plan_ids))
+        for row in query_db(
+            f"SELECT * FROM investment_plans WHERE id IN ({placeholders})",
+            tuple(plan_ids),
+        ) or []:
+            seen[row[0]] = row
+    return [_plan_tuple_to_dict(r) for r in seen.values()]
+
+
+def build_daily_dashboard_payload(iso_date):
+    """
+    聚合某日一站式投研数据（供 /api/daily_dashboard 与后续 Drawer 使用）。
+    iso_date: 已校验的 YYYY-MM-DD
+    """
+    base_cal = """SELECT c.id, c.title, c.content, c.start_date, c.end_date,
+                         c.reminder_type, c.reminder_time, c.reminder_sent, c.color, c.event_type,
+                         c.event_category, c.related_stock, c.related_plan_id, p.title AS plan_title
+                  FROM investment_calendar c
+                  LEFT JOIN investment_plans p ON c.related_plan_id = p.id
+                  WHERE c.start_date <= ?
+                    AND coalesce(nullif(trim(c.end_date), ''), c.start_date) >= ?
+                  ORDER BY c.start_date ASC, c.id ASC"""
+    cal_rows = query_db(base_cal, (iso_date, iso_date)) or []
+
+    plans = _collect_plans_for_dashboard_day(iso_date)
+
+    dr_rows = query_db(
+        """SELECT * FROM deep_reports
+           WHERE date = ? OR substr(trim(coalesce(date, '')), 1, 10) = ?
+           ORDER BY updated_at DESC, id DESC""",
+        (iso_date, iso_date),
+    ) or []
+    deep_reports = [_deep_report_row_to_dict(r) for r in dr_rows]
+
+    rev_row = query_db("SELECT * FROM reviews WHERE date = ?", (iso_date,), one=True)
+    review = _review_row_to_dict(rev_row) if rev_row else None
+
+    tone_row = query_db("SELECT * FROM market_tone WHERE date = ?", (iso_date,), one=True)
+    trend_row = query_db("SELECT * FROM index_trend WHERE date = ?", (iso_date,), one=True)
+
+    sent_row = query_db(
+        "SELECT trading_day, result_json FROM market_sentiment_results WHERE trading_day = ?",
+        (iso_date,),
+        one=True,
+    )
+    sentiment_parsed = None
+    if sent_row and sent_row[1]:
+        try:
+            sentiment_parsed = json.loads(sent_row[1])
+        except json.JSONDecodeError:
+            sentiment_parsed = {"_parse_error": True, "raw": sent_row[1][:2000]}
+
+    mom_total, mom_items = get_momentum_scores(iso_date, limit=500, offset=0)
+
+    scr_rows = query_db(
+        """SELECT id, task_type, task_name, status, output_file_path, execution_params,
+                  start_time, end_time, duration_seconds, error_message, result_summary, created_by, created_at
+           FROM screening_task_executions
+           WHERE date(COALESCE(start_time, created_at)) = date(?)
+           ORDER BY id DESC""",
+        (iso_date,),
+    ) or []
+    screening_tasks = [_screening_execution_row_to_dict(r) for r in scr_rows]
+
+    return {
+        "success": True,
+        "date": iso_date,
+        "subjective_data": {
+            "plans": plans,
+            "deep_reports": deep_reports,
+            "review": review,
+        },
+        "market_data": {
+            "market_tone": _market_tone_row_to_dict(tone_row),
+            "index_trend": _index_trend_row_to_dict(trend_row),
+            "sentiment": sentiment_parsed,
+        },
+        "objective_data": {
+            "momentum_screening": {
+                "table": "momentum_scores",
+                "date_queried": iso_date,
+                "total": mom_total,
+                "items": mom_items,
+            },
+            "screening_task_executions": screening_tasks,
+        },
+        "calendar_events": [
+            _event_to_fullcalendar(_calendar_row_to_dict(row)) for row in cal_rows
+        ],
+    }
+
+
+@app.route("/api/daily_dashboard/<date_str>")
+@login_required
+def api_daily_dashboard(date_str):
+    """
+    某日投研工作台聚合数据：主观（计划/深度报告/固定复盘）、市场（基调/指数/情绪）、
+    客观（动量评分、筛选任务执行记录）、当日日历事件。
+    date_str: YYYY-MM-DD
+    """
+    d = _parse_iso_date_strict(date_str)
+    if not d:
+        return jsonify({"success": False, "error": "日期须为 YYYY-MM-DD"}), 400
+    iso = d.strftime("%Y-%m-%d")
+    try:
+        payload = build_daily_dashboard_payload(iso)
+        return jsonify(payload)
+    except Exception as e:
+        logging.error("daily_dashboard %s: %s", iso, e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/reviews/upsert", methods=["POST"])
+@login_required
+def api_reviews_upsert():
+    """日历抽屉：按日新增或更新固定复盘（reviews 表）。"""
+    data = request.get_json() or {}
+    date = _cal_date(data.get("date", ""))
+    if not _parse_iso_date_strict(date):
+        return jsonify({"success": False, "error": "date 须为 YYYY-MM-DD"}), 400
+    tup = (
+        (data.get("market_emotion") or "").strip(),
+        (data.get("sectors") or "").strip(),
+        (data.get("themes") or "").strip(),
+        (data.get("market_cap_performance") or "").strip(),
+        (data.get("investment_style") or "").strip(),
+        (data.get("major_events") or "").strip(),
+    )
+    rid = data.get("id")
+    try:
+        rid = int(rid) if rid not in (None, "", 0, "0") else None
+    except (TypeError, ValueError):
+        rid = None
+    if rid:
+        ex = query_db("SELECT 1 FROM reviews WHERE id = ?", (rid,), one=True)
+        if not ex:
+            return jsonify({"success": False, "error": "复盘记录不存在"}), 404
+        update_db(
+            """UPDATE reviews SET date=?, market_emotion=?, sectors=?, themes=?,
+               market_cap_performance=?, investment_style=?, major_events=?,
+               updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+            (date,) + tup + (rid,),
+        )
+        return jsonify({"success": True, "id": rid})
+    existing = query_db("SELECT id FROM reviews WHERE date = ?", (date,), one=True)
+    if existing:
+        rid = int(existing[0])
+        update_db(
+            """UPDATE reviews SET market_emotion=?, sectors=?, themes=?,
+               market_cap_performance=?, investment_style=?, major_events=?,
+               updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+            tup + (rid,),
+        )
+        return jsonify({"success": True, "id": rid})
+    new_id = insert_db_return_id(
+        """INSERT INTO reviews (date, market_emotion, sectors, themes,
+           market_cap_performance, investment_style, major_events)
+           VALUES (?,?,?,?,?,?,?)""",
+        (date,) + tup,
+    )
+    return jsonify({"success": True, "id": new_id})
+
+
+@app.route("/api/plans/quick", methods=["POST"])
+@login_required
+def api_plans_quick():
+    """日历抽屉：快速新建交易计划（目标日默认为选中日期）。"""
+    data = request.get_json() or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"success": False, "error": "标题必填"}), 400
+    description = (data.get("description") or "").strip()
+    td = _cal_date(data.get("target_date", ""))
+    if td and not _parse_iso_date_strict(td):
+        return jsonify({"success": False, "error": "target_date 格式无效"}), 400
+    if not td:
+        td = ""
+    keywords = (data.get("keywords") or "").strip()
+    instruments = (data.get("instruments") or "").strip()
+    tracking_raw = data.get("tracking_items")
+    if isinstance(tracking_raw, list):
+        tracking_items_json = json.dumps(
+            _normalize_tracking_items_list(tracking_raw), ensure_ascii=False
+        )
+    else:
+        tracking_items_json = _tracking_items_form_to_json(
+            tracking_raw if isinstance(tracking_raw, str) else ""
+        )
+    if not keywords and instruments:
+        keywords = instruments
+    try:
+        new_id = insert_db_return_id(
+            """INSERT INTO investment_plans
+            (title, description, status, priority, category, tags,
+             target_date, progress, color, is_profitable, keywords, instruments, tracking_items)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                title,
+                description,
+                "todo",
+                "medium",
+                "",
+                "",
+                td,
+                0,
+                "#f59e0b",
+                None,
+                keywords,
+                instruments,
+                tracking_items_json,
+            ),
+        )
+        cal_row = {
+            "title": title,
+            "description": description,
+            "target_date": td,
+            "color": "#f59e0b",
+            "tracking_items": _tracking_items_json_to_list(tracking_items_json),
+        }
+        _insert_plan_calendar_events(new_id, cal_row, True)
+    except Exception as e:
+        logging.error("api_plans_quick: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+    return jsonify({"success": True, "id": new_id})
 
 
 @app.route('/api/calendar/events/<int:id>/delete', methods=['POST'])
@@ -3853,11 +4333,12 @@ def save_calendar_event():
                     d['id'],
                 ),
             )
+            _sync_plan_target_date_from_plan_node_calendar(d)
             return jsonify({"success": True, "id": d["id"]})
         new_id = insert_db_return_id(
             """INSERT INTO investment_calendar 
             (title, content, start_date, end_date, reminder_type, 
-            reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
+             reminder_time, color, event_type, event_category, related_stock, related_plan_id) 
             VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 d['title'],
@@ -3873,10 +4354,130 @@ def save_calendar_event():
                 d['related_plan_id'],
             ),
         )
+        _sync_plan_target_date_from_plan_node_calendar(d)
         return jsonify({"success": True, "id": new_id})
     except Exception as e:
         logging.error("保存日历事件失败: %s", e, exc_info=True)
         return jsonify({"success": False, "error": "保存失败，请稍后再试"}), 500
+
+
+@app.route("/api/calendar/quick_add", methods=["POST"])
+@login_required
+def api_calendar_quick_add():
+    """
+    雷神之锤：自然语言/正则分流。
+    - 以「备忘/备忘录/提醒」开头 → 写入 investment_calendar 单日备忘。
+    - 否则优先 DeepSeek 解析为投资计划；失败或过短则落为简易计划（标题=原文，目标日=anchor）。
+    """
+    data = request.get_json() or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "请输入内容"}), 400
+    anchor = _cal_date(data.get("anchor_date", ""))
+    if not _parse_iso_date_strict(anchor):
+        anchor = datetime.now().strftime("%Y-%m-%d")
+
+    if re.match(r"^\s*(备忘|备忘录|提醒)[:：]", text):
+        title = text[:CALENDAR_TITLE_MAX]
+        new_id = insert_db_return_id(
+            """INSERT INTO investment_calendar
+            (title, content, start_date, end_date, reminder_type, reminder_time,
+             color, event_type, event_category, related_stock, related_plan_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                title,
+                "",
+                anchor,
+                anchor,
+                "notification",
+                0,
+                "#64748b",
+                "single",
+                "other",
+                "",
+                None,
+            ),
+        )
+        return jsonify({"success": True, "kind": "memo", "calendar_event_id": new_id})
+
+    row = None
+    ai_note = None
+    if len(text) >= 8:
+        try:
+            augmented = (
+                f"目标日期为 {anchor}（须优先采用该日作为 target_date，"
+                f"除非用户明确要求其它日期）。\n{text}"
+            )
+            row = ai_parse_investment_plan_from_text(augmented)
+            if not (row.get("target_date") or "").strip():
+                row["target_date"] = anchor
+        except Exception as e:
+            ai_note = str(e)
+            logging.warning("quick_add AI 解析失败，使用简易计划: %s", e)
+
+    if row is None:
+        row = {
+            "title": text[:200],
+            "description": "",
+            "status": "todo",
+            "priority": "medium",
+            "category": "",
+            "tags": "",
+            "instruments": "",
+            "keywords": "",
+            "tracking_items": [],
+            "target_date": anchor,
+            "progress": 0,
+            "color": "#f59e0b",
+            "is_profitable": None,
+        }
+
+    try:
+        ti_store = json.dumps(row.get("tracking_items") or [], ensure_ascii=False)
+        new_id = insert_db_return_id(
+            """INSERT INTO investment_plans
+            (title, description, status, priority, category, tags,
+             target_date, progress, color, is_profitable, keywords, instruments, tracking_items)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                row["title"],
+                row.get("description") or "",
+                row["status"],
+                row["priority"],
+                row.get("category") or "",
+                row.get("tags") or "",
+                row.get("target_date") or anchor,
+                row.get("progress") if row.get("progress") is not None else 0,
+                row.get("color") or "#f59e0b",
+                row.get("is_profitable"),
+                row.get("keywords") or "",
+                row.get("instruments") or "",
+                ti_store,
+            ),
+        )
+        cal_row = {
+            "title": row["title"],
+            "description": row.get("description") or "",
+            "target_date": row.get("target_date") or anchor,
+            "color": row.get("color") or "#f59e0b",
+            "tracking_items": _tracking_items_json_to_list(ti_store),
+        }
+        calendar_event_ids = _insert_plan_calendar_events(new_id, cal_row, True)
+    except Exception as e:
+        logging.error("quick_add 入库失败: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    out = {
+        "success": True,
+        "kind": "plan",
+        "id": new_id,
+        "plan": row,
+        "calendar_event_ids": calendar_event_ids,
+    }
+    if ai_note:
+        out["ai_fallback_note"] = ai_note
+    return jsonify(out)
+
 
 # 农历转换功能
 def solar_to_lunar(year, month, day):

@@ -6,8 +6,7 @@
     <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid@6.1.20/main.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/list@6.1.20/main.min.css" rel="stylesheet">
     <style>
-        /* 本页自包含样式，不引入全局 style.css，避免和 FullCalendar 默认样式“打架”出花屏/白底 */
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; margin: 0; }
         :root {
             --page-bg: #080808;
             --surface: #101010;
@@ -23,47 +22,57 @@
             font-family: var(--font);
             background: var(--page-bg);
             color: var(--text);
-            min-height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
             -webkit-font-smoothing: antialiased;
         }
+        *, *::before, *::after { box-sizing: border-box; }
 
-        .page-header {
-            position: sticky;
-            top: 0;
+        .cal-app {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .cal-header {
+            flex-shrink: 0;
             z-index: 100;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
-            gap: 1rem;
-            padding: 1.25rem 1.5rem 1rem;
-            background: linear-gradient(180deg, rgba(8,8,8,0.97) 0%, rgba(8,8,8,0.88) 100%);
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            padding: 0.65rem 1rem 0.55rem;
+            background: linear-gradient(180deg, rgba(8,8,8,0.98) 0%, rgba(8,8,8,0.92) 100%);
             border-bottom: 1px solid var(--border);
             backdrop-filter: blur(12px);
         }
-        .page-header__titles h1 {
-            font-size: 1.25rem;
+        .cal-header__left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .cal-header__left h1 {
+            font-size: 1.05rem;
             font-weight: 600;
             letter-spacing: -0.02em;
+            margin: 0;
         }
-        .page-header__titles p {
-            margin-top: 0.35rem;
-            font-size: 0.8125rem;
-            color: var(--text-dim);
-            max-width: 36rem;
-            line-height: 1.5;
-        }
-        .page-header__actions {
+        .cal-header__actions {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem;
+            gap: 0.45rem;
             align-items: center;
         }
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 0.5rem 0.9rem;
-            font-size: 0.875rem;
+            padding: 0.45rem 0.75rem;
+            font-size: 0.8125rem;
             border-radius: 8px;
             border: 1px solid var(--border);
             background: var(--surface-2);
@@ -79,81 +88,33 @@
         }
         .btn--primary:hover { filter: brightness(1.05); }
 
-        .page-body {
-            padding: 1rem 1.25rem 2rem;
-            max-width: 1680px;
-            margin: 0 auto;
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.25rem;
-        }
-        @media (min-width: 1024px) {
-            .layout { grid-template-columns: 1fr 300px; align-items: start; }
-        }
-
-        .panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            overflow: hidden;
-        }
-        .panel__head {
-            padding: 0.75rem 1rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--text-dim);
-            border-bottom: 1px solid var(--border);
-            background: var(--surface-2);
-        }
-        .side-list {
-            padding: 0.5rem 0.75rem 0.75rem;
-            max-height: min(70vh, 640px);
-            overflow-y: auto;
-        }
-        .side-list__item {
-            padding: 0.65rem 0.6rem;
-            border-radius: 8px;
-            border: 1px solid transparent;
-            cursor: pointer;
-            font-size: 0.8125rem;
-            margin-bottom: 0.35rem;
-        }
-        .side-list__item:hover { background: #1a1a1a; border-color: #333; }
-        .side-list__item--plan { border-left: 3px solid #d97706; }
-        .side-list__meta { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem; }
-        .side-list__empty { color: var(--text-dim); text-align: center; padding: 1.5rem; font-size: 0.875rem; }
-
-        .legend {
+        .cal-legend {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem 1rem;
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--border);
-            background: var(--surface-2);
-        }
-        .legend__chip {
-            display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
-            font-size: 0.75rem;
+            gap: 0.5rem 0.85rem;
+            font-size: 0.7rem;
             color: var(--text-dim);
         }
-        .legend__dot {
-            width: 10px; height: 10px; border-radius: 3px;
+        .cal-legend__chip { display: inline-flex; align-items: center; gap: 0.35rem; }
+        .cal-legend__sw { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.12); }
+        .cal-legend__dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            display: inline-block;
         }
 
-        /* FullCalendar 6 官方变量：整页暗色、不再出现大块白底 */
+        #fc-shell {
+            flex: 1;
+            min-height: 0;
+            padding: 0.35rem 0.5rem 0.5rem;
+        }
         #fc-root {
+            height: 100%;
             --fc-border-color: #2a2a2a;
             --fc-page-bg-color: #0a0a0a;
             --fc-neutral-bg-color: #141414;
             --fc-neutral-text-color: #9ca3af;
-            --fc-today-bg-color: rgba(99, 102, 241, 0.12);
+            --fc-today-bg-color: rgba(99, 102, 241, 0.14);
             --fc-now-indicator-color: #a855f7;
             --fc-list-event-hover-bg-color: #1a1a1a;
             --fc-button-text-color: #e5e5e5;
@@ -161,60 +122,73 @@
             --fc-button-border-color: #333;
             --fc-button-hover-bg-color: #222;
             --fc-button-active-bg-color: #2a2a2a;
-            min-height: 640px;
         }
-        #fc-root .fc {
-            color: var(--text);
-        }
+        #fc-root .fc { height: 100%; color: var(--text); }
+        #fc-root .fc-view-harness { min-height: 0; }
         #fc-root .fc-scrollgrid,
         #fc-root .fc-theme-standard td,
         #fc-root .fc-theme-standard th {
             border-color: var(--fc-border-color) !important;
         }
-        #fc-root .fc-timegrid-body,
-        #fc-root .fc-timegrid,
         #fc-root .fc-daygrid-body,
         #fc-root .fc-scrollgrid-section body {
             background: var(--fc-page-bg-color) !important;
         }
-        #fc-root .fc-col-header-cell,
-        #fc-root .fc-timegrid-axis,
-        #fc-root .fc-timegrid-slot-label {
-            color: #d4d4d4;
-        }
-        #fc-root .fc-list {
-            background: var(--fc-page-bg-color) !important;
-        }
-        #fc-root .fc-list-day-text,
-        #fc-root .fc-list-event-time {
-            color: var(--text-dim) !important;
-        }
-        #fc-root .fc-toolbar-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-        #fc-root .fc-button {
-            line-height: 1.2;
-        }
         #fc-root .fc-col-header-cell {
-            padding: 0.5rem 0.25rem;
+            padding: 0.4rem 0.2rem;
             background: #141414 !important;
         }
-        #fc-root .fc-col-header-cell-cushion { font-size: 0.75rem; font-weight: 600; color: #a3a3a3; text-transform: none; }
-        #fc-root .fc-daygrid-day { transition: background 0.12s; }
-        #fc-root .fc-daygrid-day:hover { background: #151515 !important; }
+        #fc-root .fc-col-header-cell-cushion {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #a3a3a3;
+            text-transform: none;
+        }
         #fc-root .fc-daygrid-day-number {
-            font-size: 0.88rem; font-weight: 500; padding: 0.2rem 0.35rem; border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            padding: 0.15rem 0.3rem;
+            border-radius: 6px;
         }
         #fc-root .fc-day-today .fc-daygrid-day-number { font-weight: 700; }
-        #fc-root .fc-day-sat, #fc-root .fc-day-sun { background: rgba(0,0,0,0.2) !important; }
-        #fc-root .fc-event { border-radius: 4px; font-size: 0.75rem; padding: 0.1rem 0.15rem; cursor: pointer; }
-        #fc-root .fc-event:hover { filter: brightness(1.1); }
-        #fc-root .fc-timegrid-col.fc-day-today { background: rgba(99, 102, 241, 0.06) !important; }
-        @media (max-width: 639px) {
-            .page-header__titles p { display: none; }
-            #fc-root { min-height: 480px; }
+        #fc-root .fc-toolbar-title { font-size: 1rem; font-weight: 600; }
+        #fc-root .fc-event {
+            border-radius: 4px;
+            font-size: 0.72rem;
+            padding: 0.05rem 0.12rem;
+            cursor: pointer;
         }
+        #fc-root .fc-daygrid-day-frame { position: relative; }
+        /* 情绪底色（低迷≈恐慌偏冷 → 浅绿底；活跃/极端≈高涨 → 浅红底） */
+        .fc-day-emotion-fear .fc-daygrid-day-frame {
+            background: rgba(34, 197, 94, 0.14) !important;
+        }
+        .fc-day-emotion-hot .fc-daygrid-day-frame {
+            background: rgba(248, 113, 113, 0.14) !important;
+        }
+        .fc-day-emotion-mid .fc-daygrid-day-frame {
+            background: rgba(250, 204, 21, 0.08) !important;
+        }
+        .cal-cell-indicators {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 4px;
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .cal-cell-indicators span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .cal-dot-plan { background: #f59e0b; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
+        .cal-dot-review { background: #a78bfa; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
+        .cal-dot-report { background: #38bdf8; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
 
         .modal {
             position: fixed;
@@ -246,7 +220,7 @@
             padding: 1rem 1.15rem;
             border-bottom: 1px solid var(--border);
         }
-        .modal__head h2 { font-size: 1rem; font-weight: 600; }
+        .modal__head h2 { font-size: 1rem; font-weight: 600; margin: 0; }
         .modal__close {
             width: 2rem; height: 2rem;
             border: none;
@@ -293,50 +267,340 @@
         .cal-fab {
             position: fixed;
             right: 1.25rem;
-            bottom: 1.5rem;
+            bottom: 1.25rem;
             z-index: 90;
-            width: 3.25rem;
-            height: 3.25rem;
+            width: 3rem;
+            height: 3rem;
             border: none;
             border-radius: 50%;
             background: #4f46e5;
             color: #fff;
-            font-size: 1.75rem;
+            font-size: 1.6rem;
             line-height: 1;
             cursor: pointer;
             box-shadow: 0 8px 24px rgba(79, 70, 229, 0.45);
-            transition: transform 0.15s, box-shadow 0.15s;
         }
-        .cal-fab:hover { transform: scale(1.05); box-shadow: 0 10px 28px rgba(79, 70, 229, 0.55); }
-        .cal-fab:active { transform: scale(0.98); }
-        @media (min-width: 1024px) { .cal-fab { right: 2rem; bottom: 2rem; } }
+        .cal-fab:hover { filter: brightness(1.08); }
+
+        /* —— 日度工作台抽屉（高于爬虫侧栏 10050）—— */
+        .d-none { display: none !important; }
+        .d-flex { display: flex; }
+        .flex-column { flex-direction: column; }
+        .align-items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .mb-0 { margin-bottom: 0; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mt-1 { margin-top: 0.35rem; }
+        .text-muted { color: var(--text-dim); }
+        .small { font-size: 0.78rem; }
+        .btn-sm {
+            padding: 0.28rem 0.55rem;
+            font-size: 0.72rem;
+            border-radius: 6px;
+        }
+        .btn-link {
+            background: none;
+            border: none;
+            color: #93c5fd;
+            cursor: pointer;
+            padding: 0;
+            font: inherit;
+            text-align: left;
+            text-decoration: underline;
+        }
+        .btn-link:hover { color: #bfdbfe; }
+
+        #day-dash-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10100;
+            background: rgba(0, 0, 0, 0.52);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.22s ease, visibility 0.22s;
+        }
+        #day-dash-overlay.is-open {
+            opacity: 1;
+            visibility: visible;
+        }
+        #day-dash-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 10120;
+            width: min(92vw, max(22rem, 40vw));
+            height: 100dvh;
+            max-height: 100vh;
+            background: linear-gradient(180deg, #0e0e10 0%, #0a0a0c 100%);
+            border-left: 1px solid var(--border);
+            box-shadow: -12px 0 40px rgba(0, 0, 0, 0.55);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        #day-dash-panel.is-open {
+            transform: translateX(0);
+        }
+        .day-dash-header {
+            flex-shrink: 0;
+            padding: 0.85rem 1rem 0.65rem;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+        .day-dash-header__close {
+            position: absolute;
+            top: 0.6rem;
+            right: 0.55rem;
+            width: 2rem;
+            height: 2rem;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text-dim);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.15rem;
+            line-height: 1;
+        }
+        .day-dash-header__close:hover {
+            color: var(--text);
+            border-color: #6366f1;
+        }
+        .day-dash-header h2 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin: 0 2.25rem 0.5rem 0;
+            letter-spacing: -0.02em;
+        }
+        .day-dash-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem 0.45rem;
+            margin-bottom: 0.35rem;
+        }
+        .day-dash-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.45rem;
+            border-radius: 6px;
+            font-size: 0.68rem;
+            font-weight: 500;
+            background: #1e1b4b;
+            color: #c7d2fe;
+            border: 1px solid rgba(99, 102, 241, 0.35);
+        }
+        .day-dash-chip--muted {
+            background: #171717;
+            color: #a3a3a3;
+            border-color: #333;
+        }
+        .day-dash-trend-line {
+            margin: 0;
+            line-height: 1.45;
+            max-height: 3.2em;
+            overflow: hidden;
+        }
+        .day-dash-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 0.65rem 0.85rem 0.5rem;
+            -webkit-overflow-scrolling: touch;
+        }
+        .day-dash-loading, .day-dash-err {
+            text-align: center;
+            padding: 2rem 0.5rem;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        .day-dash-err { color: #f87171; }
+        .day-dash-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.65rem 0.85rem;
+        }
+        @media (max-width: 720px) {
+            #day-dash-panel {
+                width: min(100vw, 28rem);
+            }
+            .day-dash-grid { grid-template-columns: 1fr; }
+        }
+        .day-dash-col h3 {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #737373;
+            margin: 0 0 0.4rem;
+            font-weight: 600;
+        }
+        .day-dash-section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-top: 0.35rem;
+        }
+        .day-dash-section-head:first-child { margin-top: 0; }
+        .day-dash-sub {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin: 0.5rem 0 0.25rem;
+        }
+        .day-dash-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .day-dash-list li {
+            font-size: 0.78rem;
+            padding: 0.35rem 0.4rem;
+            border-radius: 6px;
+            border: 1px solid #262626;
+            background: #111113;
+            margin-bottom: 0.35rem;
+            line-height: 1.35;
+        }
+        .day-dash-list li:last-child { margin-bottom: 0; }
+        .day-dash-meta {
+            font-size: 0.68rem;
+            color: #737373;
+            margin-top: 0.2rem;
+        }
+        .day-dash-badge {
+            display: inline-block;
+            margin-left: 0.35rem;
+            padding: 0.05rem 0.3rem;
+            border-radius: 4px;
+            font-size: 0.62rem;
+            background: #422006;
+            color: #fdba74;
+        }
+        .day-dash-badge--vol {
+            background: #3f1d4d;
+            color: #e9d5ff;
+        }
+        .day-dash-review-box {
+            font-size: 0.78rem;
+            padding: 0.45rem 0.5rem;
+            border-radius: 8px;
+            border: 1px solid #262626;
+            background: #111113;
+            line-height: 1.45;
+        }
+        .day-dash-review-box p { margin: 0 0 0.35rem; }
+        .day-dash-review-box p:last-child { margin-bottom: 0; }
+        .day-dash-foot {
+            flex-shrink: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            padding: 0.65rem 0.85rem 0.85rem;
+            border-top: 1px solid var(--border);
+            background: rgba(8, 8, 10, 0.96);
+        }
+        .modal.modal--day-dash { z-index: 10300; }
+
+        /* —— 雷神之锤（Ctrl/Cmd+K）—— */
+        .cal-quick-palette {
+            position: fixed;
+            inset: 0;
+            z-index: 10480;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 12vh 1rem 2rem;
+            box-sizing: border-box;
+        }
+        .cal-quick-palette.is-open {
+            display: flex;
+        }
+        .cal-quick-palette__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(6px);
+        }
+        .cal-quick-palette__box {
+            position: relative;
+            width: min(36rem, 94vw);
+            padding: 1rem 1.1rem 1.15rem;
+            border-radius: 14px;
+            border: 1px solid #333;
+            background: linear-gradient(165deg, #141416 0%, #0c0c0e 100%);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(99, 102, 241, 0.12);
+        }
+        .cal-quick-palette__title {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #737373;
+            margin: 0 0 0.35rem;
+        }
+        .cal-quick-palette__hint {
+            font-size: 0.8rem;
+            color: #a3a3a3;
+            margin: 0 0 0.65rem;
+        }
+        .cal-quick-palette__box input[type="text"] {
+            width: 100%;
+            padding: 0.65rem 0.85rem;
+            font-size: 1rem;
+            border-radius: 10px;
+            border: 1px solid #3f3f46;
+            background: #08080a;
+            color: #fafafa;
+            outline: none;
+        }
+        .cal-quick-palette__box input[type="text"]:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+        }
+        .cal-quick-palette__box input[type="text"]:disabled {
+            opacity: 0.55;
+        }
+        .cal-quick-palette__tip {
+            margin: 0.55rem 0 0;
+            line-height: 1.45;
+        }
+        .cal-quick-palette__status {
+            margin: 0.45rem 0 0;
+            font-size: 0.75rem;
+            min-height: 1.1em;
+            color: #94a3b8;
+        }
+        .cal-quick-palette__status.is-err {
+            color: #f87171;
+        }
     </style>
 {% endblock %}
 {% block content %}
-    <header class="page-header">
-        <div class="page-header__titles">
-            <h1>投研日历</h1>
-            <p>看宏观/财报/会议/交易计划一目了然。在月视图中<strong>拖选区域</strong>可快速新建；点击已有事件在弹窗里改；可拖到其他日期。右侧为未来 7 天摘要。</p>
+    <div class="cal-app">
+        <header class="cal-header">
+            <div class="cal-header__left">
+                <h1>投研日历</h1>
+                <div class="cal-legend" id="emotion-legend" aria-label="情绪底色说明">
+                    <span class="cal-legend__chip"><span class="cal-legend__sw" style="background:rgba(34,197,94,0.25)"></span>低迷 / 偏冷</span>
+                    <span class="cal-legend__chip"><span class="cal-legend__sw" style="background:rgba(250,204,21,0.2)"></span>适中</span>
+                    <span class="cal-legend__chip"><span class="cal-legend__sw" style="background:rgba(248,113,113,0.22)"></span>活跃 / 极端</span>
+                    <span class="cal-legend__chip"><span class="cal-legend__dot cal-dot-plan"></span>有计划</span>
+                    <span class="cal-legend__chip"><span class="cal-legend__dot cal-dot-review"></span>有复盘</span>
+                    <span class="cal-legend__chip"><span class="cal-legend__dot cal-dot-report"></span>有深度报告</span>
+                </div>
+                <div class="cal-legend" id="category-legend"></div>
+            </div>
+            <div class="cal-header__actions">
+                <a class="btn" href="{{ url_for('index') }}">回首页</a>
+                <button type="button" class="btn btn--primary" id="btn-open-create" title="以今天为日期新建事件">今天新建</button>
+                <button type="button" class="btn" id="btn-fullpage-add" title="打开完整编辑页">全页添加</button>
+            </div>
+        </header>
+        <div id="fc-shell">
+            <div id="fc-root"><div id="calendar"></div></div>
         </div>
-        <div class="page-header__actions">
-            <a class="btn" href="{{ url_for('index') }}">回首页</a>
-            <button type="button" class="btn btn--primary" id="btn-open-create" title="以今天为日期打开表单">今天新建</button>
-            <a class="btn" href="{{ url_for('add_calendar_event') }}">全页添加</a>
     </div>
-    </header>
-
-    <div class="page-body">
-        <div class="layout">
-            <div class="panel" style="min-width:0">
-                <div class="legend" id="category-legend"></div>
-                <div id="fc-root"><div id="calendar"></div></div>
-            </div>
-            <div class="panel" style="min-width:0">
-                <div class="panel__head">近 7 天 · 计划与事件</div>
-                <div class="side-list" id="events-list"></div>
-            </div>
-        </div>
-        </div>
 
     <div class="modal" id="event-modal" role="dialog" aria-modal="true" aria-hidden="true">
         <div class="modal__card" role="document">
@@ -371,7 +635,7 @@
                 <div class="field">
                     <label for="f-stock">股票代码</label>
                     <input type="text" id="f-stock" placeholder="如 000001、600519" autocomplete="off">
-                    <p class="field-hint">与「行业库存」分析页联动，保存后点下方链接直达。</p>
+                    <p class="field-hint">保存后可点下方链接跳转分析页。</p>
                 </div>
                 <div class="field">
                     <label for="f-plan">关联投资计划</label>
@@ -408,428 +672,1101 @@
             <div class="modal__foot">
                 <button type="button" class="btn" id="btn-delete" style="display:none">删除</button>
                 <a class="btn" id="btn-full-edit" href="#" style="display:none" target="_blank" rel="noopener">全屏编辑</a>
-                <button type="button" class="btn" id="btn-crawler-drawer" title="不离开本页，侧栏浏览资讯">相关资讯</button>
+                <button type="button" class="btn" id="btn-crawler-drawer" title="侧栏浏览资讯">相关资讯</button>
                 <button type="button" class="btn" id="btn-cancel">取消</button>
                 <button type="button" class="btn btn--primary" id="btn-save">保存</button>
             </div>
         </div>
     </div>
 
-    <button type="button" class="cal-fab" id="cal-fab" title="为今天快速新建事件" aria-label="为今天快速新建">+</button>
+    <button type="button" class="cal-fab" id="cal-fab" title="为今天快速新建" aria-label="新建">+</button>
 
-    <script type="application/json" id="fc-bootstrap">{{ {'plan_options': plan_options, 'calendar_categories': calendar_categories, 'upcoming_plans': upcoming_plans} | tojson | safe }}</script>
+    <div id="day-dash-overlay" aria-hidden="true"></div>
+    <aside id="day-dash-panel" role="dialog" aria-modal="true" aria-labelledby="day-dash-title" aria-hidden="true">
+        <header class="day-dash-header">
+            <button type="button" class="day-dash-header__close" id="day-dash-close" aria-label="关闭抽屉">×</button>
+            <h2 id="day-dash-title">—</h2>
+            <div class="day-dash-chips" id="day-dash-chips"></div>
+            <p class="day-dash-trend-line small text-muted" id="day-dash-trend"></p>
+        </header>
+        <div class="day-dash-body">
+            <div id="day-dash-loading" class="day-dash-loading">加载当日数据中…</div>
+            <div id="day-dash-err" class="day-dash-err d-none"></div>
+            <div id="day-dash-main" class="d-none">
+                <div class="day-dash-grid">
+                    <div class="day-dash-col day-dash-col--objective">
+                        <h3>客观数据</h3>
+                        <div class="day-dash-sub">动能突破股（按动量分 Top 25）</div>
+                        <ul class="day-dash-list" id="day-dash-momentum"></ul>
+                        <div class="day-dash-sub">筛选 / 异动任务</div>
+                        <ul class="day-dash-list" id="day-dash-screening"></ul>
+                        <div class="day-dash-sub">当日日程</div>
+                        <ul class="day-dash-list" id="day-dash-cal"></ul>
+                    </div>
+                    <div class="day-dash-col day-dash-col--subjective">
+                        <div class="day-dash-section-head">
+                            <h3 class="mb-0">交易计划</h3>
+                            <button type="button" class="btn btn-sm btn--primary" id="day-dash-btn-plan-head">新建计划</button>
+                        </div>
+                        <ul class="day-dash-list" id="day-dash-plans"></ul>
+                        <div class="day-dash-section-head">
+                            <h3 class="mb-0">复盘记录</h3>
+                            <button type="button" class="btn btn-sm" id="day-dash-btn-review-head">添加 / 编辑</button>
+                        </div>
+                        <div id="day-dash-review"></div>
+                        <h3 class="mt-1">深度报告</h3>
+                        <ul class="day-dash-list" id="day-dash-reports"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer class="day-dash-foot">
+            <button type="button" class="btn btn--primary btn-sm" id="day-dash-btn-review-foot">添加今日复盘</button>
+            <button type="button" class="btn btn-sm" id="day-dash-btn-plan-foot">新建交易计划</button>
+        </footer>
+    </aside>
+
+    <div class="modal modal--day-dash" id="dash-modal-review" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal__card" role="document">
+            <div class="modal__head">
+                <h2>固定复盘</h2>
+                <button type="button" class="modal__close" id="dash-modal-review-close" aria-label="关闭">×</button>
+            </div>
+            <div class="modal__body">
+                <input type="hidden" id="dash-r-id" value="">
+                <input type="hidden" id="dash-r-date" value="">
+                <div class="field">
+                    <label for="dash-r-emotion">市场情绪</label>
+                    <input type="text" id="dash-r-emotion" placeholder="如：活跃、低迷" autocomplete="off">
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="dash-r-sectors">板块</label>
+                        <input type="text" id="dash-r-sectors" autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label for="dash-r-themes">题材</label>
+                        <input type="text" id="dash-r-themes" autocomplete="off">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="dash-r-cap">大小盘表现</label>
+                    <input type="text" id="dash-r-cap" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="dash-r-style">投资风格</label>
+                    <input type="text" id="dash-r-style" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="dash-r-events">重大事件</label>
+                    <textarea id="dash-r-events" placeholder="政策、外围、个股催化等"></textarea>
+                </div>
+            </div>
+            <div class="modal__foot">
+                <button type="button" class="btn" id="dash-modal-review-cancel">取消</button>
+                <button type="button" class="btn btn--primary" id="dash-modal-review-save">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal modal--day-dash" id="dash-modal-plan" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal__card" role="document">
+            <div class="modal__head">
+                <h2>新建交易计划</h2>
+                <button type="button" class="modal__close" id="dash-modal-plan-close" aria-label="关闭">×</button>
+            </div>
+            <div class="modal__body">
+                <input type="hidden" id="dash-p-target" value="">
+                <div class="field">
+                    <label for="dash-p-title">标题</label>
+                    <input type="text" id="dash-p-title" placeholder="计划标题" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="dash-p-desc">说明</label>
+                    <textarea id="dash-p-desc" placeholder="可选"></textarea>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="dash-p-instruments">标的</label>
+                        <input type="text" id="dash-p-instruments" placeholder="如 600519、000001" autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label for="dash-p-keywords">资讯关键词</label>
+                        <input type="text" id="dash-p-keywords" autocomplete="off">
+                    </div>
+                </div>
+                <p class="field-hint">目标日期已固定为当前在日历中选中的日期。</p>
+            </div>
+            <div class="modal__foot">
+                <button type="button" class="btn" id="dash-modal-plan-cancel">取消</button>
+                <button type="button" class="btn btn--primary" id="dash-modal-plan-save">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cal-quick-palette" class="cal-quick-palette" aria-hidden="true">
+        <div class="cal-quick-palette__backdrop" id="cal-quick-backdrop"></div>
+        <div class="cal-quick-palette__box" role="search">
+            <p class="cal-quick-palette__title">雷神之锤 · 快捷录入</p>
+            <p class="cal-quick-palette__hint" id="cal-quick-hint">目标日期 —</p>
+            <input type="text" id="cal-quick-input" autocomplete="off" placeholder="例：建仓 腾讯 500股 逻辑是业绩超预期" aria-label="快捷录入">
+            <p class="cal-quick-palette__tip text-muted small">回车提交 · Esc 关闭 · 以「备忘：」「提醒：」开头则只写入当日日历备忘</p>
+            <p class="cal-quick-palette__status" id="cal-quick-status" aria-live="polite"></p>
+        </div>
+    </div>
+
+    <script type="application/json" id="fc-bootstrap">{{ {'plan_options': plan_options, 'calendar_categories': calendar_categories} | tojson | safe }}</script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.20/locales-all.global.min.js"></script>
     <script>
         (function () {
-        if (typeof FullCalendar === 'undefined' || !FullCalendar.Calendar) {
-            document.getElementById('fc-root').innerHTML = '<p style="padding:2rem;text-align:center;color:#888">日历组件未能加载。请检查网络能否访问 cdn.jsdelivr.net 后刷新。</p>';
-            return;
-        }
-        const boot = JSON.parse(document.getElementById('fc-bootstrap').textContent);
-        const PLAN_OPTIONS = boot.plan_options || [];
-        const CATEGORIES = boot.calendar_categories || {};
-        const upcomingPlans = boot.upcoming_plans || [];
+            if (typeof FullCalendar === 'undefined' || !FullCalendar.Calendar) {
+                document.getElementById('fc-root').innerHTML = '<p style="padding:2rem;text-align:center;color:#888">日历脚本未能加载，请检查网络后刷新。</p>';
+                return;
+            }
 
-        function fcEndExclusiveToInclusive(startStr, endExclusiveStr) {
-            if (!endExclusiveStr) return startStr.slice(0, 10);
-            const b = new Date(endExclusiveStr.slice(0, 10));
-            b.setDate(b.getDate() - 1);
-            return b.toISOString().slice(0, 10);
-        }
+            var boot = JSON.parse(document.getElementById('fc-bootstrap').textContent);
+            var PLAN_OPTIONS = boot.plan_options || [];
+            var CATEGORIES = boot.calendar_categories || {};
 
-        function fillCategorySelect(sel) {
-            sel.innerHTML = '';
-            Object.keys(CATEGORIES).forEach(k => {
-                const o = document.createElement('option');
-                o.value = k;
-                o.textContent = CATEGORIES[k].label;
-                sel.appendChild(o);
-            });
-        }
+            /** 月上下文：by_date[iso] = { market_tone, index_trend, has_plan, has_review, has_deep_report } */
+            var monthContext = {};
+            var renderingFromContext = false;
+            var monthContextRequestId = 0;
+            var lastContextRange = '';
 
-        function fillPlanSelect(sel) {
-            const cur = sel.value;
-            sel.innerHTML = '<option value="">不关联</option>';
-            (PLAN_OPTIONS || []).forEach(p => {
-                const o = document.createElement('option');
-                o.value = String(p.id);
-                o.textContent = p.title;
-                sel.appendChild(o);
-            });
-            if (cur) sel.value = cur;
-        }
+            function toISOLocal(d) {
+                var y = d.getFullYear();
+                var m = String(d.getMonth() + 1).padStart(2, '0');
+                var day = String(d.getDate()).padStart(2, '0');
+                return y + '-' + m + '-' + day;
+            }
+            function addDaysISO(iso, delta) {
+                var p = iso.split('-').map(Number);
+                var t = new Date(p[0], p[1] - 1, p[2]);
+                t.setDate(t.getDate() + delta);
+                return toISOLocal(t);
+            }
 
-        function buildLegend() {
-            const el = document.getElementById('category-legend');
-            el.innerHTML = Object.keys(CATEGORIES).map(k =>
-                '<span class="legend__chip"><span class="legend__dot" style="background:' + CATEGORIES[k].color + '"></span>' + CATEGORIES[k].label + '</span>'
-            ).join('');
-        }
+            function emotionDayClass(emotion) {
+                if (!emotion) return '';
+                if (emotion === '低迷') return 'fc-day-emotion-fear';
+                if (emotion === '适中') return 'fc-day-emotion-mid';
+                if (emotion === '活跃' || emotion === '极端') return 'fc-day-emotion-hot';
+                return '';
+            }
 
-        function renderSidebar() {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const next = new Date(today);
-            next.setDate(next.getDate() + 7);
+            function fcEndExclusiveToInclusive(startStr, endExclusiveStr) {
+                if (!endExclusiveStr) return startStr.slice(0, 10);
+                var b = new Date(endExclusiveStr.slice(0, 10));
+                b.setDate(b.getDate() - 1);
+                return b.toISOString().slice(0, 10);
+            }
 
-            fetch('/api/calendar/events')
-                .then(r => r.json())
-                .then(events => {
-                    const upcomingEvents = events.map(ev => ({
-                        type: 'event',
-                        id: ev.extendedProps.db_id,
-                        title: ev.title,
-                        date: ev.start,
-                        content: (ev.extendedProps && ev.extendedProps.content) || '',
-                    })).filter(e => {
-                        const d = new Date(e.date);
-                        d.setHours(0, 0, 0, 0);
-                        return d >= today && d <= next;
+            function fillCategorySelect(sel) {
+                sel.innerHTML = '';
+                Object.keys(CATEGORIES).forEach(function (k) {
+                    var o = document.createElement('option');
+                    o.value = k;
+                    o.textContent = CATEGORIES[k].label;
+                    sel.appendChild(o);
+                });
+            }
+
+            function fillPlanSelect(sel) {
+                var cur = sel.value;
+                sel.innerHTML = '<option value="">不关联</option>';
+                (PLAN_OPTIONS || []).forEach(function (p) {
+                    var o = document.createElement('option');
+                    o.value = String(p.id);
+                    o.textContent = p.title;
+                    sel.appendChild(o);
+                });
+                if (cur) sel.value = cur;
+            }
+
+            function buildCategoryLegend() {
+                var el = document.getElementById('category-legend');
+                if (!el) return;
+                el.innerHTML = Object.keys(CATEGORIES).map(function (k) {
+                    return '<span class="cal-legend__chip"><span class="cal-legend__sw" style="background:' + CATEGORIES[k].color + '"></span>' + CATEGORIES[k].label + '</span>';
+                }).join('');
+            }
+
+            function escapeHtml(s) {
+                if (!s) return '';
+                var d = document.createElement('div');
+                d.textContent = s;
+                return d.innerHTML;
+            }
+
+            var modal = document.getElementById('event-modal');
+            var fId = document.getElementById('f-id');
+            var fTitle = document.getElementById('f-title');
+            var fCategory = document.getElementById('f-category');
+            var fStart = document.getElementById('f-start');
+            var fEnd = document.getElementById('f-end');
+            var fContent = document.getElementById('f-content');
+            var fStock = document.getElementById('f-stock');
+            var fPlan = document.getElementById('f-plan');
+            var fReminderType = document.getElementById('f-reminder-type');
+            var fReminderTime = document.getElementById('f-reminder-time');
+            var fEventType = document.getElementById('f-event-type');
+            var modalLinks = document.getElementById('modal-links');
+            var btnDelete = document.getElementById('btn-delete');
+            var btnFullEdit = document.getElementById('btn-full-edit');
+
+            var calendar = null;
+
+            function openModal() {
+                modal.classList.add('is-open');
+                modal.setAttribute('aria-hidden', 'false');
+            }
+            function closeModal() {
+                modal.classList.remove('is-open');
+                modal.setAttribute('aria-hidden', 'true');
+            }
+
+            function updateModalLinks() {
+                var stock = fStock.value.trim();
+                var pid = fPlan.value;
+                var html = '';
+                if (stock) {
+                    html += '<a href="/industry_inventory?q=' + encodeURIComponent(stock) + '" target="_blank" rel="noopener">行业库存</a>';
+                }
+                if (pid) {
+                    html += '<a href="/plans/edit/' + encodeURIComponent(pid) + '" target="_blank" rel="noopener">投资计划</a>';
+                }
+                modalLinks.innerHTML = html;
+                modalLinks.style.display = html ? 'block' : 'none';
+            }
+            fStock.addEventListener('input', updateModalLinks);
+            fPlan.addEventListener('change', updateModalLinks);
+
+            function getHeaderToolbar() {
+                if (window.innerWidth < 640) {
+                    return { left: 'prev,next', center: 'title', right: 'today' };
+                }
+                return { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listMonth' };
+            }
+
+            function openQuickCreateForToday() {
+                var s = new Date();
+                var iso = toISOLocal(s);
+                var endEx = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 1);
+                openCreateFromSelect(iso, toISOLocal(endEx));
+            }
+
+            function openCreateFromSelect(startStr, endStrExclusive) {
+                document.getElementById('modal-title').textContent = '新建';
+                fId.value = '';
+                fTitle.value = '';
+                fContent.value = '';
+                fStock.value = '';
+                fPlan.value = '';
+                fCategory.value = 'macro';
+                fillPlanSelect(fPlan);
+                fReminderType.value = 'notification';
+                fReminderTime.value = '0';
+                var s = startStr.slice(0, 10);
+                fStart.value = s;
+                var endInc = fcEndExclusiveToInclusive(startStr, endStrExclusive || null);
+                fEnd.value = endInc;
+                fEventType.value = s === endInc ? 'single' : 'multi';
+                btnDelete.style.display = 'none';
+                btnFullEdit.style.display = 'none';
+                updateModalLinks();
+                openModal();
+            }
+
+            function openEditFromEvent(ev) {
+                document.getElementById('modal-title').textContent = '编辑';
+                var ep = ev.extendedProps;
+                fillPlanSelect(fPlan);
+                fId.value = String(ep.db_id);
+                fTitle.value = ev.title || '';
+                fContent.value = ep.content || '';
+                fStock.value = ep.related_stock || '';
+                fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
+                fCategory.value = ep.event_category in CATEGORIES ? ep.event_category : 'other';
+                fStart.value = ev.startStr.slice(0, 10);
+                fEnd.value = fcEndExclusiveToInclusive(ev.startStr, ev.endStr || null);
+                fReminderType.value = ep.reminder_type || 'notification';
+                fReminderTime.value = String(ep.reminder_time != null ? ep.reminder_time : 0);
+                fEventType.value = ep.event_type || 'single';
+                btnDelete.style.display = 'inline-block';
+                btnFullEdit.href = '/calendar/edit/' + ep.db_id;
+                btnFullEdit.style.display = 'inline-block';
+                updateModalLinks();
+                openModal();
+            }
+
+            function openEditFromApiPayload(ev) {
+                var ep = ev.extendedProps || {};
+                document.getElementById('modal-title').textContent = '编辑';
+                fId.value = String(ep.db_id);
+                fTitle.value = ev.title || '';
+                fContent.value = ep.content || '';
+                fStock.value = ep.related_stock || '';
+                fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
+                fCategory.value = ep.event_category in CATEGORIES ? ep.event_category : 'other';
+                fStart.value = (ev.start || '').slice(0, 10);
+                fEnd.value = ev.end ? fcEndExclusiveToInclusive(ev.start, ev.end) : fStart.value;
+                fReminderType.value = ep.reminder_type || 'notification';
+                fReminderTime.value = String(ep.reminder_time != null ? ep.reminder_time : 0);
+                fEventType.value = ep.event_type || 'single';
+                btnDelete.style.display = 'inline-block';
+                btnFullEdit.href = '/calendar/edit/' + ep.db_id;
+                btnFullEdit.style.display = 'inline-block';
+                fillPlanSelect(fPlan);
+                fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
+                updateModalLinks();
+                openModal();
+            }
+
+            window._openCalEvent = function (id) {
+                var calEv = calendar && calendar.getEventById(String(id));
+                if (calEv) { openEditFromEvent(calEv); return; }
+                fetch('/api/calendar/events')
+                    .then(function (r) { return r.json(); })
+                    .then(function (list) {
+                        var ev = (list || []).find(function (e) { return e.extendedProps && e.extendedProps.db_id === id; });
+                        if (ev) openEditFromApiPayload(ev);
                     });
+            };
 
-                    const all = [...upcomingEvents, ...upcomingPlans]
-                        .sort((a, b) => new Date(a.date) - new Date(b.date))
-                        .slice(0, 20);
-                    const box = document.getElementById('events-list');
-                    if (!all.length) {
-                        box.innerHTML = '<div class="side-list__empty">暂无排期。去左侧格里拖选一天试试吧。</div>';
-                        return;
+            function saveDragResize(calEvent) {
+                var ep = calEvent.extendedProps;
+                var start = calEvent.startStr.slice(0, 10);
+                var endInc = fcEndExclusiveToInclusive(calEvent.startStr, calEvent.endStr || null);
+                fetch('/api/calendar/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: ep.db_id,
+                        title: calEvent.title,
+                        content: ep.content || '',
+                        start_date: start,
+                        end_date: endInc,
+                        reminder_type: ep.reminder_type || 'notification',
+                        reminder_time: ep.reminder_time != null ? ep.reminder_time : 0,
+                        event_type: ep.event_type || 'single',
+                        event_category: ep.event_category || 'other',
+                        related_stock: ep.related_stock || '',
+                        related_plan_id: ep.related_plan_id || null,
+                    }),
+                })
+                    .then(function (r) { return r.json().then(function (j) { return { r: r, j: j }; }); })
+                    .then(function (o) {
+                        if (!o.r.ok) throw new Error((o.j && o.j.error) || '同步失败');
+                        if (!o.j.success) throw new Error(o.j.error || '同步失败');
+                        if (typeof refreshDashContextDots === 'function') refreshDashContextDots();
+                        if (typeof fillPlanSelect === 'function') fillPlanSelect(fPlan);
+                    })
+                    .catch(function (e) { alert(e.message || '同步失败'); calEvent.revert(); });
+            }
+
+            function getQuickAnchorIso() {
+                var s = window._lastCalDayIso;
+                if (s && /^\d{4}-\d{2}-\d{2}$/.test(String(s).slice(0, 10))) return String(s).slice(0, 10);
+                return toISOLocal(new Date());
+            }
+
+            var calQuickPalette = document.getElementById('cal-quick-palette');
+            var calQuickInput = document.getElementById('cal-quick-input');
+            var calQuickHint = document.getElementById('cal-quick-hint');
+            var calQuickStatus = document.getElementById('cal-quick-status');
+            var calQuickBackdrop = document.getElementById('cal-quick-backdrop');
+            var calQuickSubmitting = false;
+
+            function openCalQuickPalette() {
+                if (!calQuickPalette || !calQuickInput) return;
+                var ad = getQuickAnchorIso();
+                calQuickHint.textContent = '将记入目标日期：' + ad + '（点选日历某一天可切换锚点）';
+                calQuickStatus.textContent = '';
+                calQuickStatus.classList.remove('is-err');
+                calQuickInput.value = '';
+                calQuickInput.disabled = false;
+                calQuickPalette.classList.add('is-open');
+                calQuickPalette.setAttribute('aria-hidden', 'false');
+                calQuickSubmitting = false;
+                requestAnimationFrame(function () {
+                    calQuickInput.focus();
+                });
+            }
+
+            function closeCalQuickPalette() {
+                if (!calQuickPalette) return;
+                calQuickPalette.classList.remove('is-open');
+                calQuickPalette.setAttribute('aria-hidden', 'true');
+                calQuickSubmitting = false;
+            }
+
+            function submitCalQuickPalette() {
+                if (!calQuickInput || calQuickSubmitting) return;
+                var raw = calQuickInput.value.trim();
+                if (!raw) {
+                    calQuickStatus.textContent = '请输入内容';
+                    calQuickStatus.classList.add('is-err');
+                    return;
+                }
+                calQuickSubmitting = true;
+                calQuickInput.disabled = true;
+                calQuickStatus.classList.remove('is-err');
+                calQuickStatus.textContent = '提交中…';
+                fetch('/api/calendar/quick_add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: raw, anchor_date: getQuickAnchorIso() }),
+                    credentials: 'same-origin',
+                })
+                    .then(function (r) { return r.json().then(function (j) { return { r: r, j: j }; }); })
+                    .then(function (o) {
+                        if (!o.r.ok || !o.j.success) {
+                            throw new Error((o.j && o.j.error) || ('HTTP ' + o.r.status));
+                        }
+                        var msg = o.j.kind === 'memo' ? '已添加日历备忘' : '已创建交易计划';
+                        if (o.j.ai_fallback_note) msg += '（已用简易解析）';
+                        calQuickStatus.textContent = msg;
+                        closeCalQuickPalette();
+                        if (calendar) calendar.refetchEvents();
+                        if (typeof refreshDashContextDots === 'function') refreshDashContextDots();
+                        if (typeof fillPlanSelect === 'function') fillPlanSelect(fPlan);
+                    })
+                    .catch(function (e) {
+                        calQuickSubmitting = false;
+                        calQuickInput.disabled = false;
+                        calQuickStatus.classList.add('is-err');
+                        calQuickStatus.textContent = e.message || '提交失败';
+                        calQuickInput.focus();
+                    });
+            }
+
+            if (calQuickBackdrop) {
+                calQuickBackdrop.addEventListener('click', closeCalQuickPalette);
+            }
+            if (calQuickInput) {
+                calQuickInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        submitCalQuickPalette();
                     }
-                    box.innerHTML = all.map(item => {
-                        const isPlan = item.type === 'plan';
-                        const dt = new Date(item.date);
-                        const dateStr = dt.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'short' });
-                        const icon = isPlan ? '◆' : '●';
-                        const click = isPlan
-                            ? "location.href='/plans/edit/" + item.id + "'"
-                            : "window._openCalEvent(" + item.id + ")";
-                        return (
-                            '<div class="side-list__item' + (isPlan ? ' side-list__item--plan' : '') + '" onclick="' + click + '">' +
-                            '<div><strong style="color:#e5e5e5">' + icon + ' ' + escapeHtml(item.title) + '</strong></div>' +
-                            '<div class="side-list__meta">' + dateStr + '</div>' +
-                            (item.content ? '<div class="side-list__meta" style="margin-top:0.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(item.content).slice(0, 80) + '</div>' : '') +
-                            '</div>'
-                        );
-                    }).join('');
-                })
-                .catch(function () {
-                    document.getElementById('events-list').innerHTML = '<div class="side-list__empty">无法加载</div>';
                 });
-        }
-
-        function escapeHtml(s) {
-            if (!s) return '';
-            const d = document.createElement('div');
-            d.textContent = s;
-            return d.innerHTML;
-        }
-
-        const modal = document.getElementById('event-modal');
-        const fId = document.getElementById('f-id');
-        const fTitle = document.getElementById('f-title');
-        const fCategory = document.getElementById('f-category');
-        const fStart = document.getElementById('f-start');
-        const fEnd = document.getElementById('f-end');
-        const fContent = document.getElementById('f-content');
-        const fStock = document.getElementById('f-stock');
-        const fPlan = document.getElementById('f-plan');
-        const fReminderType = document.getElementById('f-reminder-type');
-        const fReminderTime = document.getElementById('f-reminder-time');
-        const fEventType = document.getElementById('f-event-type');
-        const modalLinks = document.getElementById('modal-links');
-        const btnDelete = document.getElementById('btn-delete');
-        const btnFullEdit = document.getElementById('btn-full-edit');
-
-        let calendar = null;
-
-        function openModal() {
-            modal.classList.add('is-open');
-            modal.setAttribute('aria-hidden', 'false');
-        }
-        function closeModal() {
-            modal.classList.remove('is-open');
-            modal.setAttribute('aria-hidden', 'true');
-        }
-
-        function updateModalLinks() {
-            const stock = fStock.value.trim();
-            const pid = fPlan.value;
-            var html = '';
-            if (stock) {
-                html += '<a href="/industry_inventory?q=' + encodeURIComponent(stock) + '" target="_blank" rel="noopener">行业库存 · 个股</a>';
             }
-            if (pid) {
-                html += '<a href="/plans/edit/' + encodeURIComponent(pid) + '" target="_blank" rel="noopener">投资计划</a>';
-            }
-            modalLinks.innerHTML = html;
-            modalLinks.style.display = html ? 'block' : 'none';
-        }
 
-        fStock.addEventListener('input', updateModalLinks);
-        fPlan.addEventListener('change', updateModalLinks);
+            document.addEventListener('keydown', function (e) {
+                var isK = e.key === 'k' || e.key === 'K';
+                if (!(e.metaKey || e.ctrlKey) || !isK) return;
+                if (calQuickPalette && calQuickPalette.classList.contains('is-open')) {
+                    e.preventDefault();
+                    closeCalQuickPalette();
+                    return;
+                }
+                var t = e.target;
+                if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) {
+                    return;
+                }
+                e.preventDefault();
+                openCalQuickPalette();
+            }, true);
 
-        function getHeaderToolbar() {
-            if (window.innerWidth < 640) {
-                return { left: 'prev,next', center: 'title', right: 'today' };
-            }
-            return { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listMonth' };
-        }
-
-        function openQuickCreateForToday() {
-            var s = new Date().toISOString().slice(0, 10);
-            var endEx = new Date(s + 'T12:00:00');
-            endEx.setDate(endEx.getDate() + 1);
-            openCreateFromSelect(s, endEx.toISOString());
-        }
-
-        function openCreateFromSelect(startStr, endStrExclusive) {
-            document.getElementById('modal-title').textContent = '新建';
-            fId.value = '';
-            fTitle.value = '';
-            fContent.value = '';
-            fStock.value = '';
-            fPlan.value = '';
-            fCategory.value = 'macro';
-            fillPlanSelect(fPlan);
-            fReminderType.value = 'notification';
-            fReminderTime.value = '0';
-            const s = startStr.slice(0, 10);
-            fStart.value = s;
-            const endInc = fcEndExclusiveToInclusive(startStr, endStrExclusive || null);
-            fEnd.value = endInc;
-            fEventType.value = s === endInc ? 'single' : 'multi';
-            btnDelete.style.display = 'none';
-            btnFullEdit.style.display = 'none';
-            updateModalLinks();
-            openModal();
-        }
-
-        function openEditFromEvent(ev) {
-            document.getElementById('modal-title').textContent = '编辑';
-            const ep = ev.extendedProps;
-            fillPlanSelect(fPlan);
-            fId.value = String(ep.db_id);
-            fTitle.value = ev.title || '';
-            fContent.value = ep.content || '';
-            fStock.value = ep.related_stock || '';
-            fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
-            fCategory.value = ep.event_category in CATEGORIES ? ep.event_category : 'other';
-            fStart.value = ev.startStr.slice(0, 10);
-            const endInc = fcEndExclusiveToInclusive(ev.startStr, ev.endStr || null);
-            fEnd.value = endInc;
-            fReminderType.value = ep.reminder_type || 'notification';
-            fReminderTime.value = String(ep.reminder_time != null ? ep.reminder_time : 0);
-            fEventType.value = ep.event_type || 'single';
-            btnDelete.style.display = 'inline-block';
-            btnFullEdit.href = '/calendar/edit/' + ep.db_id;
-            btnFullEdit.style.display = 'inline-block';
-            updateModalLinks();
-            openModal();
-        }
-
-        function openEditFromApiPayload(ev) {
-            const ep = ev.extendedProps || {};
-            document.getElementById('modal-title').textContent = '编辑';
-            fId.value = String(ep.db_id);
-            fTitle.value = ev.title || '';
-            fContent.value = ep.content || '';
-            fStock.value = ep.related_stock || '';
-            fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
-            fCategory.value = ep.event_category in CATEGORIES ? ep.event_category : 'other';
-            fStart.value = (ev.start || '').slice(0, 10);
-            const endInc = ev.end ? fcEndExclusiveToInclusive(ev.start, ev.end) : fStart.value;
-            fEnd.value = endInc;
-            fReminderType.value = ep.reminder_type || 'notification';
-            fReminderTime.value = String(ep.reminder_time != null ? ep.reminder_time : 0);
-            fEventType.value = ep.event_type || 'single';
-            btnDelete.style.display = 'inline-block';
-            btnFullEdit.href = '/calendar/edit/' + ep.db_id;
-            btnFullEdit.style.display = 'inline-block';
-            fillPlanSelect(fPlan);
-            fPlan.value = ep.related_plan_id ? String(ep.related_plan_id) : '';
-            updateModalLinks();
-            openModal();
-        }
-
-        window._openCalEvent = function (id) {
-            var calEv = calendar && calendar.getEventById(String(id));
-            if (calEv) { openEditFromEvent(calEv); return; }
-            fetch('/api/calendar/events')
-                .then(r => r.json())
-                .then(function (list) {
-                    var ev = (list || []).find(function (e) { return e.extendedProps && e.extendedProps.db_id === id; });
-                    if (ev) openEditFromApiPayload(ev);
-                });
-        };
-
-        document.getElementById('btn-save').addEventListener('click', function () {
-            fetch('/api/calendar/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: fId.value ? parseInt(fId.value, 10) : null,
-                    title: fTitle.value.trim(),
-                    content: fContent.value,
-                    start_date: fStart.value,
-                    end_date: fEnd.value || fStart.value,
-                    reminder_type: fReminderType.value,
-                    reminder_time: parseInt(fReminderTime.value, 10),
-                    event_type: fEventType.value,
-                    event_category: fCategory.value,
-                    related_stock: fStock.value.trim(),
-                    related_plan_id: fPlan.value ? parseInt(fPlan.value, 10) : null,
-                }),
-            })
-                .then(function (r) {
-                    return r.json().then(function (j) {
-                        if (!r.ok) { throw new Error(j.error || ('HTTP ' + r.status)); }
-                        return j;
+            function fetchMonthContext(info, force) {
+                if (renderingFromContext) return;
+                var start = toISOLocal(info.start);
+                var endEx = toISOLocal(info.end);
+                var endIncl = addDaysISO(endEx, -1);
+                var key = start + '|' + endIncl;
+                if (!force && key === lastContextRange) return;
+                lastContextRange = key;
+                var reqId = ++monthContextRequestId;
+                fetch('/api/calendar/month_context?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(endIncl), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (reqId !== monthContextRequestId) return;
+                        monthContext = (data && data.success && data.by_date) ? data.by_date : {};
+                        renderingFromContext = true;
+                        try {
+                            calendar.render();
+                        } finally {
+                            renderingFromContext = false;
+                        }
+                    })
+                    .catch(function () {
+                        if (reqId !== monthContextRequestId) return;
+                        monthContext = {};
+                        lastContextRange = '';
                     });
-                })
-                .then(function (res) {
-                    if (!res.success) { throw new Error(res.error || '保存失败'); }
-                    closeModal();
-                    calendar.refetchEvents();
-                    renderSidebar();
-                })
-                .catch(function (e) { alert(e.message || '网络错误'); });
-        });
+            }
 
-        document.getElementById('btn-delete').addEventListener('click', function () {
-            const id = fId.value;
-            if (!id || !confirm('删除该条日程？')) return;
-            fetch('/api/calendar/events/' + id + '/delete', { method: 'POST' })
-                .then(r => r.json())
-                .then(function (res) {
-                    if (!res.success) return;
-                    closeModal();
-                    calendar.refetchEvents();
-                    renderSidebar();
+            function mountDayCell(arg) {
+                var iso = toISOLocal(arg.date);
+                var day = monthContext[iso];
+                var frame = arg.el.querySelector('.fc-daygrid-day-frame');
+                if (!frame) return;
+
+                frame.querySelectorAll('.cal-cell-indicators').forEach(function (n) { n.remove(); });
+                arg.el.classList.remove('fc-day-emotion-fear', 'fc-day-emotion-hot', 'fc-day-emotion-mid');
+
+                if (day && day.market_tone && day.market_tone.emotion_status) {
+                    var emCls = emotionDayClass(day.market_tone.emotion_status);
+                    if (emCls) arg.el.classList.add(emCls);
+                }
+
+                if (!day) return;
+                var hasDot = day.has_plan || day.has_review || day.has_deep_report;
+                if (!hasDot) return;
+                var wrap = document.createElement('div');
+                wrap.className = 'cal-cell-indicators';
+                if (day.has_plan) {
+                    var a = document.createElement('span');
+                    a.className = 'cal-dot-plan';
+                    a.title = '当日有计划目标';
+                    wrap.appendChild(a);
+                }
+                if (day.has_review) {
+                    var b = document.createElement('span');
+                    b.className = 'cal-dot-review';
+                    b.title = '有固定复盘';
+                    wrap.appendChild(b);
+                }
+                if (day.has_deep_report) {
+                    var c = document.createElement('span');
+                    c.className = 'cal-dot-report';
+                    c.title = '有深度报告';
+                    wrap.appendChild(c);
+                }
+                frame.appendChild(wrap);
+            }
+
+            /* —— 日度工作台抽屉 —— */
+            var dayDashIso = '';
+            var dayDashOverlay = document.getElementById('day-dash-overlay');
+            var dayDashPanel = document.getElementById('day-dash-panel');
+            var dashModalReview = document.getElementById('dash-modal-review');
+            var dashModalPlan = document.getElementById('dash-modal-plan');
+
+            function formatDashDateZh(iso) {
+                var p = iso.split('-').map(Number);
+                var d = new Date(p[0], p[1] - 1, p[2]);
+                var wk = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+                return p[0] + '年' + p[1] + '月' + p[2] + '日 · 周' + wk;
+            }
+
+            function trunc(s, n) {
+                if (!s) return '';
+                s = String(s);
+                if (s.length <= n) return s;
+                return s.slice(0, n) + '…';
+            }
+
+            function planStatusZh(st) {
+                var m = { todo: '待办', in_progress: '进行中', done: '已完成', cancelled: '已取消' };
+                return m[st] || st || '—';
+            }
+
+            function openDayDash(iso) {
+                dayDashIso = iso.slice(0, 10);
+                if (dayDashOverlay) {
+                    dayDashOverlay.classList.add('is-open');
+                    dayDashOverlay.setAttribute('aria-hidden', 'false');
+                }
+                if (dayDashPanel) {
+                    dayDashPanel.classList.add('is-open');
+                    dayDashPanel.setAttribute('aria-hidden', 'false');
+                }
+                document.getElementById('day-dash-title').textContent = formatDashDateZh(dayDashIso);
+                document.getElementById('day-dash-chips').innerHTML = '';
+                document.getElementById('day-dash-trend').textContent = '';
+                loadDailyDashboard(dayDashIso);
+            }
+
+            function closeDayDash() {
+                if (dayDashOverlay) {
+                    dayDashOverlay.classList.remove('is-open');
+                    dayDashOverlay.setAttribute('aria-hidden', 'true');
+                }
+                if (dayDashPanel) {
+                    dayDashPanel.classList.remove('is-open');
+                    dayDashPanel.setAttribute('aria-hidden', 'true');
+                }
+                dayDashIso = '';
+            }
+
+            function refreshDashContextDots() {
+                lastContextRange = '';
+                if (calendar && calendar.view) {
+                    fetchMonthContext({ start: calendar.view.activeStart, end: calendar.view.activeEnd }, true);
+                }
+            }
+
+            function loadDailyDashboard(iso) {
+                document.getElementById('day-dash-err').classList.add('d-none');
+                document.getElementById('day-dash-loading').classList.remove('d-none');
+                document.getElementById('day-dash-main').classList.add('d-none');
+                fetch('/api/daily_dashboard/' + encodeURIComponent(iso), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                    .then(function (o) {
+                        document.getElementById('day-dash-loading').classList.add('d-none');
+                        if (!o.ok || !o.j || o.j.success === false) {
+                            var errEl = document.getElementById('day-dash-err');
+                            errEl.textContent = (o.j && o.j.error) ? o.j.error : '加载失败';
+                            errEl.classList.remove('d-none');
+                            return;
+                        }
+                        renderDailyDashboard(o.j);
+                        document.getElementById('day-dash-main').classList.remove('d-none');
+                    })
+                    .catch(function () {
+                        document.getElementById('day-dash-loading').classList.add('d-none');
+                        var errEl = document.getElementById('day-dash-err');
+                        errEl.textContent = '网络错误';
+                        errEl.classList.remove('d-none');
+                    });
+            }
+
+            function renderDailyDashboard(data) {
+                var md = data.market_data || {};
+                var tone = md.market_tone || {};
+                var tr = md.index_trend || {};
+                var chips = document.getElementById('day-dash-chips');
+                chips.innerHTML = '';
+                function addChip(label, cls) {
+                    if (!label) return;
+                    var sp = document.createElement('span');
+                    sp.className = 'day-dash-chip' + (cls ? ' ' + cls : '');
+                    sp.textContent = label;
+                    chips.appendChild(sp);
+                }
+                if (tone.emotion_status) addChip('情绪：' + tone.emotion_status);
+                if (tone.volume_status) addChip('量能：' + tone.volume_status, 'day-dash-chip--muted');
+                if (tone.divergence_status) addChip('背离：' + tone.divergence_status, 'day-dash-chip--muted');
+                var trendParts = [];
+                if (tr.shanghai_trend) trendParts.push('上证：' + trunc(tr.shanghai_trend, 100));
+                if (tr.shenzhen_trend) trendParts.push('深证：' + trunc(tr.shenzhen_trend, 72));
+                if (tr.chinext_trend) trendParts.push('创业板：' + trunc(tr.chinext_trend, 72));
+                document.getElementById('day-dash-trend').textContent = trendParts.join(' ｜ ') || '当日暂无指数趋势摘要';
+
+                var obj = data.objective_data || {};
+                var mom = (obj.momentum_screening && obj.momentum_screening.items) ? obj.momentum_screening.items : [];
+                var momEl = document.getElementById('day-dash-momentum');
+                momEl.innerHTML = '';
+                if (!mom.length) {
+                    momEl.innerHTML = '<li class="text-muted small">暂无动量评分数据</li>';
+                } else {
+                    mom.slice(0, 25).forEach(function (it) {
+                        var li = document.createElement('li');
+                        var st = (it.status != null && String(it.status)) ? String(it.status) : '';
+                        var badges = '';
+                        if (it.has_volume_surge) badges += '<span class="day-dash-badge day-dash-badge--vol">放量</span>';
+                        li.innerHTML = '<strong>' + escapeHtml(it.code || '—') + '</strong> · 动量 ' + escapeHtml(String(it.momentum_score != null ? it.momentum_score : '—'))
+                            + (st ? '<span class="day-dash-badge">' + escapeHtml(st) + '</span>' : '')
+                            + badges;
+                        momEl.appendChild(li);
+                    });
+                }
+
+                var scr = obj.screening_task_executions || [];
+                var scrEl = document.getElementById('day-dash-screening');
+                scrEl.innerHTML = '';
+                if (!scr.length) {
+                    scrEl.innerHTML = '<li class="text-muted small">当日无筛选任务执行记录</li>';
+                } else {
+                    scr.forEach(function (t) {
+                        var li = document.createElement('li');
+                        var sum = t.result_summary ? trunc(t.result_summary, 160) : '';
+                        li.innerHTML = escapeHtml(t.task_name || t.task_type || '任务')
+                            + ' <span class="text-muted">(' + escapeHtml(t.status || '') + ')</span>'
+                            + (sum ? '<div class="day-dash-meta">' + escapeHtml(sum) + '</div>' : '');
+                        scrEl.appendChild(li);
+                    });
+                }
+
+                var cals = data.calendar_events || [];
+                var calEl = document.getElementById('day-dash-cal');
+                calEl.innerHTML = '';
+                if (!cals.length) {
+                    calEl.innerHTML = '<li class="text-muted small">无日程</li>';
+                } else {
+                    cals.forEach(function (ev) {
+                        var ep = ev.extendedProps || {};
+                        var id = ep.db_id;
+                        var li = document.createElement('li');
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn-link';
+                        btn.textContent = ev.title || '日程';
+                        btn.addEventListener('click', function () {
+                            if (id && window._openCalEvent) window._openCalEvent(id);
+                        });
+                        li.appendChild(btn);
+                        calEl.appendChild(li);
+                    });
+                }
+
+                var sub = data.subjective_data || {};
+                var plans = sub.plans || [];
+                var pEl = document.getElementById('day-dash-plans');
+                pEl.innerHTML = '';
+                if (!plans.length) {
+                    pEl.innerHTML = '<li class="text-muted small">当日无关联计划</li>';
+                } else {
+                    plans.forEach(function (p) {
+                        var li = document.createElement('li');
+                        var a = document.createElement('a');
+                        a.href = '/plans/edit/' + encodeURIComponent(p.id);
+                        a.target = '_blank';
+                        a.rel = 'noopener';
+                        a.textContent = p.title || ('计划 #' + p.id);
+                        li.appendChild(a);
+                        li.appendChild(document.createTextNode(' · ' + planStatusZh(p.status)));
+                        pEl.appendChild(li);
+                    });
+                }
+
+                var rev = sub.review;
+                var revBox = document.getElementById('day-dash-review');
+                if (!rev) {
+                    revBox.innerHTML = '<p class="text-muted small mb-0">暂无固定复盘，可点击「添加」填写。</p>';
+                } else {
+                    revBox.innerHTML = '<div class="day-dash-review-box">'
+                        + (rev.market_emotion ? '<p><span class="text-muted">情绪</span> ' + escapeHtml(rev.market_emotion) + '</p>' : '')
+                        + (rev.sectors ? '<p><span class="text-muted">板块</span> ' + escapeHtml(rev.sectors) + '</p>' : '')
+                        + (rev.themes ? '<p><span class="text-muted">题材</span> ' + escapeHtml(rev.themes) + '</p>' : '')
+                        + (rev.major_events ? '<p><span class="text-muted">事件</span> ' + escapeHtml(trunc(rev.major_events, 400)) + '</p>' : '')
+                        + '</div>';
+                }
+
+                var reps = sub.deep_reports || [];
+                var rEl = document.getElementById('day-dash-reports');
+                rEl.innerHTML = '';
+                if (!reps.length) {
+                    rEl.innerHTML = '<li class="text-muted small">当日无深度报告</li>';
+                } else {
+                    reps.forEach(function (r) {
+                        var li = document.createElement('li');
+                        var a = document.createElement('a');
+                        a.href = '/reports/view/' + encodeURIComponent(r.id);
+                        a.target = '_blank';
+                        a.rel = 'noopener';
+                        a.style.color = '#93c5fd';
+                        a.textContent = r.title || ('报告 #' + r.id);
+                        li.appendChild(a);
+                        rEl.appendChild(li);
+                    });
+                }
+            }
+
+            function openDashReviewModal() {
+                if (!dayDashIso || !dashModalReview) return;
+                fetch('/api/daily_dashboard/' + encodeURIComponent(dayDashIso), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        var rev = (data.subjective_data && data.subjective_data.review) ? data.subjective_data.review : null;
+                        document.getElementById('dash-r-id').value = rev && rev.id ? String(rev.id) : '';
+                        document.getElementById('dash-r-date').value = dayDashIso;
+                        document.getElementById('dash-r-emotion').value = rev && rev.market_emotion ? rev.market_emotion : '';
+                        document.getElementById('dash-r-sectors').value = rev && rev.sectors ? rev.sectors : '';
+                        document.getElementById('dash-r-themes').value = rev && rev.themes ? rev.themes : '';
+                        document.getElementById('dash-r-cap').value = rev && rev.market_cap_performance ? rev.market_cap_performance : '';
+                        document.getElementById('dash-r-style').value = rev && rev.investment_style ? rev.investment_style : '';
+                        document.getElementById('dash-r-events').value = rev && rev.major_events ? rev.major_events : '';
+                        dashModalReview.classList.add('is-open');
+                        dashModalReview.setAttribute('aria-hidden', 'false');
+                    })
+                    .catch(function () { alert('无法加载复盘表单'); });
+            }
+
+            function closeDashReviewModal() {
+                if (!dashModalReview) return;
+                dashModalReview.classList.remove('is-open');
+                dashModalReview.setAttribute('aria-hidden', 'true');
+            }
+
+            function openDashPlanModal() {
+                if (!dayDashIso || !dashModalPlan) return;
+                document.getElementById('dash-p-target').value = dayDashIso;
+                document.getElementById('dash-p-title').value = '';
+                document.getElementById('dash-p-desc').value = '';
+                document.getElementById('dash-p-instruments').value = '';
+                document.getElementById('dash-p-keywords').value = '';
+                dashModalPlan.classList.add('is-open');
+                dashModalPlan.setAttribute('aria-hidden', 'false');
+            }
+
+            function closeDashPlanModal() {
+                if (!dashModalPlan) return;
+                dashModalPlan.classList.remove('is-open');
+                dashModalPlan.setAttribute('aria-hidden', 'true');
+            }
+
+            function saveDashReview() {
+                var payload = {
+                    id: document.getElementById('dash-r-id').value ? parseInt(document.getElementById('dash-r-id').value, 10) : null,
+                    date: document.getElementById('dash-r-date').value || dayDashIso,
+                    market_emotion: document.getElementById('dash-r-emotion').value,
+                    sectors: document.getElementById('dash-r-sectors').value,
+                    themes: document.getElementById('dash-r-themes').value,
+                    market_cap_performance: document.getElementById('dash-r-cap').value,
+                    investment_style: document.getElementById('dash-r-style').value,
+                    major_events: document.getElementById('dash-r-events').value,
+                };
+                fetch('/api/reviews/upsert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    credentials: 'same-origin',
+                })
+                    .then(function (r) { return r.json().then(function (j) { return { r: r, j: j }; }); })
+                    .then(function (o) {
+                        if (!o.r.ok || !o.j.success) throw new Error((o.j && o.j.error) || '保存失败');
+                        closeDashReviewModal();
+                        if (dayDashIso) loadDailyDashboard(dayDashIso);
+                        refreshDashContextDots();
+                        if (calendar) calendar.refetchEvents();
+                    })
+                    .catch(function (e) { alert(e.message || '保存失败'); });
+            }
+
+            function saveDashPlan() {
+                var td = document.getElementById('dash-p-target').value || dayDashIso;
+                var payload = {
+                    title: document.getElementById('dash-p-title').value.trim(),
+                    description: document.getElementById('dash-p-desc').value,
+                    target_date: td,
+                    instruments: document.getElementById('dash-p-instruments').value.trim(),
+                    keywords: document.getElementById('dash-p-keywords').value.trim(),
+                };
+                if (!payload.title) {
+                    alert('请填写计划标题');
+                    return;
+                }
+                fetch('/api/plans/quick', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    credentials: 'same-origin',
+                })
+                    .then(function (r) { return r.json().then(function (j) { return { r: r, j: j }; }); })
+                    .then(function (o) {
+                        if (!o.r.ok || !o.j.success) throw new Error((o.j && o.j.error) || '创建失败');
+                        closeDashPlanModal();
+                        if (dayDashIso) loadDailyDashboard(dayDashIso);
+                        refreshDashContextDots();
+                        if (calendar) calendar.refetchEvents();
+                        fillPlanSelect(fPlan);
+                    })
+                    .catch(function (e) { alert(e.message || '创建失败'); });
+            }
+
+            if (dayDashOverlay) {
+                dayDashOverlay.addEventListener('click', closeDayDash);
+            }
+            document.getElementById('day-dash-close').addEventListener('click', closeDayDash);
+            ['day-dash-btn-review-foot', 'day-dash-btn-review-head'].forEach(function (id) {
+                var b = document.getElementById(id);
+                if (b) b.addEventListener('click', openDashReviewModal);
+            });
+            ['day-dash-btn-plan-foot', 'day-dash-btn-plan-head'].forEach(function (id) {
+                var b = document.getElementById(id);
+                if (b) b.addEventListener('click', openDashPlanModal);
+            });
+
+            document.getElementById('dash-modal-review-close').addEventListener('click', closeDashReviewModal);
+            document.getElementById('dash-modal-review-cancel').addEventListener('click', closeDashReviewModal);
+            document.getElementById('dash-modal-review-save').addEventListener('click', saveDashReview);
+            dashModalReview.addEventListener('click', function (e) { if (e.target === dashModalReview) closeDashReviewModal(); });
+
+            document.getElementById('dash-modal-plan-close').addEventListener('click', closeDashPlanModal);
+            document.getElementById('dash-modal-plan-cancel').addEventListener('click', closeDashPlanModal);
+            document.getElementById('dash-modal-plan-save').addEventListener('click', saveDashPlan);
+            dashModalPlan.addEventListener('click', function (e) { if (e.target === dashModalPlan) closeDashPlanModal(); });
+
+            window.onCalendarDayClick = function (iso) {
+                openDayDash(iso);
+            };
+
+            document.getElementById('btn-fullpage-add').addEventListener('click', function () {
+                window.location.href = '{{ url_for("add_calendar_event") }}';
+            });
+
+            document.getElementById('btn-save').addEventListener('click', function () {
+                fetch('/api/calendar/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: fId.value ? parseInt(fId.value, 10) : null,
+                        title: fTitle.value.trim(),
+                        content: fContent.value,
+                        start_date: fStart.value,
+                        end_date: fEnd.value || fStart.value,
+                        reminder_type: fReminderType.value,
+                        reminder_time: parseInt(fReminderTime.value, 10),
+                        event_type: fEventType.value,
+                        event_category: fCategory.value,
+                        related_stock: fStock.value.trim(),
+                        related_plan_id: fPlan.value ? parseInt(fPlan.value, 10) : null,
+                    }),
+                })
+                    .then(function (r) {
+                        return r.json().then(function (j) {
+                            if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+                            return j;
+                        });
+                    })
+                    .then(function (res) {
+                        if (!res.success) throw new Error(res.error || '保存失败');
+                        closeModal();
+                        calendar.refetchEvents();
+                        lastContextRange = '';
+                        fetchMonthContext({ start: calendar.view.activeStart, end: calendar.view.activeEnd }, true);
+                    })
+                    .catch(function (e) { alert(e.message || '网络错误'); });
+            });
+
+            document.getElementById('btn-delete').addEventListener('click', function () {
+                var id = fId.value;
+                if (!id || !confirm('删除该条日程？')) return;
+                fetch('/api/calendar/events/' + id + '/delete', { method: 'POST' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (!res.success) return;
+                        closeModal();
+                        calendar.refetchEvents();
+                        lastContextRange = '';
+                        fetchMonthContext({ start: calendar.view.activeStart, end: calendar.view.activeEnd }, true);
+                    });
+            });
+
+            document.getElementById('btn-cancel').addEventListener('click', closeModal);
+            document.getElementById('modal-close').addEventListener('click', closeModal);
+            modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+            document.addEventListener('keydown', function (e) {
+                if (e.key !== 'Escape') return;
+                if (calQuickPalette && calQuickPalette.classList.contains('is-open')) {
+                    closeCalQuickPalette();
+                    e.preventDefault();
+                    return;
+                }
+                if (dashModalReview && dashModalReview.classList.contains('is-open')) {
+                    closeDashReviewModal();
+                    e.preventDefault();
+                    return;
+                }
+                if (dashModalPlan && dashModalPlan.classList.contains('is-open')) {
+                    closeDashPlanModal();
+                    e.preventDefault();
+                    return;
+                }
+                if (dayDashPanel && dayDashPanel.classList.contains('is-open')) {
+                    closeDayDash();
+                    e.preventDefault();
+                    return;
+                }
+                if (modal.classList.contains('is-open')) closeModal();
+            });
+
+            var toolbarResizeT = null;
+            function applyCalendarToolbar() {
+                if (calendar) calendar.setOption('headerToolbar', getHeaderToolbar());
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                var b = document.getElementById('btn-open-create');
+                if (b) b.addEventListener('click', openQuickCreateForToday);
+                var fab = document.getElementById('cal-fab');
+                if (fab) fab.addEventListener('click', openQuickCreateForToday);
+
+                fillCategorySelect(fCategory);
+                fillPlanSelect(fPlan);
+                buildCategoryLegend();
+
+                var el = document.getElementById('calendar');
+                calendar = new FullCalendar.Calendar(el, {
+                    locale: 'zh-cn',
+                    firstDay: 1,
+                    initialView: 'dayGridMonth',
+                    headerToolbar: getHeaderToolbar(),
+                    titleFormat: { year: 'numeric', month: 'long' },
+                    buttonText: { today: '今天', month: '月', week: '周', list: '列表' },
+                    height: '100%',
+                    expandRows: true,
+                    /* 拖拽/拉伸事件：服务端保存后同步「计划节点」关联的 investment_plans.target_date */
+                    editable: true,
+                    eventStartEditable: true,
+                    eventDurationEditable: true,
+                    selectable: true,
+                    selectMirror: true,
+                    dayMaxEvents: true,
+                    moreLinkText: function (n) { return '还有 ' + n + ' 项'; },
+                    navLinks: false,
+                    nowIndicator: true,
+                    datesSet: function (info) {
+                        if (renderingFromContext) return;
+                        fetchMonthContext(info);
+                    },
+                    dayCellDidMount: function (arg) { mountDayCell(arg); },
+                    eventDidMount: function (info) {
+                        var ep = info.event.extendedProps || {};
+                        var parts = [info.event.title || ''];
+                        if (ep.content) parts.push(ep.content);
+                        info.el.setAttribute('title', parts.join(' — '));
+                    },
+                    events: function (info, successCallback, failureCallback) {
+                        var u = '/api/calendar/events?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr);
+                        fetch(u, { credentials: 'same-origin' })
+                            .then(function (r) {
+                                if (r.status === 400) return successCallback([]);
+                                if (!r.ok) throw new Error('load');
+                                return r.json();
+                            })
+                            .then(function (d) { if (d) successCallback(d); })
+                            .catch(failureCallback);
+                    },
+                    select: function (info) {
+                        openCreateFromSelect(info.startStr, info.endStr);
+                        calendar.unselect();
+                    },
+                    dateClick: function (info) {
+                        info.jsEvent.preventDefault();
+                        var iso = toISOLocal(info.date);
+                        window._lastCalDayIso = iso.slice(0, 10);
+                        if (typeof window.onCalendarDayClick === 'function') {
+                            window.onCalendarDayClick(iso, info);
+                        } else {
+                            console.debug('[calendar] onCalendarDayClick 未绑定，日期:', iso);
+                        }
+                    },
+                    eventClick: function (info) {
+                        info.jsEvent.preventDefault();
+                        openEditFromEvent(info.event);
+                    },
+                    eventDrop: function (info) { saveDragResize(info.event); },
+                    eventResize: function (info) { saveDragResize(info.event); },
                 });
-        });
-
-        document.getElementById('btn-cancel').addEventListener('click', closeModal);
-        document.getElementById('modal-close').addEventListener('click', closeModal);
-        modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
-        });
-
-        var toolbarResizeT = null;
-        function applyCalendarToolbar() {
-            if (calendar) calendar.setOption('headerToolbar', getHeaderToolbar());
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            var b = document.getElementById('btn-open-create');
-            if (b) b.addEventListener('click', openQuickCreateForToday);
-            var fab = document.getElementById('cal-fab');
-            if (fab) fab.addEventListener('click', openQuickCreateForToday);
-
-            fillCategorySelect(fCategory);
-            fillPlanSelect(fPlan);
-            buildLegend();
-
-            const el = document.getElementById('calendar');
-            calendar = new FullCalendar.Calendar(el, {
-                locale: 'zh-cn',
-                firstDay: 1,
-                initialView: 'dayGridMonth',
-                headerToolbar: getHeaderToolbar(),
-                titleFormat: { year: 'numeric', month: 'long' },
-                buttonText: { today: '今天', month: '月', week: '周', list: '列表' },
-                height: window.innerWidth < 640 ? 520 : 680,
-                expandRows: true,
-                editable: true,
-                selectable: true,
-                selectMirror: true,
-                dayMaxEvents: 3,
-                moreLinkText: function (n) { return '还有 ' + n + ' 项'; },
-                navLinks: true,
-                nowIndicator: true,
-                eventDidMount: function (info) {
-                    var ep = info.event.extendedProps || {};
-                    var parts = [info.event.title || ''];
-                    if (ep.content) parts.push(ep.content);
-                    info.el.setAttribute('title', parts.join(' — '));
-                },
-                events: function (info, successCallback, failureCallback) {
-                    var u = '/api/calendar/events?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr);
-                    fetch(u)
-                        .then(function (r) {
-                            if (r.status === 400) return successCallback([]);
-                            if (!r.ok) throw new Error('load');
-                            return r.json();
-                        })
-                        .then(function (d) { if (d) successCallback(d); })
-                        .catch(failureCallback);
-                },
-                select: function (info) {
-                    openCreateFromSelect(info.startStr, info.endStr);
-                    calendar.unselect();
-                },
-                eventClick: function (info) {
-                    info.jsEvent.preventDefault();
-                    openEditFromEvent(info.event);
-                },
-                eventDrop: function (info) { saveDragResize(info.event); },
-                eventResize: function (info) { saveDragResize(info.event); },
+                calendar.render();
+                window.addEventListener('resize', function () {
+                    clearTimeout(toolbarResizeT);
+                    toolbarResizeT = setTimeout(function () {
+                        applyCalendarToolbar();
+                        calendar.updateSize();
+                    }, 200);
+                });
             });
-            calendar.render();
-            window.addEventListener('resize', function () {
-                clearTimeout(toolbarResizeT);
-                toolbarResizeT = setTimeout(applyCalendarToolbar, 200);
-            });
-            renderSidebar();
-        });
 
-        function saveDragResize(calEvent) {
-            const ep = calEvent.extendedProps;
-            const start = calEvent.startStr.slice(0, 10);
-            const endInc = fcEndExclusiveToInclusive(calEvent.startStr, calEvent.endStr || null);
-            fetch('/api/calendar/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: ep.db_id,
-                    title: calEvent.title,
-                    content: ep.content || '',
-                    start_date: start,
-                    end_date: endInc,
-                    reminder_type: ep.reminder_type || 'notification',
-                    reminder_time: ep.reminder_time != null ? ep.reminder_time : 0,
-                    event_type: ep.event_type || 'single',
-                    event_category: ep.event_category || 'other',
-                    related_stock: ep.related_stock || '',
-                    related_plan_id: ep.related_plan_id || null,
-                }),
-            })
-                .then(function (r) { return r.json().then(function (j) { return { r: r, j: j }; }); })
-                .then(function (o) {
-                    if (!o.r.ok) { throw new Error((o.j && o.j.error) || '同步失败'); }
-                    if (!o.j.success) { throw new Error(o.j.error || '同步失败'); }
-                    renderSidebar();
-                })
-                .catch(function (e) { alert(e.message || '同步失败'); calEvent.revert(); });
-        }
-
-        setInterval(function () {
-            fetch('/api/calendar/check_reminders')
-                .then(r => r.json())
-                .then(function (reminders) {
-                    reminders.forEach(function (rem) { showNotification('提醒: ' + rem.title + ' — ' + rem.date); });
-                })
-                .catch(function () {});
-        }, 60000);
-
-        function showNotification(message) {
-            const n = document.createElement('div');
-            n.style.cssText = 'position:fixed;top:1rem;right:1rem;padding:0.6rem 1rem;background:#3730a3;color:#fff;border-radius:8px;z-index:5000;max-width:20rem;font-size:0.85rem;box-shadow:0 8px 24px rgba(0,0,0,0.4);';
-            n.textContent = message;
-            document.body.appendChild(n);
-            setTimeout(function () { n.remove(); }, 5000);
-        }
+            setInterval(function () {
+                fetch('/api/calendar/check_reminders', { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (reminders) {
+                        reminders.forEach(function (rem) {
+                            var n = document.createElement('div');
+                            n.style.cssText = 'position:fixed;top:1rem;right:1rem;padding:0.6rem 1rem;background:#3730a3;color:#fff;border-radius:8px;z-index:5000;max-width:20rem;font-size:0.85rem;box-shadow:0 8px 24px rgba(0,0,0,0.4);';
+                            n.textContent = '提醒: ' + rem.title + ' — ' + rem.date;
+                            document.body.appendChild(n);
+                            setTimeout(function () { n.remove(); }, 5000);
+                        });
+                    })
+                    .catch(function () {});
+            }, 60000);
         })();
     </script>
 {% endblock %}
@@ -841,9 +1778,7 @@
         if (b) {
             b.addEventListener('click', function () {
                 var kw = (fTitle && fTitle.value) ? fTitle.value.trim() : '';
-                if (typeof openCrawlerDrawer === 'function') {
-                    openCrawlerDrawer(kw || '市场');
-                }
+                if (typeof openCrawlerDrawer === 'function') openCrawlerDrawer(kw || '市场');
             });
         }
     })();
